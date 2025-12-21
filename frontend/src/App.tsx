@@ -31,6 +31,7 @@ function App() {
   const [activeLink, setActiveLink] = useState('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((currentUser: FirebaseUser | null) => {
@@ -38,6 +39,19 @@ function App() {
       setLoading(false);
     });
     return () => unsubscribe();
+  }, []);
+
+  // Close profile dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.profile-menu-container')) {
+        setIsProfileOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -449,29 +463,75 @@ function App() {
                   Notifications
                   <span className="absolute top-1 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
                 </button>
-                <div className="flex items-center space-x-2">
-                  {user.photoURL ? (
-                    <img 
-                      src={user.photoURL} 
-                      alt={user.displayName || 'User'} 
-                      className="w-8 h-8 rounded-full"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-medium">
-                      {user.displayName?.charAt(0) || user.email?.charAt(0).toUpperCase()}
+                
+                <div className="relative profile-menu-container">
+                  <button
+                    onClick={() => setIsProfileOpen(!isProfileOpen)}
+                    className="flex items-center space-x-2 focus:outline-none"
+                  >
+                    {user.photoURL ? (
+                      <img 
+                        src={user.photoURL} 
+                        alt={user.displayName || 'User'} 
+                        className="w-8 h-8 rounded-full"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-medium">
+                        {user.displayName?.charAt(0) || user.email?.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-sm font-medium text-gray-700">
+                      {user.displayName || user.email?.split('@')[0]}
+                    </span>
+                    <svg 
+                      className={`w-4 h-4 text-gray-500 transition-transform ${isProfileOpen ? 'transform rotate-180' : ''}`} 
+                      fill="none" 
+                      viewBox="0 0 24 24" 
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {isProfileOpen && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-100">
+                      <a
+                        href="#"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          // Handle dashboard click
+                          setIsProfileOpen(false);
+                        }}
+                      >
+                        Dashboard
+                      </a>
+                      <a
+                        href="#"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          // Handle profile click
+                          setIsProfileOpen(false);
+                        }}
+                      >
+                        Profile
+                      </a>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleSignOut();
+                          setIsProfileOpen(false);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        Sign Out
+                      </button>
                     </div>
                   )}
-                  <span className="text-sm font-medium text-gray-700">
-                    {user.displayName || user.email?.split('@')[0]}
-                  </span>
                 </div>
-                <button 
-                  onClick={handleSignOut}
-                  className="ml-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
-                >
-                  Sign Out
-                </button>
               </div>
             ) : (
               <div className="hidden md:flex items-center space-x-4">
@@ -577,8 +637,6 @@ function App() {
                 </button>
                 <button className="w-full sm:w-auto px-8 py-4 bg-white text-emerald-600 border-2 border-emerald-600 rounded-full hover:bg-emerald-50 transition-all font-semibold text-lg">
                   Become a Volunteer
-                  
-                  
                 </button>
               </div>
             </div>
