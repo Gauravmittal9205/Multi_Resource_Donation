@@ -39,20 +39,40 @@ const googleProvider = new GoogleAuthProvider();
 // Sign up with email and password
 export const signUpWithEmail = async (email: string, password: string, displayName: string, userType: UserType, organizationName?: string) => {
   try {
+    // 1. Create user in Firebase Authentication
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const { user } = userCredential;
     
-    // Update user profile with display name
-    await updateProfile(user, { displayName });
+    // 2. Get Firebase ID token
+    const idToken = await user.getIdToken();
     
-    // Here you would typically store additional user data in Firestore
-    // For example: userType and organizationName
-    // await setDoc(doc(db, 'users', user.uid), {
-    //   userType,
-    //   organizationName: userType === 'ngo' ? organizationName : null,
-    //   email: user.email,
-    //   displayName,
-    // });
+    // 3. Prepare user data for MongoDB
+    const userData = {
+      name: displayName,
+      email: user.email,
+      userType,
+      organizationName: userType === 'ngo' ? organizationName : undefined,
+      phone: '',
+      firebaseUid: user.uid
+    };
+
+    // 4. Save user data to your backend
+    const response = await fetch('http://localhost:5000/api/v1/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
+      },
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to register user in backend');
+    }
+
+    // 5. Update user profile with display name
+    await updateProfile(user, { displayName });
     
     return { user, userType };
   } catch (error: any) {
