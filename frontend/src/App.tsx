@@ -1,4 +1,3 @@
-import { Heart, Mail, Lock, LogIn, UserPlus, User, LogOut, Package, Users, MapPin, Shield, CheckCircle, Clock, TrendingUp, Camera, Frown, Loader2, ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { signInWithGoogle, signOutUser, onAuthStateChanged, signInWithEmail, signUpWithEmail } from './firebase';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -29,6 +28,9 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLanding, setShowLanding] = useState(true);
+  const [activeLink, setActiveLink] = useState('home');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((currentUser: FirebaseUser | null) => {
@@ -98,6 +100,7 @@ function App() {
     setShowLanding(false);
   };
 
+
   // Handle back button click
   const handleGoBack = () => {
     if (authMode === 'signup') {
@@ -109,16 +112,13 @@ function App() {
     }
   };
 
-  // Handle sign up click from landing page
-  const handleSignUpClick = () => {
-    setAuthMode('signup');
-    setShowLanding(false);
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -131,17 +131,14 @@ function App() {
             <div className="p-8">
               <button 
                 onClick={handleGoBack}
-                className="flex items-center text-gray-500 hover:text-gray-700 mb-6 transition-colors group"
+                className="text-sm font-medium text-emerald-600 hover:text-emerald-700 mb-6 transition-colors flex items-center"
               >
-                <ArrowLeft className="w-5 h-5 mr-1 group-hover:-translate-x-1 transition-transform" />
-                <span className="text-sm font-medium">
-                  {authMode === 'signup' ? 'Back to Login' : 'Back to Home'}
-                </span>
+                ← {authMode === 'signup' ? 'Back to Login' : 'Back to Home'}
               </button>
               <div className="text-center mb-8">
                 <div className="flex justify-center mb-4">
-                  <div className="p-3 bg-emerald-100 rounded-xl">
-                    <Heart className="w-8 h-8 text-emerald-600" />
+                  <div className="p-3 bg-emerald-100 rounded-xl text-emerald-600 text-2xl font-bold">
+                    ❤️
                   </div>
                 </div>
                 <h1 className="text-2xl font-bold text-gray-900">
@@ -155,9 +152,8 @@ function App() {
               </div>
 
               {error && (
-                <div className="mb-6 p-3 bg-red-50 text-red-600 rounded-lg text-sm flex items-start">
-                  <Frown className="w-4 h-4 mt-0.5 mr-2 flex-shrink-0" />
-                  <span>{error}</span>
+                <div className="mb-6 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+                  <span>⚠️ {error}</span>
                 </div>
               )}
 
@@ -168,8 +164,8 @@ function App() {
                       Full Name
                     </label>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <User className="h-5 w-5 text-gray-400" />
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                        👤
                       </div>
                       <input
                         id="name"
@@ -190,8 +186,8 @@ function App() {
                     Email address
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Mail className="h-5 w-5 text-gray-400" />
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                      📧
                     </div>
                     <input
                       id="email"
@@ -212,8 +208,8 @@ function App() {
                     Password
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Lock className="h-5 w-5 text-gray-400" />
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                      🔒
                     </div>
                     <input
                       id="password"
@@ -246,8 +242,7 @@ function App() {
                               : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
                           }`}
                         >
-                          <User className="w-4 h-4 mr-2" />
-                          Donor
+                          <span>Donor</span>
                         </button>
                         <button
                           type="button"
@@ -258,8 +253,7 @@ function App() {
                               : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
                           }`}
                         >
-                          <Users className="w-4 h-4 mr-2" />
-                          NGO
+                          <span>NGO</span>
                         </button>
                       </div>
                     </div>
@@ -292,19 +286,19 @@ function App() {
                   >
                     {isSubmitting ? (
                       <>
-                        <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                        <span className="inline-block mr-2 h-4 w-4 border-2 border-gray-200 border-t-emerald-600 rounded-full animate-spin"></span>
                         {authMode === 'login' ? 'Signing in...' : 'Creating account...'}
                       </>
                     ) : (
                       <>
                         {authMode === 'login' ? (
                           <>
-                            <LogIn className="w-4 h-4 mr-2" />
+                            <span className="mr-2">→</span>
                             Sign in
                           </>
                         ) : (
                           <>
-                            <UserPlus className="w-4 h-4 mr-2" />
+                            <span className="mr-2">+</span>
                             Create account
                           </>
                         )}
@@ -385,51 +379,184 @@ function App() {
   return (
     <div className="min-h-screen bg-white">
       <header className="fixed top-0 w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-50">
-        <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Heart className="w-8 h-8 text-emerald-600" />
-            <span className="text-xl font-bold text-gray-900">ShareCare</span>
-          </div>
-          {user ? (
-            <div className="flex items-center space-x-4">
+        <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-8">
               <div className="flex items-center space-x-2">
-                {user.photoURL ? (
-                  <img 
-                    src={user.photoURL} 
-                    alt={user.displayName || 'User'} 
-                    className="w-8 h-8 rounded-full"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <User className="w-5 h-5 text-emerald-700" />
-                  </div>
-                )}
-                <span className="text-sm font-medium text-gray-700">
-                  {user.displayName || user.email?.split('@')[0]}
-                </span>
+                <span className="text-2xl font-bold text-emerald-600">ShareCare</span>
               </div>
-              <button 
-                onClick={handleSignOut}
-                className="px-4 py-2 flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              
+              {/* Desktop Navigation */}
+              <div className="hidden md:flex items-center space-x-1">
+                <button 
+                  onClick={() => setActiveLink('home')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'home' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  Home
+                </button>
+                <button 
+                  onClick={() => setActiveLink('donate')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'donate' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  Donate Items
+                </button>
+                <button 
+                  onClick={() => setActiveLink('requests')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'requests' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  View Requests
+                </button>
+                <button 
+                  onClick={() => setActiveLink('about')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'about' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  About Us
+                </button>
+              </div>
+            </div>
+
+            {/* Search Bar - Desktop */}
+            <div className="hidden md:flex items-center">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search donations..."
+                  className="w-64 px-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                <button className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-emerald-600">
+                  Search
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile menu button */}
+            <div className="md:hidden">
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-emerald-600 hover:bg-gray-100 focus:outline-none"
               >
-                <LogOut className="w-4 h-4" />
-                <span>Sign Out</span>
+                <span className="sr-only">Open main menu</span>
+                {isMobileMenuOpen ? 'Close' : 'Menu'}
               </button>
             </div>
-          ) : (
-            <button 
-              onClick={handleSignIn}
-              className="px-6 py-2 bg-emerald-600 text-white rounded-full hover:bg-emerald-700 transition-colors font-medium flex items-center space-x-2"
-            >
-              <img 
-                src="https://www.google.com/favicon.ico" 
-                alt="Google" 
-                className="w-4 h-4" 
-              />
-              <span>Sign In with Google</span>
-            </button>
-          )}
+
+            {/* User Actions */}
+            {user ? (
+              <div className="hidden md:flex items-center space-x-4">
+                <button className="relative px-3 py-2 text-sm font-medium text-gray-700 hover:text-emerald-600">
+                  Notifications
+                  <span className="absolute top-1 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+                </button>
+                <div className="flex items-center space-x-2">
+                  {user.photoURL ? (
+                    <img 
+                      src={user.photoURL} 
+                      alt={user.displayName || 'User'} 
+                      className="w-8 h-8 rounded-full"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-medium">
+                      {user.displayName?.charAt(0) || user.email?.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="text-sm font-medium text-gray-700">
+                    {user.displayName || user.email?.split('@')[0]}
+                  </span>
+                </div>
+                <button 
+                  onClick={handleSignOut}
+                  className="ml-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <div className="hidden md:flex items-center space-x-4">
+                <button 
+                  onClick={handleSignIn}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-emerald-600"
+                >
+                  Log In
+                </button>
+                <button 
+                  onClick={() => setAuthMode('signup')}
+                  className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
+            
+            {/* Mobile Menu */}
+            {isMobileMenuOpen && (
+              <div className="md:hidden absolute top-16 left-0 right-0 bg-white border-t border-gray-200 shadow-lg py-2">
+                <div className="px-4 pt-2 pb-3 space-y-1">
+                  <button 
+                    onClick={() => {
+                      setActiveLink('home');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium ${activeLink === 'home' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                  >
+                    Home
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setActiveLink('donate');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium ${activeLink === 'donate' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                  >
+                    Donate Items
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setActiveLink('requests');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium ${activeLink === 'requests' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                  >
+                    View Requests
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setActiveLink('about');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium ${activeLink === 'about' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                  >
+                    About Us
+                  </button>
+                  
+                  {!user && (
+                    <div className="pt-4 border-t border-gray-200">
+                      <button 
+                        onClick={() => {
+                          setAuthMode('login');
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        Log In
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setAuthMode('signup');
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="mt-1 block w-full text-left px-3 py-2 rounded-md text-base font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                      >
+                        Sign Up
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </nav>
       </header>
 
@@ -450,6 +577,8 @@ function App() {
                 </button>
                 <button className="w-full sm:w-auto px-8 py-4 bg-white text-emerald-600 border-2 border-emerald-600 rounded-full hover:bg-emerald-50 transition-all font-semibold text-lg">
                   Become a Volunteer
+                  
+                  
                 </button>
               </div>
             </div>
@@ -499,8 +628,8 @@ function App() {
 
             <div className="grid md:grid-cols-3 gap-8 lg:gap-12">
               <div className="text-center">
-                <div className="w-20 h-20 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                  <Package className="w-10 h-10 text-white" />
+                <div className="w-20 h-20 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg text-3xl text-white">
+                  📦
                 </div>
                 <div className="inline-block px-4 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-semibold mb-4">
                   Step 1
@@ -513,8 +642,8 @@ function App() {
               </div>
 
               <div className="text-center">
-                <div className="w-20 h-20 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                  <MapPin className="w-10 h-10 text-white" />
+                <div className="w-20 h-20 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg text-3xl text-white">
+                  📍
                 </div>
                 <div className="inline-block px-4 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-semibold mb-4">
                   Step 2
@@ -527,8 +656,8 @@ function App() {
               </div>
 
               <div className="text-center">
-                <div className="w-20 h-20 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                  <Users className="w-10 h-10 text-white" />
+                <div className="w-20 h-20 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg text-3xl text-white">
+                  👥
                 </div>
                 <div className="inline-block px-4 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-semibold mb-4">
                   Step 3
@@ -554,8 +683,8 @@ function App() {
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
               <div className="p-6 border border-gray-200 rounded-2xl hover:border-emerald-300 hover:shadow-lg transition-all">
-                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
-                  <Package className="w-6 h-6 text-emerald-600" />
+                <div className="flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-full mb-4 text-emerald-600 text-xl">
+                  📦
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">Category-Based Donations</h3>
                 <p className="text-gray-600">
@@ -564,8 +693,8 @@ function App() {
               </div>
 
               <div className="p-6 border border-gray-200 rounded-2xl hover:border-emerald-300 hover:shadow-lg transition-all">
-                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-4">
-                  <Clock className="w-6 h-6 text-orange-600" />
+                <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-full mb-4 text-orange-600 text-xl">
+                  ⏱️
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">Real-Time Notifications</h3>
                 <p className="text-gray-600">
@@ -574,8 +703,8 @@ function App() {
               </div>
 
               <div className="p-6 border border-gray-200 rounded-2xl hover:border-emerald-300 hover:shadow-lg transition-all">
-                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
-                  <MapPin className="w-6 h-6 text-emerald-600" />
+                <div className="flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-full mb-4 text-emerald-600 text-xl">
+                  📍
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">Location-Based Pickup</h3>
                 <p className="text-gray-600">
@@ -584,8 +713,8 @@ function App() {
               </div>
 
               <div className="p-6 border border-gray-200 rounded-2xl hover:border-emerald-300 hover:shadow-lg transition-all">
-                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-4">
-                  <Lock className="w-6 h-6 text-orange-600" />
+                <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-full mb-4 text-orange-600 text-xl">
+                  🔒
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">OTP Verification</h3>
                 <p className="text-gray-600">
@@ -594,8 +723,8 @@ function App() {
               </div>
 
               <div className="p-6 border border-gray-200 rounded-2xl hover:border-emerald-300 hover:shadow-lg transition-all">
-                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
-                  <Camera className="w-6 h-6 text-emerald-600" />
+                <div className="flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-full mb-4 text-emerald-600 text-xl">
+                  📸
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">Image Proof</h3>
                 <p className="text-gray-600">
@@ -604,8 +733,8 @@ function App() {
               </div>
 
               <div className="p-6 border border-gray-200 rounded-2xl hover:border-emerald-300 hover:shadow-lg transition-all">
-                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-4">
-                  <TrendingUp className="w-6 h-6 text-orange-600" />
+                <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-full mb-4 text-orange-600 text-xl">
+                  📈
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">Impact Tracking</h3>
                 <p className="text-gray-600">
@@ -662,7 +791,7 @@ function App() {
             <div className="grid md:grid-cols-3 gap-8">
               <div className="text-center p-8 bg-gray-50 rounded-2xl">
                 <div className="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Shield className="w-8 h-8 text-white" />
+                  🛡️
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-3">Verified NGOs</h3>
                 <p className="text-gray-600 leading-relaxed">
@@ -673,7 +802,7 @@ function App() {
 
               <div className="text-center p-8 bg-gray-50 rounded-2xl">
                 <div className="w-16 h-16 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Camera className="w-8 h-8 text-white" />
+                  📸
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-3">Photo Verification</h3>
                 <p className="text-gray-600 leading-relaxed">
@@ -684,7 +813,7 @@ function App() {
 
               <div className="text-center p-8 bg-gray-50 rounded-2xl">
                 <div className="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle className="w-8 h-8 text-white" />
+                  ✔️
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-3">Admin Monitoring</h3>
                 <p className="text-gray-600 leading-relaxed">
@@ -722,7 +851,9 @@ function App() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center space-x-2 mb-4">
-                <Heart className="w-6 h-6 text-emerald-400" />
+                <div className="flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-full mb-4 text-emerald-600 text-xl">
+                  👥
+                </div>
                 <span className="text-lg font-bold">ShareCare</span>
               </div>
               <p className="text-gray-400 text-sm">
