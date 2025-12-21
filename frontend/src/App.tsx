@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { signInWithGoogle, signOutUser, onAuthStateChanged, signInWithEmail, signUpWithEmail } from './firebase';
 import type { User as FirebaseUser } from 'firebase/auth';
+import AboutUs from './components/AboutUs';
 
 // Auth form type
 type AuthMode = 'login' | 'signup';
@@ -32,6 +33,7 @@ function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((currentUser: FirebaseUser | null) => {
@@ -389,6 +391,178 @@ function App() {
     );
   }
 
+  // Render About Us page if showAbout is true
+  if (showAbout) {
+    return (
+      <div className="min-h-screen bg-white">
+        <header className="fixed top-0 w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-50">
+          <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-8">
+                <div className="flex items-center space-x-2">
+                  <span className="text-2xl font-bold text-emerald-600">ShareCare</span>
+                </div>
+                
+                {/* Desktop Navigation */}
+                <div className="hidden md:flex items-center space-x-1">
+                  <button 
+                    onClick={() => { setShowAbout(false); setActiveLink('home'); }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'home' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    Home
+                  </button>
+                  <button 
+                    onClick={() => { setShowAbout(false); setActiveLink('donate'); }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'donate' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    Donate Items
+                  </button>
+                  <button 
+                    onClick={() => { setShowAbout(false); setActiveLink('requests'); }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'requests' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    View Requests
+                  </button>
+                  <button 
+                    className="px-4 py-2 rounded-md text-sm font-medium bg-emerald-50 text-emerald-700"
+                  >
+                    About Us
+                  </button>
+                </div>
+              </div>
+
+              {/* Search Bar - Desktop */}
+              <div className="hidden md:flex items-center">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search donations..."
+                    className="w-64 px-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  <button className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-emerald-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Mobile menu button */}
+              <div className="md:hidden">
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-emerald-600 hover:bg-gray-100 focus:outline-none"
+                >
+                  <span className="sr-only">Open main menu</span>
+                  {isMobileMenuOpen ? 'Close' : 'Menu'}
+                </button>
+              </div>
+
+              {/* User Actions */}
+              {user ? (
+                <div className="hidden md:flex items-center space-x-4">
+                  <button className="relative px-3 py-2 text-sm font-medium text-gray-700 hover:text-emerald-600">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <span className="absolute top-1 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+                  </button>
+                  
+                  <div className="relative profile-menu-container">
+                    <button
+                      onClick={() => setIsProfileOpen(!isProfileOpen)}
+                      className="flex items-center space-x-2 focus:outline-none"
+                    >
+                      {user.photoURL ? (
+                        <img 
+                          src={user.photoURL} 
+                          alt={user.displayName || 'User'} 
+                          className="w-8 h-8 rounded-full"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-medium">
+                          {user.displayName?.charAt(0) || user.email?.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className="text-sm font-medium text-gray-700">
+                        {user.displayName || user.email?.split('@')[0]}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="hidden md:flex items-center space-x-4">
+                  <button 
+                    onClick={handleSignIn}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-emerald-600"
+                  >
+                    Sign In
+                  </button>
+                  <button 
+                    onClick={() => { setAuthMode('signup'); setShowLanding(false); }}
+                    className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700"
+                  >
+                    Sign Up
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile menu */}
+            {isMobileMenuOpen && (
+              <div className="md:hidden mt-2 pb-3 space-y-1">
+                <button 
+                  onClick={() => { setShowAbout(false); setActiveLink('home'); setIsMobileMenuOpen(false); }}
+                  className="block w-full text-left px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-md"
+                >
+                  Home
+                </button>
+                <button 
+                  onClick={() => { setShowAbout(false); setActiveLink('donate'); setIsMobileMenuOpen(false); }}
+                  className="block w-full text-left px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-md"
+                >
+                  Donate Items
+                </button>
+                <button 
+                  onClick={() => { setShowAbout(false); setActiveLink('requests'); setIsMobileMenuOpen(false); }}
+                  className="block w-full text-left px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-md"
+                >
+                  View Requests
+                </button>
+                <button 
+                  className="block w-full text-left px-3 py-2 text-base font-medium bg-emerald-50 text-emerald-700 rounded-md"
+                >
+                  About Us
+                </button>
+                
+                {!user && (
+                  <div className="pt-4 border-t border-gray-200 mt-2">
+                    <button 
+                      onClick={() => { handleSignIn(); setIsMobileMenuOpen(false); }}
+                      className="w-full text-left px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-md"
+                    >
+                      Sign In
+                    </button>
+                    <button 
+                      onClick={() => { setAuthMode('signup'); setShowLanding(false); setIsMobileMenuOpen(false); }}
+                      className="w-full text-left px-3 py-2 text-base font-medium text-emerald-600 hover:bg-emerald-50 rounded-md"
+                    >
+                      Sign Up
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </nav>
+        </header>
+        <AboutUs onBack={() => setShowAbout(false)} />
+      </div>
+    );
+  }
+
   // Main app content when user is logged in
   return (
     <div className="min-h-screen bg-white">
@@ -421,8 +595,8 @@ function App() {
                   View Requests
                 </button>
                 <button 
-                  onClick={() => setActiveLink('about')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'about' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                  onClick={() => setShowAbout(true)}
+                  className="px-4 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-emerald-700"
                 >
                   About Us
                 </button>
