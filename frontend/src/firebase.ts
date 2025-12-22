@@ -34,7 +34,6 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
 
 // Sign up with email and password
 export const signUpWithEmail = async (email: string, password: string, displayName: string, userType: UserType, organizationName?: string) => {
