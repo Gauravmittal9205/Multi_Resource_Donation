@@ -3,6 +3,7 @@ import { signInWithGoogle, signOutUser, onAuthStateChanged, signInWithEmail, sig
 import type { User as FirebaseUser } from 'firebase/auth';
 import AboutUs from './components/AboutUs';
 import DonorDashboard from './components/DonorDashboard';
+import ProfilePage from './components/ProfilePage';
 
 // Auth form type
 type AuthMode = 'login' | 'signup';
@@ -735,7 +736,7 @@ function App() {
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                         onClick={(e) => {
                           e.preventDefault();
-                          // Handle profile click
+                          setActiveLink('profile');
                           setIsProfileOpen(false);
                         }}
                       >
@@ -850,6 +851,9 @@ function App() {
           />
         ) : (
           <>
+        {activeLink === 'profile' ? (
+          <ProfilePage />
+        ) : (<>
         <section className="relative bg-gradient-to-br from-emerald-50 via-white to-orange-50 py-20 sm:py-28">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-4xl mx-auto">
@@ -1133,6 +1137,7 @@ function App() {
         </section>
           </>
         )}
+        </>)}
       </main>
 
       <footer className="bg-gray-900 text-white py-12">
