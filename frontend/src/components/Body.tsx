@@ -21,7 +21,7 @@ export default function Body({ activeLink, user, setActiveLink }: BodyProps) {
           <>
         {activeLink === 'profile' ? (
             
-          <ProfilePage />
+          <ProfilePage onNavigateToDashboard={() => setActiveLink('donor-dashboard')} />
         ) : (<>
         <section className="relative bg-gradient-to-br from-emerald-50 via-white to-orange-50 py-20 sm:py-28">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

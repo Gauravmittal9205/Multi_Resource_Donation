@@ -8,12 +8,14 @@ const path = require('path');
 
 // Route files
 const auth = require('./routes/auth');
+const profileRoutes = require('./routes/profile');
 
 // Create Express app
 const app = express();
 
-// Body parser
-app.use(express.json());
+// Body parser (increase limits for profile payloads)
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Cookie parser
 app.use(cookieParser());
@@ -28,6 +30,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // Mount routers
 app.use('/api/v1/auth', auth);
+app.use('/api/v1/profile', profileRoutes);
 
 // Set static folder
 app.use(express.static(path.join(__dirname, 'public')));
