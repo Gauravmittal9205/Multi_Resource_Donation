@@ -23,12 +23,11 @@ const AboutUs = ({ onBack }: AboutUsProps) => {
   ];
 
   return (
-    <div className="min-h-screen pt-24 pb-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
+    <div className="min-h-screen pt-24 pb-20 px-4 sm:px-6 lg:px-8 bg-gray-50 space-y-20">
       {/* Hero Section */}
       <div className="max-w-7xl mx-auto text-center mb-16">
         <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl md:text-6xl">
-          <span className="block">About ShareCare</span>
-          <span className="block text-emerald-600">Our Mission & Vision</span>
+          About ShareCare
         </h1>
         <p className="mt-6 max-w-3xl mx-auto text-xl text-gray-500">
           Connecting generosity with need to create a world where everyone has access to the resources they require.
@@ -36,7 +35,7 @@ const AboutUs = ({ onBack }: AboutUsProps) => {
       </div>
 
       {/* Our Story */}
-      <div className="max-w-7xl mx-auto mb-20">
+      <div className="max-w-7xl mx-auto">
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <div className="lg:grid lg:grid-cols-2 lg:gap-8">
@@ -70,7 +69,7 @@ const AboutUs = ({ onBack }: AboutUsProps) => {
 
 
       {/* NGO Screening Section */}
-      <div className="max-w-7xl mx-auto mb-20">
+      <div className="max-w-7xl mx-auto pt-10">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Screening NGOs for fundraising</h2>
           <p className="mt-4 text-xl text-gray-500">We conduct thorough due diligence to ensure NGOs meet eligibility criteria to raise funds on ShareCare</p>
@@ -148,7 +147,7 @@ const AboutUs = ({ onBack }: AboutUsProps) => {
       </div>
 
       {/* How It Works Section */}
-      <div className="max-w-7xl mx-auto mb-20">
+      <div className="max-w-7xl mx-auto pt-10">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">How It Works?</h2>
           <p className="mt-4 text-xl text-gray-500">A simple and transparent donation process</p>
@@ -229,7 +228,7 @@ const AboutUs = ({ onBack }: AboutUsProps) => {
       </div>
 
       {/* What We Do Section */}
-      <div className="max-w-7xl mx-auto mb-20">
+      <div className="max-w-7xl mx-auto pt-10">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">🤝 What We Do</h2>
           <p className="mt-4 text-xl text-gray-500">
@@ -312,7 +311,7 @@ const AboutUs = ({ onBack }: AboutUsProps) => {
       </div>
 
       {/* CTA Section */}
-      <div className="max-w-7xl mx-auto text-center">
+      <div className="max-w-7xl mx-auto text-center pt-10">
         <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl p-8 sm:p-12 text-white">
           <h2 className="text-3xl font-extrabold mb-4">Ready to make a difference?</h2>
           <p className="text-xl mb-8 max-w-3xl mx-auto">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { signInWithGoogle, signOutUser, onAuthStateChanged, signInWithEmail, signUpWithEmail } from './firebase';
 import type { User as FirebaseUser } from 'firebase/auth';
 import AboutUs from './components/AboutUs';
+import DonorDashboard from './components/DonorDashboard';
 
 // Auth form type
 type AuthMode = 'login' | 'signup';
@@ -463,7 +464,7 @@ function App() {
               {/* User Actions */}
               {user ? (
                 <div className="hidden md:flex items-center space-x-4">
-                  <button className="relative px-3 py-2 text-sm font-medium text-gray-700 hover:text-emerald-600">
+                  <button className="relative px-3 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
@@ -490,7 +491,54 @@ function App() {
                       <span className="text-sm font-medium text-gray-700">
                         {user.displayName || user.email?.split('@')[0]}
                       </span>
+                      <svg
+                        className={`w-4 h-4 text-gray-500 transition-transform ${isProfileOpen ? 'transform rotate-180' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
                     </button>
+
+                    {/* Dropdown Menu */}
+                    {isProfileOpen && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-100">
+                        <a
+                          href="#"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setShowAbout(false);
+                            setActiveLink('donor-dashboard');
+                            setIsProfileOpen(false);
+                          }}
+                        >
+                          Dashboard
+                        </a>
+                        <a
+                          href="#"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            // Handle profile click
+                            setIsProfileOpen(false);
+                          }}
+                        >
+                          Profile
+                        </a>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleSignOut();
+                            setIsProfileOpen(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          Sign Out
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -516,24 +564,24 @@ function App() {
               <div className="md:hidden mt-2 pb-3 space-y-1">
                 <button 
                   onClick={() => { setShowAbout(false); setActiveLink('home'); setIsMobileMenuOpen(false); }}
-                  className="block w-full text-left px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-md"
+                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-md"
                 >
                   Home
                 </button>
                 <button 
                   onClick={() => { setShowAbout(false); setActiveLink('donate'); setIsMobileMenuOpen(false); }}
-                  className="block w-full text-left px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-md"
+                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-md"
                 >
                   Donate Items
                 </button>
                 <button 
                   onClick={() => { setShowAbout(false); setActiveLink('requests'); setIsMobileMenuOpen(false); }}
-                  className="block w-full text-left px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-md"
+                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-md"
                 >
                   View Requests
                 </button>
                 <button 
-                  className="block w-full text-left px-3 py-2 text-base font-medium bg-emerald-50 text-emerald-700 rounded-md"
+                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium bg-emerald-50 text-emerald-700 rounded-md"
                 >
                   About Us
                 </button>
@@ -542,13 +590,13 @@ function App() {
                   <div className="pt-4 border-t border-gray-200 mt-2">
                     <button 
                       onClick={() => { handleSignIn(); setIsMobileMenuOpen(false); }}
-                      className="w-full text-left px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-md"
+                      className="w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600 rounded-md"
                     >
                       Sign In
                     </button>
                     <button 
                       onClick={() => { setAuthMode('signup'); setShowLanding(false); setIsMobileMenuOpen(false); }}
-                      className="w-full text-left px-3 py-2 text-base font-medium text-emerald-600 hover:bg-emerald-50 rounded-md"
+                      className="mt-1 w-full text-left px-3 py-2 rounded-md text-base font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-md"
                     >
                       Sign Up
                     </button>
@@ -676,7 +724,7 @@ function App() {
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                         onClick={(e) => {
                           e.preventDefault();
-                          // Handle dashboard click
+                          setActiveLink('donor-dashboard');
                           setIsProfileOpen(false);
                         }}
                       >
@@ -795,6 +843,13 @@ function App() {
       </header>
 
       <main className="pt-16">
+        {activeLink === 'donor-dashboard' ? (
+          <DonorDashboard
+            user={user}
+            onBack={() => setActiveLink('home')}
+          />
+        ) : (
+          <>
         <section className="relative bg-gradient-to-br from-emerald-50 via-white to-orange-50 py-20 sm:py-28">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-4xl mx-auto">
@@ -1076,6 +1131,8 @@ function App() {
             </div>
           </div>
         </section>
+          </>
+        )}
       </main>
 
       <footer className="bg-gray-900 text-white py-12">
