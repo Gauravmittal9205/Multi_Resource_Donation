@@ -2,6 +2,15 @@ const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 const asyncHandler = require('../middleware/async');
 
+exports.getUserByFirebaseUid = asyncHandler(async (req, res) => {
+  const { firebaseUid } = req.params;
+  const user = await User.findOne({ firebaseUid }).select('userType organizationName firebaseUid');
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'User not found' });
+  }
+  return res.status(200).json({ success: true, data: user });
+});
+
 // @desc    Register user
 // @route   POST /api/v1/auth/register
 // @access  Public
