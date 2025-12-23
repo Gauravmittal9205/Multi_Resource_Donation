@@ -9,8 +9,8 @@ const path = require('path');
 // Route files
 const auth = require('./routes/auth');
 const profileRoutes = require('./routes/profile');
-<<<<<<<<< Temporary merge branch 1
 const impactRoutes = require('./routes/impact');
+const faqsRoutes = require('./routes/faqs');
 const contactsRoutes = require('./routes/contacts');
 
 // Create Express app
@@ -34,9 +34,8 @@ if (process.env.NODE_ENV === 'development') {
 // Mount routers
 app.use('/api/v1/auth', auth);
 app.use('/api/v1/profile', profileRoutes);
-
 app.use('/api/v1/impact', impactRoutes);
-app.use('/api/v1/contacts', contactsRoutes);
+app.use('/api/v1/faqs', faqsRoutes);
 
 // Set static folder
 app.use(express.static(path.join(__dirname, 'public')));
