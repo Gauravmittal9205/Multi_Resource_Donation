@@ -9,7 +9,11 @@ import {
   signOut as firebaseSignOut,
   updateProfile,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  PhoneAuthProvider,
+  signInWithCredential
 } from 'firebase/auth';
 
 // User type
@@ -100,13 +104,55 @@ export const signInWithEmail = async (email: string, password: string) => {
 
 // Sign in with Google
 export const signInWithGoogle = async () => {
+  const provider = new GoogleAuthProvider();
   try {
-    const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
-    // You can add additional user data handling here if needed
     return result.user;
   } catch (error) {
     console.error('Error signing in with Google:', error);
+    throw error;
+  }
+};
+
+// Initialize reCAPTCHA verifier
+let appVerifier: any = null;
+
+export const setUpRecaptcha = (elementId: string) => {
+  if (!appVerifier) {
+    appVerifier = new RecaptchaVerifier(auth, elementId, {
+      size: 'invisible',
+    });
+  }
+  return appVerifier;
+};
+
+// Send verification code to phone number
+export const sendVerificationCode = async (phoneNumber: string, recaptchaVerifier: any) => {
+  try {
+    const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+    return confirmationResult;
+  } catch (error) {
+    console.error('Error sending verification code:', error);
+    throw error;
+  }
+};
+
+// Verify the code sent to the user's phone
+export const verifyPhoneNumber = async (verificationId: string, code: string, displayName?: string) => {
+  try {
+    const credential = PhoneAuthProvider.credential(verificationId, code);
+    const userCredential = await signInWithCredential(auth, credential);
+    
+    // Update user's display name if provided
+    if (displayName && userCredential.user) {
+      await updateProfile(userCredential.user, {
+        displayName: displayName
+      });
+    }
+    
+    return userCredential.user;
+  } catch (error) {
+    console.error('Error verifying code:', error);
     throw error;
   }
 };
