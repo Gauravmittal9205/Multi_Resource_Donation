@@ -15,6 +15,21 @@ export interface Announcement {
   requirements?: string[];
 }
 
+const getRandomPlaceholderImage = (category: string = 'donation'): string => {
+  // Direct image URLs from Unsplash for better reliability
+  const categoryImages: {[key: string]: string} = {
+    'Food Drive': 'https://images.unsplash.com/photo-1507048331197-7d4ac70811cf?w=800&auto=format&fit=crop',
+    'Clothing Donation': 'https://images.unsplash.com/photo-1441986300917-64674bd5d53a?w=800&auto=format&fit=crop',
+    'Volunteer Opportunity': 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&auto=format&fit=crop',
+    'Community Event': 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=800&auto=format&fit=crop',
+    'Fundraiser': 'https://images.unsplash.com/photo-1527525443983-6e60c75fff46?w=800&auto=format&fit=crop',
+    'Book Donation': 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=800&auto=format&fit=crop',
+    'default': 'https://images.unsplash.com/photo-1504674900247-087703934569?w=800&auto=format&fit=crop'
+  };
+  
+  return categoryImages[category] || categoryImages['default'];
+};
+
 // Enhanced mock data
 const MOCK_ANNOUNCEMENTS: Announcement[] = [
   {
@@ -61,7 +76,7 @@ const MOCK_ANNOUNCEMENTS: Announcement[] = [
     date: new Date('2023-12-24').toISOString(),
     organization: 'Meals That Matter',
     category: 'Community Event',
-    imageUrl: 'https://images.unsplash.com/photo-1504674900247-087703934569?w=800&auto=format&fit=crop',
+    imageUrl: getRandomPlaceholderImage('Community Event'),
     requirements: ['Food handler\'s certificate preferred', 'Comfortable standing for long periods']
   },
   {
@@ -88,20 +103,6 @@ const MOCK_ANNOUNCEMENTS: Announcement[] = [
   }
 ];
 
-const getRandomPlaceholderImage = (category: string = 'donation'): string => {
-  const categories: {[key: string]: string[]} = {
-    'Food Drive': ['food', 'groceries', 'canned food'],
-    'Clothing Donation': ['clothing', 'winter clothes', 'donation'],
-    'Volunteer Opportunity': ['volunteer', 'helping', 'community'],
-    'Community Event': ['community', 'event', 'gathering'],
-    'Fundraiser': ['fundraiser', 'charity', 'event'],
-    'Book Donation': ['books', 'reading', 'library']
-  };
-  
-  const keywords = categories[category] || ['donation', 'charity', 'helping'];
-  const keyword = keywords[Math.floor(Math.random() * keywords.length)];
-  return `https://source.unsplash.com/random/800x600/?${keyword},donate`;
-};
 
 export const fetchAnnouncements = async (keyword: string = 'donation'): Promise<Announcement[]> => {
   try {

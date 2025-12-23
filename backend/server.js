@@ -9,11 +9,13 @@ const path = require('path');
 // Route files
 const auth = require('./routes/auth');
 const profileRoutes = require('./routes/profile');
-<<<<<<<<< Temporary merge branch 1
+
 const impactRoutes = require('./routes/impact');
-=========
+
 const contactsRoutes = require('./routes/contacts');
->>>>>>>>> Temporary merge branch 2
+const eventRegistrationRoutes = require('./routes/eventRegistrations');
+const faqsRoutes = require('./routes/faqs');
+
 
 // Create Express app
 const app = express();
@@ -36,94 +38,278 @@ if (process.env.NODE_ENV === 'development') {
 // Mount routers
 app.use('/api/v1/auth', auth);
 app.use('/api/v1/profile', profileRoutes);
-<<<<<<<<< Temporary merge branch 1
+
 app.use('/api/v1/impact', impactRoutes);
-=========
+
 app.use('/api/v1/contacts', contactsRoutes);
->>>>>>>>> Temporary merge branch 2
+app.use('/api/v1/event-registrations', eventRegistrationRoutes);
+app.use('/api/v1/faqs', faqsRoutes);
+
 
 // Set static folder
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ 
+  console.error(err);
+
+  let statusCode = err.statusCode || 500;
+  let message = err.message || 'Server Error';
+
+  // Mongoose bad ObjectId
+  if (err.name === 'CastError') {
+    statusCode = 404;
+    message = 'Resource not found';
+  }
+
+  // Mongoose duplicate key
+  if (err.code === 11000) {
+    statusCode = 400;
+    message = 'Duplicate value entered';
+  }
+
+  // Mongoose validation error
+  if (err.name === 'ValidationError') {
+    statusCode = 400;
+    message = Object.values(err.errors)
+      .map((val) => val.message)
+      .join(', ');
+  }
+
+  res.status(statusCode).json({
     success: false,
-    error: 'Server Error' 
+    message
   });
 });
 
 // Database connection
 const connectDB = async () => {
-  try {
-    console.log('Attempting to connect to MongoDB Atlas...');
-    console.log('Connection string:', process.env.MONGODB_URI ? 'Found' : 'Missing');
-    
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-    });
-    
-    console.log(`MongoDB connected: ${conn.connection.host}`);
-    
-    // Log when connected
-    mongoose.connection.on('connected', () => {
-      console.log('Mongoose connected to DB');
-    });
-    
-    // Log any errors after initial connection
-    mongoose.connection.on('error', (err) => {
-      console.error('Mongoose connection error:', err);
-    });
-    
-    // Log when disconnected
-    mongoose.connection.on('disconnected', () => {
-      console.log('Mongoose disconnected');
-    });
-    
-  } catch (error) {
-    console.error('MongoDB connection error:', error.message);
-    console.error('Error name:', error.name);
-    console.error('Error code:', error.code);
-    console.error('Error code name:', error.codeName);
-    
-    // Exit process with failure after a delay to allow logs to be written
-    setTimeout(() => process.exit(1), 1000);
+  if (!process.env.MONGODB_URI) {
+    throw new Error('MongoDB connection string is not defined in environment variables');
   }
+
+  const options = {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+    family: 4,
+    maxPoolSize: 10
+  };
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Keep retrying until connected so the server never starts without DB.
+  // If you want to fail fast instead, reduce maxRetries.
+  const maxRetries = Number(process.env.MONGO_CONNECT_RETRIES || 0); // 0 = infinite
+  let attempt = 0;
+
+  while (maxRetries === 0 || attempt < maxRetries) {
+    attempt += 1;
+    try {
+      console.log(`Attempting to connect to MongoDB... (attempt ${attempt}${maxRetries === 0 ? '' : `/${maxRetries}`})`);
+
+      const conn = await mongoose.connect(process.env.MONGODB_URI, options);
+      console.log(`MongoDB connected: ${conn.connection.host}`);
+
+      // Event listeners for connection status
+      mongoose.connection.on('connected', () => {
+        console.log('Mongoose connected to DB');
+      });
+
+      mongoose.connection.on('error', (err) => {
+        console.error('Mongoose connection error:', err);
+      });
+
+      mongoose.connection.on('disconnected', () => {
+        console.log('Mongoose disconnected');
+      });
+
+      // Handle process termination
+      process.on('SIGINT', async () => {
+        await mongoose.connection.close();
+        console.log('Mongoose connection closed due to app termination');
+        process.exit(0);
+      });
+
+      return conn;
+    } catch (error) {
+      console.error('MongoDB connection failed:', {
+        message: error.message,
+        name: error.name,
+        code: error.code,
+        codeName: error.codeName
+      });
+
+      console.log('Retrying connection in 5 seconds...');
+      await sleep(5000);
+    }
+  }
+
+  throw new Error('MongoDB connection failed: exceeded maximum retry attempts');
 };
 
-// Connect to the database
-connectDB();
-
-// Basic route
-app.get('/', (req, res) => {
-  res.json({ 
-    success: true, 
-    message: 'Welcome to the Donation App API',
-    version: '1.0.0'
-  });
-});
-
 // Handle 404
-app.use((req, res, next) => {
+app.use((req, res) => {
   res.status(404).json({
     success: false,
     error: 'Not Found'
   });
 });
 
-const PORT = process.env.PORT || 5000;
+// Start server only after database connection is established
+const startServer = async () => {
+  try {
+    await connectDB();
 
-const server = app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-});
+    try {
+      const Faq = require('./models/Faq');
+      const faqCount = await Faq.countDocuments();
+      const volunteerFaqCount = await Faq.countDocuments({ role: 'volunteers' });
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err, promise) => {
-  console.log(`Error: ${err.message}`);
-  // Close server & exit process
-  server.close(() => process.exit(1));
-});
+      if (faqCount === 0) {
+        await Faq.insertMany(
+          [
+            {
+              role: 'donors',
+              order: 1,
+              question: 'How do I donate items?',
+              answer:
+                'Click on the "Donate Now" button, select the items you wish to donate, and follow the simple steps to schedule a pickup.'
+            },
+            {
+              role: 'donors',
+              order: 2,
+              question: 'How can I volunteer?',
+              answer:
+                'Join our volunteer program by signing up on our platform. You can help with pickup, sorting, and distribution of donations.'
+            },
+            {
+              role: 'donors',
+              order: 3,
+              question: 'What items can I donate?',
+              answer:
+                'We accept food (non-perishable), clothes, books, and other essentials in good condition. Please ensure items are clean and usable.'
+            },
+            {
+              role: 'donors',
+              order: 4,
+              question: 'How do I track my donation?',
+              answer:
+                "You can track your donation status in real-time through your dashboard. You'll receive notifications at each step of the process."
+            },
+            {
+              role: 'donors',
+              order: 5,
+              question: 'Are there any tax benefits?',
+              answer:
+                "Yes, all donations are tax-deductible. You'll receive a tax receipt via email for your records."
+            },
+            {
+              role: 'donors',
+              order: 6,
+              question: 'How do I schedule a pickup?',
+              answer:
+                'After submitting your donation details, you can choose a convenient pickup time slot from the available options.'
+            },
+            {
+              role: 'ngos',
+              order: 1,
+              question: 'How do we register as an NGO?',
+              answer:
+                'Click on "Register as NGO" and complete the verification process by submitting the required documents for approval.'
+            },
+            {
+              role: 'ngos',
+              order: 2,
+              question: 'What documents are required?',
+              answer:
+                'We require 12A/80G registration, PAN card, and a valid ID proof of the authorized signatory.'
+            },
+            {
+              role: 'ngos',
+              order: 3,
+              question: 'How do we receive donations?',
+              answer:
+                'Once registered, you can view and accept available donations in your area through your dashboard.'
+            },
+            {
+              role: 'ngos',
+              order: 4,
+              question: 'What are our responsibilities?',
+              answer:
+                'NGOs are responsible for timely pickup, proper utilization, and reporting of all received donations.'
+            },
+            {
+              role: 'ngos',
+              order: 5,
+              question: 'How to report impact?',
+              answer:
+                'Use our impact reporting tool in your dashboard to share how the donations are being utilized.'
+            }
+          ],
+          { ordered: false }
+        );
+      }
+
+      if (volunteerFaqCount === 0) {
+        await Faq.insertMany(
+          [
+            {
+              role: 'volunteers',
+              order: 1,
+              question: 'How can I become a volunteer?',
+              answer:
+                'Sign up through our volunteer portal, complete the registration process, and attend an orientation session.'
+            },
+            {
+              role: 'volunteers',
+              order: 2,
+              question: 'What are the volunteer requirements?',
+              answer:
+                'You must be at least 18 years old, complete a background check, and attend a training session.'
+            },
+            {
+              role: 'volunteers',
+              order: 3,
+              question: 'What kind of volunteer work is available?',
+              answer:
+                'We need help with donation pickup, sorting, distribution, and community outreach programs.'
+            }
+          ],
+          { ordered: false }
+        );
+      }
+    } catch (seedErr) {
+      console.error('FAQ seed error:', seedErr);
+    }
+    
+    const PORT = process.env.PORT || 5000;
+
+    const server = app.listen(PORT, () => {
+      console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+      console.log(`MongoDB connected: ${mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'}`);
+    });
+
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (err, promise) => {
+      console.error('Unhandled Rejection at:', promise, 'reason:', err);
+      // Close server & exit process
+      server.close(() => process.exit(1));
+    });
+    
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      console.error('Uncaught Exception:', error);
+      // Close server & exit process
+      server.close(() => process.exit(1));
+    });
+    
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Start the server
+startServer();

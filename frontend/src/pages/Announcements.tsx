@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchAnnouncements, type Announcement } from '../services/announcementService';
+import { registerForEvent } from '../services/eventRegistrationService';
 
 interface ContactFormData {
   name: string;
@@ -177,22 +178,44 @@ export default function Announcements() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) {
+    if (!validateForm() || !selectedEvent) {
       return;
     }
     
     setIsSubmitting(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      console.log('Form submitted:', { event: selectedEvent, ...formData });
-      setIsSubmitting(false);
+    try {
+      const registrationData = {
+        eventId: selectedEvent.id,
+        eventTitle: selectedEvent.title,
+        eventType: selectedEvent.type,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        message: formData.message
+      };
+      
+      await registerForEvent(registrationData);
+      
+      // Reset form and close modal
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        message: ''
+      });
+      
       alert('Thank you for registering! We will contact you soon.');
       handleCloseModal();
-    }, 1000);
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to register for the event. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Prevent body scroll when modal is open
@@ -502,22 +525,80 @@ export default function Announcements() {
               ))}
             </div>
 
-            <div className="bg-gray-50 px-6 py-8 text-center border-t border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Want to host your own event?
-              </h3>
-              <p className="text-gray-600 max-w-2xl mx-auto mb-4">
-                Partner with us to organize community events and make an even bigger impact together.
-              </p>
-              <button 
-                onClick={() => setShowContactModal(true)}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors duration-200"
-              >
-                Contact Us
-                <svg className="ml-2 -mr-1 w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
+            <div className="border-t border-gray-200 px-6 py-10 sm:py-12">
+              <div className="max-w-5xl mx-auto">
+                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                  <div className="px-6 py-8 sm:px-10 sm:py-10 bg-gradient-to-br from-emerald-50 via-white to-indigo-50">
+                    <div className="text-center">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                        Host With Us
+                      </span>
+                      <h3 className="mt-3 text-2xl font-semibold text-gray-900">Want to host your own event?</h3>
+                      <p className="mt-2 text-gray-600 max-w-2xl mx-auto">
+                        Partner with us to organize donation drives, trainings, or community events.
+                      </p>
+                    </div>
+
+                    <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+                      <div className="group rounded-xl border border-gray-100 bg-white/70 backdrop-blur p-5 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                            <svg className="h-5 w-5 text-emerald-700" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <path d="M2 5a2 2 0 012-2h3a1 1 0 010 2H4v12h12v-3a1 1 0 112 0v3a2 2 0 01-2 2H4a2 2 0 01-2-2V5z" />
+                              <path d="M14.293 2.293a1 1 0 011.414 0l2 2a1 1 0 010 1.414l-7.5 7.5a1 1 0 01-.39.242l-3 1a1 1 0 01-1.265-1.265l1-3a1 1 0 01.242-.39l7.5-7.5z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">Step 1: Share details</p>
+                            <p className="mt-1 text-sm text-gray-600">Tell us your idea, date, location, and expected turnout.</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="group rounded-xl border border-gray-100 bg-white/70 backdrop-blur p-5 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                            <svg className="h-5 w-5 text-indigo-700" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.707a1 1 0 00-1.414-1.414L9 10.172 7.707 8.879A1 1 0 106.293 10.293l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">Step 2: We confirm</p>
+                            <p className="mt-1 text-sm text-gray-600">We align on requirements, logistics, and volunteer support.</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="group rounded-xl border border-gray-100 bg-white/70 backdrop-blur p-5 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                            <svg className="h-5 w-5 text-amber-700" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <path d="M2 3a1 1 0 011-1h14a1 1 0 011 1v10a1 1 0 01-1 1H7l-4 4v-4H3a1 1 0 01-1-1V3z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">Step 3: We publish</p>
+                            <p className="mt-1 text-sm text-gray-600">We list it on the platform and manage registrations.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowContactModal(true)}
+                        className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                      >
+                        Contact to Host an Event
+                      </button>
+                    </div>
+                    <p className="mt-4 text-sm text-gray-500 text-center">
+                      We usually respond within 24–48 hours.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -697,15 +778,36 @@ export default function Announcements() {
                       Fill out the form below and our team will get back to you within 24 hours to discuss your event details.
                     </p>
                     
-                    <form onSubmit={(e) => {
+                    <form onSubmit={async (e) => {
                       e.preventDefault();
-                      // Handle form submission
-                      console.log('Contact form submitted:', contactFormData);
                       setIsSubmittingContact(true);
-                      
-                      // Simulate API call
-                      setTimeout(() => {
-                        setIsSubmittingContact(false);
+
+                      try {
+                        const mapContactTypeToEventType = (value?: string): 'food' | 'training' | 'fundraising' | 'other' => {
+                          switch (value) {
+                            case 'food-drive':
+                              return 'food';
+                            case 'fundraiser':
+                              return 'fundraising';
+                            case 'community':
+                            case 'volunteer':
+                              return 'other';
+                            case 'other':
+                            default:
+                              return 'other';
+                          }
+                        };
+
+                        await registerForEvent({
+                          eventId: `host-request-${Date.now()}`,
+                          eventTitle: 'Host Event Request',
+                          eventType: mapContactTypeToEventType(contactFormData.eventType),
+                          name: contactFormData.name,
+                          email: contactFormData.email,
+                          phone: contactFormData.phone,
+                          message: contactFormData.message
+                        });
+
                         setShowContactModal(false);
                         alert('Thank you for your interest! Our team will contact you soon to discuss your event.');
                         setContactFormData({
@@ -715,7 +817,12 @@ export default function Announcements() {
                           message: '',
                           eventType: ''
                         });
-                      }, 1500);
+                      } catch (error) {
+                        console.error('Contact form submit error:', error);
+                        alert(error instanceof Error ? error.message : 'Failed to submit your request. Please try again.');
+                      } finally {
+                        setIsSubmittingContact(false);
+                      }
                     }}>
                       <div className="space-y-4">
                         <div>
