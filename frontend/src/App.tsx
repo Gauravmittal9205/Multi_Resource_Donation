@@ -35,6 +35,7 @@ function App() {
     userType: 'donor',
     organizationName: ''
   });
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -101,6 +102,33 @@ function App() {
       ...prev,
       [name]: value
     }));
+
+    // Clear password errors when password is being changed
+    if (name === 'password') {
+      setPasswordErrors([]);
+    }
+  };
+
+  const validatePassword = (password: string) => {
+    const errors = [];
+    
+    if (password.length < 8) {
+      errors.push('Password must be at least 8 characters long');
+    }
+    
+    if (!/[A-Z]/.test(password)) {
+      errors.push('Password must contain at least one uppercase letter');
+    }
+    
+    if (!/[0-9]/.test(password)) {
+      errors.push('Password must contain at least one numeric digit');
+    }
+    
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      errors.push('Password must contain at least one special character');
+    }
+    
+    return errors;
   };
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -110,6 +138,14 @@ function App() {
 
     try {
       if (isSignUp) {
+        // Validate password for signup
+        const passwordValidationErrors = validatePassword(formData.password);
+        if (passwordValidationErrors.length > 0) {
+          setPasswordErrors(passwordValidationErrors);
+          setIsSubmitting(false);
+          return;
+        }
+
         await signUpWithEmail(
           formData.email, 
           formData.password, 
@@ -400,11 +436,27 @@ function App() {
                       autoComplete={isSignUp ? 'new-password' : 'current-password'}
                       value={formData.password}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                        passwordErrors.length > 0 ? 'border-red-500' : 'border-gray-300'
+                      }`}
                       placeholder="••••••••"
                       required
-                      minLength={6}
+                      minLength={8}
                     />
+                    {isSignUp && (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-500">
+                          Password must contain: 8+ characters, 1 uppercase, 1 number, 1 special character
+                        </p>
+                        {passwordErrors.length > 0 && (
+                          <div className="mt-1">
+                            {passwordErrors.map((error, index) => (
+                              <p key={index} className="text-xs text-red-600">{error}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {isSignUp && (
@@ -960,11 +1012,13 @@ function App() {
           </div>
         </nav>
       </header>
-      <Body 
-  activeLink={activeLink}
-  setActiveLink={setActiveLink}
-  user={user}
-/>
+      <div className="min-h-[calc(100vh-64px)]">
+        <Body 
+          activeLink={activeLink}
+          setActiveLink={setActiveLink}
+          user={user}
+        />
+      </div>
       <Footer/>
     </div>
   );

@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 const asyncHandler = require('../middleware/async');
+const { validatePassword } = require('../utils/passwordValidator');
 
 exports.getUserByFirebaseUid = asyncHandler(async (req, res) => {
   const { firebaseUid } = req.params;
@@ -17,9 +18,17 @@ exports.getUserByFirebaseUid = asyncHandler(async (req, res) => {
 exports.register = asyncHandler(async (req, res, next) => {
   console.log('Registration request received:', JSON.stringify(req.body, null, 2));
   try {
-    const { name, email, userType, organizationName, phone, firebaseUid } = req.body;
+    const { name, email, userType, organizationName, phone, firebaseUid, password } = req.body;
     
     console.log('Registration attempt with data:', { name, email, userType, firebaseUid });
+
+    // Validate password if provided (for email/password registration)
+    if (password && !firebaseUid) {
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.isValid) {
+        return next(new ErrorResponse(passwordValidation.errors.join(', '), 400));
+      }
+    }
 
     // Check if user already exists by email or firebaseUid
     const existingUser = await User.findOne({ 
@@ -43,6 +52,11 @@ exports.register = asyncHandler(async (req, res, next) => {
       firebaseUid,
       isVerified: true // Since Firebase already verified the email
     };
+
+    // Add password for email/password registration
+    if (password && !firebaseUid) {
+      userData.password = password;
+    }
 
     // Add organization name if user type is NGO
     if (userType === 'ngo') {
