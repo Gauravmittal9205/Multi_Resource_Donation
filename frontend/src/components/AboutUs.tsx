@@ -1,13 +1,65 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import type { User as FirebaseUser } from 'firebase/auth';
+import Footer from './Footer';
 
 interface AboutUsProps {
   onBack: () => void;
+  authUser?: FirebaseUser | null;
+  userMeta?: {
+    userType?: 'donor' | 'ngo';
+    organizationName?: string;
+  } | null;
 }
 
-const AboutUs = ({ onBack }: AboutUsProps) => {
+const AboutUs = ({ onBack, authUser, userMeta }: AboutUsProps) => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  const storedUserType = typeof window !== 'undefined' ? (localStorage.getItem('userType') as 'donor' | 'ngo' | null) : null;
+  const storedOrganizationName = typeof window !== 'undefined' ? localStorage.getItem('organizationName') : null;
+
+  const userType = userMeta?.userType || storedUserType || undefined;
+  const organizationName = userMeta?.organizationName || storedOrganizationName || '';
+
+  const [showModal, setShowModal] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    queryType: '',
+    message: ''
+  });
+
+  const resetForm = () => {
+    setSubmitted(false);
+    setIsSubmitting(false);
+    setFormError(null);
+    setForm({ name: '', email: '', phone: '', queryType: '', message: '' });
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    resetForm();
+  };
+
+  const openModal = () => {
+    setShowModal(true);
+    setSubmitted(false);
+    setIsSubmitting(false);
+    setFormError(null);
+  };
+
+  useEffect(() => {
+    if (!submitted) return;
+    const t = window.setTimeout(() => {
+      closeModal();
+    }, 2000);
+    return () => window.clearTimeout(t);
+  }, [submitted]);
 
   const verificationItems = [
     'Government Issued NGO Registration',
@@ -23,7 +75,8 @@ const AboutUs = ({ onBack }: AboutUsProps) => {
   ];
 
   return (
-    <div className="min-h-screen pt-24 pb-20 px-4 sm:px-6 lg:px-8 bg-gray-50 space-y-20">
+    <div className="min-h-screen bg-gray-50">
+      <div className="pt-24 pb-20 px-4 sm:px-6 lg:px-8 space-y-20">
       {/* Hero Section */}
       <div className="max-w-7xl mx-auto text-center mb-16">
         <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl md:text-5xl">
@@ -318,14 +371,9 @@ const AboutUs = ({ onBack }: AboutUsProps) => {
             Join our community of donors and organizations working together to create positive change.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
+            
             <button
-              onClick={onBack}
-              className="px-6 py-3 bg-white text-emerald-600 font-medium rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              Donate Now
-            </button>
-            <button
-              onClick={onBack}
+              onClick={openModal}
               className="px-6 py-3 border-2 border-white text-white font-medium rounded-lg hover:bg-white/10 transition-colors"
             >
               Contact Us
@@ -333,6 +381,220 @@ const AboutUs = ({ onBack }: AboutUsProps) => {
           </div>
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={closeModal}></div>
+          <div className="relative bg-white w-full max-w-6xl mx-4 rounded-2xl shadow-xl overflow-hidden max-h-[80vh]">
+            <button
+              aria-label="Close"
+              onClick={closeModal}
+              className="absolute top-3 right-3 rounded-full p-2 text-gray-500 hover:bg-gray-100"
+            >
+              ✕
+            </button>
+
+            {submitted ? (
+              <div className="p-10 md:p-12 flex flex-col items-center justify-center text-center">
+                <div className="text-5xl mb-4">🎉</div>
+                <h3 className="text-2xl font-semibold text-gray-900 mb-2">Thank you for contacting us!</h3>
+                <p className="text-gray-600">Your message has been saved. We will get back to you soon.</p>
+                <p className="text-sm text-gray-500 mt-2">Closing automatically...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr] overflow-y-auto">
+                <div className="p-6 md:p-7 bg-gray-50">
+                  <div className="flex items-center gap-4 mb-4">
+                    <img src="https://i.pravatar.cc/80?img=5" alt="Admin" className="w-14 h-14 rounded-full object-cover" />
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">ShareCare Admin</h3>
+                      <p className="text-sm text-gray-600">Support & Partnerships</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3 text-gray-700">
+                    <div className="flex items-center gap-3">
+                      <span className="text-emerald-600">📧</span>
+                      <a href="mailto:support@sharecare.org" className="hover:underline">support@sharecare.org</a>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-emerald-600">📞</span>
+                      <a href="tel:+919876543210" className="hover:underline">+91 98765 43210</a>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-emerald-600">🕒</span>
+                      <span>Mon–Sat, 9:00 AM – 8:00 PM</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-emerald-600">📍</span>
+                      <span>Bengaluru, India</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-6 md:p-7">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-1">Contact Form</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {userType === 'ngo'
+                      ? 'NGO support form'
+                      : userType === 'donor'
+                        ? 'Donor support form'
+                        : 'Support form'}
+                  </p>
+
+                  {formError && (
+                    <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{formError}</div>
+                  )}
+
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setFormError(null);
+                      setIsSubmitting(true);
+                      try {
+                        const payload = {
+                          firebaseUid: authUser?.uid,
+                          userType,
+                          organizationName: userType === 'ngo' ? organizationName : undefined,
+                          name: form.name,
+                          email: form.email,
+                          phone: form.phone,
+                          queryType: form.queryType,
+                          message: form.message,
+                        };
+                        const res = await fetch('http://localhost:5000/api/v1/contacts', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(payload),
+                        });
+                        if (!res.ok) {
+                          const json = await res.json().catch(() => null);
+                          throw new Error(json?.error || 'Failed to submit');
+                        }
+                        setSubmitted(true);
+                      } catch (err: any) {
+                        setFormError(err?.message || 'Something went wrong. Please try again.');
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                    autoComplete="on"
+                    className="space-y-4"
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={form.name}
+                          onChange={(e) => setForm({ ...form, name: e.target.value })}
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
+                          placeholder="Your name"
+                          autoComplete="name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input
+                          type="email"
+                          required
+                          value={form.email}
+                          onChange={(e) => setForm({ ...form, email: e.target.value })}
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
+                          placeholder="you@example.com"
+                          autoComplete="email"
+                        />
+                      </div>
+                    </div>
+
+                    {userType === 'ngo' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Organization</label>
+                        <input
+                          type="text"
+                          value={organizationName}
+                          readOnly
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-50"
+                        />
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
+                        <input
+                          type="tel"
+                          value={form.phone}
+                          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="+91..."
+                          autoComplete="tel"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Query Type</label>
+                        <select
+                          value={form.queryType}
+                          onChange={(e) => setForm({ ...form, queryType: e.target.value })}
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        >
+                          <option value="">Select</option>
+                          {userType === 'ngo' ? (
+                            <>
+                              <option value="partnership">Partnership</option>
+                              <option value="verification">Verification</option>
+                              <option value="campaign">Campaign / Fundraising</option>
+                              <option value="other">Other</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="pickup">Pickup / Collection</option>
+                              <option value="donation">Donation</option>
+                              <option value="volunteer">Volunteering</option>
+                              <option value="other">Other</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={form.message}
+                        onChange={(e) => setForm({ ...form, message: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        placeholder="How can we help?"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        {isSubmitting ? 'Submitting...' : 'Submit'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={closeModal}
+                        className="px-5 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      </div>
+      <Footer />
     </div>
   );
 };
