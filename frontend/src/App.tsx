@@ -17,9 +17,15 @@ interface AuthFormData {
   userType: 'donor' | 'ngo';
   organizationName: string;
 }
+
+type UserMeta = {
+  userType?: 'donor' | 'ngo';
+  organizationName?: string;
+} | null;
 function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userMeta, setUserMeta] = useState<UserMeta>(null);
   const [isSignUp, setIsSignUp] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('email');
   const [formData, setFormData] = useState<AuthFormData>({
@@ -51,6 +57,30 @@ function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setUserMeta(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`)
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((json) => {
+        if (cancelled) return;
+        setUserMeta(json?.data ?? null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setUserMeta(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]);
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -87,6 +117,11 @@ function App() {
           formData.userType,
           formData.userType === 'ngo' ? formData.organizationName : undefined
         );
+        // Persist role locally for role-aware UI (e.g., Contact Support form)
+        localStorage.setItem('userType', formData.userType);
+        if (formData.userType === 'ngo' && formData.organizationName) {
+          localStorage.setItem('organizationName', formData.organizationName);
+        }
       } else {
         await signInWithEmail(formData.email, formData.password);
       }
@@ -717,7 +752,7 @@ function App() {
             )}
           </nav>
         </header>
-        <AboutUs onBack={() => setShowAbout(false)} />
+        <AboutUs onBack={() => setShowAbout(false)} authUser={user} userMeta={userMeta} />
       </div>
     );
   }
