@@ -26,7 +26,7 @@ const AboutUs = ({ onBack }: AboutUsProps) => {
     <div className="min-h-screen pt-24 pb-20 px-4 sm:px-6 lg:px-8 bg-gray-50 space-y-20">
       {/* Hero Section */}
       <div className="max-w-7xl mx-auto text-center mb-16">
-        <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl md:text-6xl">
+        <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl md:text-5xl">
           About ShareCare
         </h1>
         <p className="mt-6 max-w-3xl mx-auto text-xl text-gray-500">

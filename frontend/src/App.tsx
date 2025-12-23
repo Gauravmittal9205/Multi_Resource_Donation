@@ -630,14 +630,14 @@ function App() {
                   Home
                 </button>
                 <button 
-                  onClick={() => setActiveLink('donate')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'donate' && !showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                  onClick={() => setActiveLink('impact')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'impact' && !showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
                   Impact
                 </button>
                 <button 
                   onClick={() => setActiveLink('help')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'help'&& !showAbout? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'help' && !showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
                   Help & Support
                 </button>
@@ -772,24 +772,6 @@ function App() {
                   <button 
                     onClick={() => {
                       setActiveLink('home');
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium ${activeLink === 'home' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'}`}
-                  >
-                    Home
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setActiveLink('donate');
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium ${activeLink === 'donate' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'}`}
-                  >
-                    Donate Items
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setActiveLink('requests');
                       setIsMobileMenuOpen(false);
                     }}
                     className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium ${activeLink === 'requests' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'}`}
