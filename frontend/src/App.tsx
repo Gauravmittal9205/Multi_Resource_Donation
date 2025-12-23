@@ -26,6 +26,8 @@ function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [userMeta, setUserMeta] = useState<UserMeta>(null);
+  const [userMetaLoading, setUserMetaLoading] = useState(false);
+  const [userMetaError, setUserMetaError] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('email');
   const [formData, setFormData] = useState<AuthFormData>({
@@ -51,6 +53,9 @@ function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
 
+  const isDonorUser = userMeta?.userType === 'donor';
+  const isNgoUser = userMeta?.userType === 'ngo';
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((currentUser: FirebaseUser | null) => {
       setUser(currentUser);
@@ -62,37 +67,89 @@ function App() {
   useEffect(() => {
     if (!user?.uid) {
       setUserMeta(null);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('userType');
-        localStorage.removeItem('organizationName');
-      }
+      setUserMetaError(null);
+      setUserMetaLoading(false);
       return;
     }
     let cancelled = false;
+    setUserMetaLoading(true);
+    setUserMetaError(null);
     fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`)
       .then(async (res) => {
-        if (!res.ok) return null;
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(text || `Failed to load user profile (${res.status})`);
+        }
         return res.json();
       })
       .then((json) => {
         if (cancelled) return;
-        const meta = json?.data ?? null;
-        setUserMeta(meta);
-        if (typeof window !== 'undefined') {
-          if (meta?.userType) localStorage.setItem('userType', meta.userType);
-          if (!meta?.userType) localStorage.removeItem('userType');
-          if (meta?.organizationName) localStorage.setItem('organizationName', meta.organizationName);
-          if (!meta?.organizationName) localStorage.removeItem('organizationName');
-        }
+        const raw = (json as any) ?? null;
+        const candidate = raw?.data ?? raw?.user ?? raw;
+        const meta = (candidate?.data && !candidate?.userType ? candidate.data : candidate) ?? null;
+        const normalizedUserType =
+          typeof meta?.userType === 'string' ? (meta.userType.toLowerCase() as 'donor' | 'ngo') : undefined;
+        console.log('User meta from API:', meta);
+        console.log('Normalized user type:', normalizedUserType);
+        const userMetaData = meta
+          ? {
+              userType: normalizedUserType,
+              organizationName: meta?.organizationName,
+            }
+          : null;
+        console.log('Setting user meta:', userMetaData);
+        setUserMeta(userMetaData);
+        setUserMetaLoading(false);
       })
-      .catch(() => {
+      .catch((e: any) => {
         if (cancelled) return;
         setUserMeta(null);
+        setUserMetaLoading(false);
+        setUserMetaError(typeof e?.message === 'string' ? e.message : 'Failed to load user profile');
       });
     return () => {
       cancelled = true;
     };
   }, [user?.uid]);
+
+  // Handle initial page load and user type changes
+  useEffect(() => {
+    if (!user) {
+      setActiveLink('home');
+      return;
+    }
+    
+    // Redirect to home page after login
+    setActiveLink('home');
+    window.history.pushState({}, '', '/home');
+    
+    // Optional: If you want to keep the dashboard redirection for other cases
+    // if (userMeta) {
+    //   const targetPath = userMeta.userType === 'donor' ? 'donor-dashboard' : 'ngo-dashboard';
+    //   setActiveLink(targetPath);
+    //   window.history.pushState({}, '', `/${targetPath}`);
+    // }
+  }, [user, userMeta]);
+  
+  // Handle browser back/forward navigation
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      // Get the path from the URL
+      const path = window.location.pathname.replace(/^\//, '') || 'home';
+      
+      // Allow navigation to home page even when logged in
+      setActiveLink(path || 'home');
+      
+      // Optional: Uncomment if you want to prevent access to certain pages when logged in
+      // if (user && ['login', 'signup', 'auth'].includes(path)) {
+      //   window.history.replaceState({}, '', '/home');
+      //   setActiveLink('home');
+      // }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [user, userMeta?.userType]);
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -164,11 +221,6 @@ function App() {
           formData.userType,
           formData.userType === 'ngo' ? formData.organizationName : undefined
         );
-        // Persist role locally for role-aware UI (e.g., Contact Support form)
-        localStorage.setItem('userType', formData.userType);
-        if (formData.userType === 'ngo' && formData.organizationName) {
-          localStorage.setItem('organizationName', formData.organizationName);
-        }
       } else {
         await signInWithEmail(formData.email, formData.password);
       }
@@ -714,7 +766,11 @@ function App() {
                           onClick={(e) => {
                             e.preventDefault();
                             setShowAbout(false);
-                            setActiveLink('donor-dashboard');
+                            console.log('Dashboard clicked - User type:', userMeta?.userType);
+                            console.log('isDonorUser:', isDonorUser, 'isNgoUser:', isNgoUser);
+                            const targetLink = isDonorUser ? 'donor-dashboard' : isNgoUser ? 'ngo-dashboard' : 'home';
+                            console.log('Navigating to:', targetLink);
+                            setActiveLink(targetLink);
                             setIsProfileOpen(false);
                           }}
                         >
@@ -834,14 +890,20 @@ function App() {
               {/* Desktop Navigation */}
               <div className="hidden md:flex items-center space-x-1">
                 <button 
-                  onClick={() => setActiveLink('home')}
+                  onClick={() => {
+                    setActiveLink('home');
+                    window.history.pushState({}, '', '/');
+                  }}
                   className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'home' && !showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
                   Home
                 </button>
                 <button 
-                  onClick={() => setActiveLink('impact')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'impact' && !showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                  onClick={() => {
+                    setActiveLink('impact');
+                    window.history.pushState({}, '', '/impact');
+                  }}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'impact' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
                 >
                   Impact
                 </button>
@@ -922,7 +984,7 @@ function App() {
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                         onClick={(e) => {
                           e.preventDefault();
-                          setActiveLink('donor-dashboard');
+                          setActiveLink(isDonorUser ? 'donor-dashboard' : isNgoUser ? 'ngo-dashboard' : 'home');
                           setIsProfileOpen(false);
                         }}
                       >

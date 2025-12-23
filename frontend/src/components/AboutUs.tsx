@@ -16,11 +16,8 @@ const AboutUs = ({ onBack, authUser, userMeta }: AboutUsProps) => {
     window.scrollTo(0, 0);
   }, []);
 
-  const storedUserType = typeof window !== 'undefined' ? (localStorage.getItem('userType') as 'donor' | 'ngo' | null) : null;
-  const storedOrganizationName = typeof window !== 'undefined' ? localStorage.getItem('organizationName') : null;
-
-  const userType = userMeta?.userType || storedUserType || undefined;
-  const organizationName = userMeta?.organizationName || storedOrganizationName || '';
+  const userType = userMeta?.userType || undefined;
+  const organizationName = userMeta?.organizationName || '';
 
   const [showModal, setShowModal] = useState(false);
   const [submitted, setSubmitted] = useState(false);

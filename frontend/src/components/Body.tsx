@@ -1,5 +1,6 @@
 import type { User } from 'firebase/auth';
 import DonorDashboard from './DonorDashboard';
+import NgoDashboard from './NgoDashboard';
 import ProfilePage from './ProfilePage';
 import Home from '../pages/Home';
 import Announcements from '../pages/Announcements';
@@ -17,6 +18,11 @@ export default function Body({ activeLink, user, setActiveLink }: BodyProps) {
     <main className="pt-16">
       {activeLink === 'donor-dashboard' ? (
         <DonorDashboard
+          user={user}
+          onBack={() => setActiveLink('home')}
+        />
+      ) : activeLink === 'ngo-dashboard' ? (
+        <NgoDashboard
           user={user}
           onBack={() => setActiveLink('home')}
         />
