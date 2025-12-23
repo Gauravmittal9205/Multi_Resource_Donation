@@ -23,6 +23,8 @@ const ProfileSchema = new mongoose.Schema(
       pickupAddress: String,
       pincode: String,
       city: String,
+      state: String,
+      country: String,
     },
     preferences: {
       donationCategories: [String],

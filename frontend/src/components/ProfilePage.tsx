@@ -68,6 +68,8 @@ const ProfilePage: React.FC = () => {
     | 'location.pickupAddress'
     | 'location.pincode'
     | 'location.city'
+    | 'location.state'
+    | 'location.country'
     | 'preferences.donationCategories'
     | 'preferences.preferredPickupTime'
     | 'preferences.notificationPreference'
@@ -94,6 +96,11 @@ const ProfilePage: React.FC = () => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+  const [geoLookupLoading, setGeoLookupLoading] = useState(false);
+  const geoLookupTimerRef = useRef<number | null>(null);
+  const geoLookupAbortRef = useRef<AbortController | null>(null);
+  type GeoCandidate = { displayName: string; city: string; state: string; country: string };
+  const [geoCandidates, setGeoCandidates] = useState<GeoCandidate[]>([]);
 
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(() => auth.currentUser ?? null);
 
@@ -169,6 +176,8 @@ const ProfilePage: React.FC = () => {
       pickupAddress: '',
       pincode: '',
       city: '',
+      state: '',
+      country: '',
     },
     preferences: {
       donationCategories: ['food'] as DonationCategory[],
@@ -233,6 +242,81 @@ const ProfilePage: React.FC = () => {
     } catch {}
   }, [authUser?.email, authUser?.displayName, authUser?.phoneNumber, authUser?.photoURL, authUser?.uid, authUser?.metadata?.creationTime, authUser?.metadata?.lastSignInTime]);
 
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const digits = (profile.location.pincode || '').replace(/\D/g, '');
+    const qParts: string[] = [];
+    if ((profile.location.pickupAddress || '').trim().length >= 3) qParts.push(profile.location.pickupAddress.trim());
+    if ((profile.location.city || '').trim().length >= 2) qParts.push(profile.location.city.trim());
+    if (digits.length === 6) qParts.push(digits);
+    const q = qParts.join(', ');
+
+    if (q.trim().length < 3) return;
+
+    if (geoLookupTimerRef.current) {
+      window.clearTimeout(geoLookupTimerRef.current);
+      geoLookupTimerRef.current = null;
+    }
+    if (geoLookupAbortRef.current) {
+      geoLookupAbortRef.current.abort();
+      geoLookupAbortRef.current = null;
+    }
+
+    geoLookupTimerRef.current = window.setTimeout(async () => {
+      const controller = new AbortController();
+      geoLookupAbortRef.current = controller;
+      setGeoLookupLoading(true);
+      try {
+        const resp = await fetch(`http://localhost:5000/api/v1/geo/nominatim?q=${encodeURIComponent(q)}&limit=5`, {
+          signal: controller.signal,
+        });
+        const json = await resp.json();
+        const rows = Array.isArray(json?.data) ? json.data : [];
+        const candidates: GeoCandidate[] = rows
+          .map((r: any) => {
+            const addr = r?.address || {};
+            const cityFrom = addr.city || addr.town || addr.village || addr.county || addr.suburb || '';
+            const stateFrom = addr.state || addr.state_district || '';
+            const countryFrom = addr.country || '';
+            const displayName = typeof r?.display_name === 'string' ? r.display_name : '';
+            return { displayName, city: cityFrom, state: stateFrom, country: countryFrom };
+          })
+          .filter((c: { city: any; state: any; country: any; displayName: any; }) => c.city || c.state || c.country || c.displayName);
+        setGeoCandidates(candidates);
+        const first = candidates[0] || null;
+
+        setProfile((p) => {
+          const nextLoc = { ...p.location } as any;
+          if (first) {
+            if (!nextLoc.city && first.city) nextLoc.city = first.city;
+            if (!nextLoc.state && first.state) nextLoc.state = first.state;
+            if (!nextLoc.country && first.country) nextLoc.country = first.country;
+            if (!nextLoc.pickupAddress && first.displayName) nextLoc.pickupAddress = first.displayName;
+          }
+          return { ...p, location: nextLoc };
+        });
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') {
+          // ignore
+        }
+      } finally {
+        setGeoLookupLoading(false);
+      }
+    }, 600);
+
+    return () => {
+      if (geoLookupTimerRef.current) {
+        window.clearTimeout(geoLookupTimerRef.current);
+        geoLookupTimerRef.current = null;
+      }
+      if (geoLookupAbortRef.current) {
+        geoLookupAbortRef.current.abort();
+        geoLookupAbortRef.current = null;
+      }
+    };
+  }, [isEditing, profile.location.pickupAddress, profile.location.pincode, profile.location.city]);
+
   const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith('image/')) return;
@@ -255,6 +339,41 @@ const ProfilePage: React.FC = () => {
     if (isEditing && profileImageInputRef.current) {
       profileImageInputRef.current.click();
     }
+  };
+
+  const geoCountries = useMemo(() => {
+    return Array.from(new Set(geoCandidates.map((c) => c.country).filter(Boolean)));
+  }, [geoCandidates]);
+
+  const geoStates = useMemo(() => {
+    const country = profile.location.country;
+    return Array.from(
+      new Set(
+        geoCandidates
+          .filter((c) => (!country ? true : c.country === country))
+          .map((c) => c.state)
+          .filter(Boolean)
+      )
+    );
+  }, [geoCandidates, profile.location.country]);
+
+  const handleCountrySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const country = e.target.value;
+    setProfile((p) => {
+      const nextLoc = { ...p.location, country };
+      const pick = geoCandidates.find((c) => c.country === country);
+      if (pick) {
+        if (!nextLoc.state && pick.state) nextLoc.state = pick.state;
+        if (!nextLoc.city && pick.city) nextLoc.city = pick.city;
+        if (!nextLoc.pickupAddress && pick.displayName) nextLoc.pickupAddress = pick.displayName;
+      }
+      return { ...p, location: nextLoc };
+    });
+  };
+
+  const handleStateSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const state = e.target.value;
+    setProfile((p) => ({ ...p, location: { ...p.location, state } }));
   };
 
   const handleGalleryFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -695,7 +814,6 @@ const ProfilePage: React.FC = () => {
                     (() => {
                       const digits = (profile.location.pincode || '').replace(/\D/g, '');
                       const mapped = PINCODE_CITY[digits];
-                      const commonCities = Array.from(new Set(Object.values(PINCODE_CITY)));
                       if (mapped) {
                         return (
                           <>
@@ -711,22 +829,70 @@ const ProfilePage: React.FC = () => {
                       }
                       return (
                         <>
-                          <select
+                          <input
                             value={profile.location.city}
-                            onChange={handleLocationField('city') as any}
+                            onChange={handleLocationField('city')}
                             className={`w-full bg-white border rounded-lg px-3 py-2 ${errors['location.city'] ? 'border-red-300 focus:ring-red-200 focus:border-red-400' : 'border-gray-200'}`}
-                          >
-                            <option value="">Select city</option>
-                            {commonCities.map((c) => (
-                              <option key={c} value={c}>{c}</option>
-                            ))}
-                          </select>
+                            placeholder={geoLookupLoading ? 'Detecting…' : 'Enter city'}
+                          />
                           {errors['location.city'] && <div className="mt-1 text-xs text-red-600">{errors['location.city']}</div>}
                         </>
                       );
                     })()
                   ) : (
                     <div className="text-gray-900">{profile.location.city || '—'}</div>
+                  )}
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">State</div>
+                  {isEditing ? (
+                    geoStates.length > 0 ? (
+                      <select
+                        value={profile.location.state || ''}
+                        onChange={handleStateSelect}
+                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2"
+                      >
+                        <option value="">Select state</option>
+                        {geoStates.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={profile.location.state || ''}
+                        onChange={handleLocationField('state')}
+                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2"
+                        placeholder={geoLookupLoading ? 'Detecting…' : 'Enter state'}
+                      />
+                    )
+                  ) : (
+                    <div className="text-gray-900">{profile.location.state || '—'}</div>
+                  )}
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Country</div>
+                  {isEditing ? (
+                    geoCountries.length > 0 ? (
+                      <select
+                        value={profile.location.country || ''}
+                        onChange={handleCountrySelect}
+                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2"
+                      >
+                        <option value="">Select country</option>
+                        {geoCountries.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={profile.location.country || ''}
+                        onChange={handleLocationField('country')}
+                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2"
+                        placeholder={geoLookupLoading ? 'Detecting…' : 'Enter country'}
+                      />
+                    )
+                  ) : (
+                    <div className="text-gray-900">{profile.location.country || '—'}</div>
                   )}
                 </div>
               </div>
