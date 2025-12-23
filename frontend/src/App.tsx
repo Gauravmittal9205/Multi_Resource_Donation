@@ -925,11 +925,13 @@ function App() {
           </div>
         </nav>
       </header>
-      <Body 
-  activeLink={activeLink}
-  setActiveLink={setActiveLink}
-  user={user}
-/>
+      <div className="min-h-[calc(100vh-64px)]">
+        <Body 
+          activeLink={activeLink}
+          setActiveLink={setActiveLink}
+          user={user}
+        />
+      </div>
       <Footer/>
     </div>
   );
