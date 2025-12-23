@@ -1,4 +1,3 @@
-import React from 'react';
 import type { User } from 'firebase/auth';
 import DonorDashboard from './DonorDashboard';
 import ProfilePage from './ProfilePage';
@@ -22,7 +21,7 @@ export default function Body({ activeLink, user, setActiveLink }: BodyProps) {
           onBack={() => setActiveLink('home')}
         />
       ) : activeLink === 'profile' ? (
-        <ProfilePage onNavigateToDashboard={() => setActiveLink('donor-dashboard')} />
+        <ProfilePage />
       ) : activeLink === 'announcements' ? (
         <Announcements />
       ) : activeLink === 'help' ? (
