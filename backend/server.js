@@ -9,6 +9,7 @@ const path = require('path');
 // Route files
 const auth = require('./routes/auth');
 const profileRoutes = require('./routes/profile');
+const impactRoutes = require('./routes/impact');
 
 // Create Express app
 const app = express();
@@ -31,6 +32,7 @@ if (process.env.NODE_ENV === 'development') {
 // Mount routers
 app.use('/api/v1/auth', auth);
 app.use('/api/v1/profile', profileRoutes);
+app.use('/api/v1/impact', impactRoutes);
 
 // Set static folder
 app.use(express.static(path.join(__dirname, 'public')));
