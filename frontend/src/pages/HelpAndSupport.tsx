@@ -424,22 +424,80 @@ const HelpAndSupport = () => {
               </div>
               <div>
                 <h3 className="font-medium text-gray-900 mb-2">Quick Links</h3>
-                <ul className="space-y-2">
-                  <li>
-                    <a href="#" className="text-emerald-600 hover:text-emerald-800">
-                      {activeTab === 'donors' ? 'Donation Guidelines' : 'NGO Registration Process'}
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#" className="text-emerald-600 hover:text-emerald-800">
-                      {activeTab === 'donors' ? 'Track Your Donation' : 'View Donation Requests'}
-                    </a>
-                  </li>
-                  <li>
-                    <a href="#" className="text-emerald-600 hover:text-emerald-800">
-                      {activeTab === 'donors' ? 'Tax Exemption FAQs' : 'Impact Reporting Guide'}
-                    </a>
-                  </li>
+                <ul className="space-y-3">
+                  {activeTab === 'donors' ? (
+                    <>
+                      <li>
+                        <a 
+                          href="https://www.feedingamerica.org/find-your-local-foodbank" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-emerald-600 hover:text-emerald-800 flex items-start"
+                        >
+                          <span className="inline-flex items-center justify-center h-5 w-5 bg-emerald-100 text-emerald-700 rounded-full text-xs mr-2 mt-0.5">1</span>
+                          Find a Local Food Bank (Feeding America)
+                        </a>
+                      </li>
+                      <li>
+                        <a 
+                          href="https://www.nokidhungry.org/donate-food" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-emerald-600 hover:text-emerald-800 flex items-start"
+                        >
+                          <span className="inline-flex items-center justify-center h-5 w-5 bg-emerald-100 text-emerald-700 rounded-full text-xs mr-2 mt-0.5">2</span>
+                          Food Donation Guidelines (No Kid Hungry)
+                        </a>
+                      </li>
+                      <li>
+                        <a 
+                          href="https://www.foodtodonate.com/food-donation-tax-deduction/" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-emerald-600 hover:text-emerald-800 flex items-start"
+                        >
+                          <span className="inline-flex items-center justify-center h-5 w-5 bg-emerald-100 text-emerald-700 rounded-full text-xs mr-2 mt-0.5">3</span>
+                          Tax Deduction Information for Food Donations
+                        </a>
+                      </li>
+                    </>
+                  ) : (
+                    <>
+                      <li>
+                        <a 
+                          href="https://foodrecoverynetwork.org/join/" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-emerald-600 hover:text-emerald-800 flex items-start"
+                        >
+                          <span className="inline-flex items-center justify-center h-5 w-5 bg-emerald-100 text-emerald-700 rounded-full text-xs mr-2 mt-0.5">1</span>
+                          Partner with Food Recovery Network
+                        </a>
+                      </li>
+                      <li>
+                        <a 
+                          href="https://www.feedingamerica.org/our-work/food-bank-network" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-emerald-600 hover:text-emerald-800 flex items-start"
+                        >
+                          <span className="inline-flex items-center justify-center h-5 w-5 bg-emerald-100 text-emerald-700 rounded-full text-xs mr-2 mt-0.5">2</span>
+                          Connect with Food Banks (Feeding America)
+                        </a>
+                      </li>
+                      <li>
+                        <a 
+                          href="https://www.211.org/" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-emerald-600 hover:text-emerald-800 flex items-start"
+                        >
+                          <span className="inline-flex items-center justify-center h-5 w-5 bg-emerald-100 text-emerald-700 rounded-full text-xs mr-2 mt-0.5">3</span>
+                          Find Local Resources (211.org)
+                        </a>
+                      </li>
+                    </>
+                  )}
                 </ul>
               </div>
             </div>
@@ -448,33 +506,95 @@ const HelpAndSupport = () => {
 
         {/* Additional Resources */}
         <div className="mt-8 grid md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          {/* Documentation Card */}
+          <a 
+            href={activeTab === 'donors' 
+              ? 'https://www.feedingamerica.org/take-action/ways-to-give/donate-food' 
+              : 'https://www.foodbanking.org/resources/'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-emerald-200 transition-all duration-200 transform hover:-translate-y-1 cursor-pointer block"
+          >
             <div className="h-12 w-12 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600 mb-4">
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h3 className="font-medium text-gray-900 mb-2">Documentation</h3>
-            <p className="text-gray-600 text-sm">Browse our detailed guides and tutorials for {activeTab === 'donors' ? 'donors' : 'NGOs'}</p>
-          </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="font-medium text-gray-900 mb-2">
+              {activeTab === 'donors' ? 'Food Donation Guides' : 'NGO Resources'}
+            </h3>
+            <p className="text-gray-600 text-sm">
+              {activeTab === 'donors' 
+                ? 'Learn how to organize food drives ' 
+                : 'Access toolkits and resources for food recovery organizations'}
+            </p>
+            <div className="mt-3 text-emerald-600 text-sm font-medium flex items-center">
+              Explore resources
+              <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </a>
+
+          {/* Community Forum Card */}
+          <a 
+            href={activeTab === 'donors' 
+              ? 'https://www.reddit.com/r/foodbank/' 
+              : 'https://www.feedingamerica.org/take-action/volunteer/volunteer-with-food-bank'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-orange-200 transition-all duration-200 transform hover:-translate-y-1 cursor-pointer block"
+          >
             <div className="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600 mb-4">
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h3 className="font-medium text-gray-900 mb-2">Community Forum</h3>
-            <p className="text-gray-600 text-sm">Get help from our community of {activeTab === 'donors' ? 'donors' : 'NGOs'} and experts</p>
-          </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="font-medium text-gray-900 mb-2">
+              {activeTab === 'donors' ? 'Donor Community' : 'Volunteer Network'}
+            </h3>
+            <p className="text-gray-600 text-sm">
+              {activeTab === 'donors' 
+                ? 'Connect with other donors and share experiences' 
+                : 'Join our network of volunteers and make a difference'}
+            </p>
+            <div className="mt-3 text-orange-600 text-sm font-medium flex items-center">
+              Join the community
+              <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </a>
+
+          {/* Webinars Card */}
+          <a 
+            href={activeTab === 'donors' 
+              ? 'https://www.feedingamerica.org/our-work/we-feed-hunger-education-center' 
+              : 'https://www.foodbanking.org/events/'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-blue-200 transition-all duration-200 transform hover:-translate-y-1 cursor-pointer block"
+          >
             <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 mb-4">
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
-            <h3 className="font-medium text-gray-900 mb-2">Upcoming Webinars</h3>
-            <p className="text-gray-600 text-sm">Join our training sessions for {activeTab === 'donors' ? 'donors' : 'NGOs'}</p>
-          </div>
+            <h3 className="font-medium text-gray-900 mb-2">
+              {activeTab === 'donors' ? 'Educational Events' : 'Training & Webinars'}
+            </h3>
+            <p className="text-gray-600 text-sm">
+              {activeTab === 'donors' 
+                ? 'Learn about food insecurity and how you can help' 
+                : 'Professional development for food bank staff and volunteers'}
+            </p>
+            <div className="mt-3 text-blue-600 text-sm font-medium flex items-center">
+              View events
+              <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </a>
         </div>
       </div>
     </div>
