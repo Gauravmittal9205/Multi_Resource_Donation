@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { auth } from '../firebase';
-import { FiUser, FiMail, FiPhone, FiMapPin, FiCalendar, FiBell, FiShield, FiActivity, FiSettings, FiHeart, FiImage } from 'react-icons/fi';
+import { FiUser, FiMail, FiPhone, FiCalendar, FiShield, FiImage } from 'react-icons/fi';
 // Lightweight count-up hook
 function useCountUp(target: number, duration = 1200) {
   const [value, setValue] = useState(0);
@@ -36,7 +36,22 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; 
   );
 };
 
-const ProfilePage: React.FC = () => {
+const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavigateToDashboard }) => {
+  // Simple pincode -> city lookup (extend as needed)
+  const PINCODE_CITY: Record<string, string> = {
+    '560001': 'Bengaluru',
+    '110001': 'New Delhi',
+    '400001': 'Mumbai',
+    '700001': 'Kolkata',
+    '600001': 'Chennai',
+    '380001': 'Ahmedabad',
+    '411001': 'Pune',
+    '122001': 'Gurugram',
+    '201301': 'Noida',
+    '282007':'Agra',
+    '500001':'Hyderabad',
+    '281003':'Mathura',
+  };
   type DonorType = 'Individual' | 'Restaurant' | 'Event organizer' | 'Company / CSR';
   type DonationCategory = 'food' | 'clothes' | 'books';
   type ProfileErrors = Partial<Record<
@@ -49,8 +64,8 @@ const ProfilePage: React.FC = () => {
     | 'organization.address'
     | 'organization.licenseNumber'
     | 'location.pickupAddress'
-    | 'location.latitude'
-    | 'location.longitude'
+    | 'location.pincode'
+    | 'location.city'
     | 'preferences.donationCategories'
     | 'preferences.preferredPickupTime'
     | 'preferences.notificationPreference'
@@ -68,6 +83,7 @@ const ProfilePage: React.FC = () => {
   const profileImageInputRef = useRef<HTMLInputElement | null>(null);
   const [errors, setErrors] = useState<ProfileErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const authUser = useMemo(() => auth.currentUser ?? null, []);
 
@@ -85,15 +101,9 @@ const ProfilePage: React.FC = () => {
     const digits = p.replace(/\D/g, '');
     return digits.length >= 10 && digits.length <= 15;
   };
-  const validateLat = (v: string) => {
-    if (!v.trim()) return true;
-    const n = Number(v);
-    return Number.isFinite(n) && n >= -90 && n <= 90;
-  };
-  const validateLng = (v: string) => {
-    if (!v.trim()) return true;
-    const n = Number(v);
-    return Number.isFinite(n) && n >= -180 && n <= 180;
+  const validatePincode = (v: string) => {
+    const d = v.replace(/\D/g, '');
+    return d.length === 6; // basic 6-digit check
   };
   const validateProfile = () => {
     const next: ProfileErrors = {};
@@ -105,8 +115,8 @@ const ProfilePage: React.FC = () => {
     if (!profile.donorType) next['donorType'] = 'Donor type is required.';
 
     if (!profile.location.pickupAddress || profile.location.pickupAddress.trim().length < 6) next['location.pickupAddress'] = 'Pickup address is required.';
-    if (!validateLat(profile.location.latitude)) next['location.latitude'] = 'Latitude must be between -90 and 90.';
-    if (!validateLng(profile.location.longitude)) next['location.longitude'] = 'Longitude must be between -180 and 180.';
+    if (!validatePincode(profile.location.pincode)) next['location.pincode'] = 'Enter a valid 6-digit pincode.';
+    if (!profile.location.city || profile.location.city.trim().length < 2) next['location.city'] = 'City is required.';
 
     if (!profile.preferences.donationCategories || profile.preferences.donationCategories.length === 0) {
       next['preferences.donationCategories'] = 'Select at least one donation category.';
@@ -139,8 +149,8 @@ const ProfilePage: React.FC = () => {
     },
     location: {
       pickupAddress: '',
-      latitude: '',
-      longitude: '',
+      pincode: '',
+      city: '',
     },
     preferences: {
       donationCategories: ['food'] as DonationCategory[],
@@ -239,7 +249,17 @@ const ProfilePage: React.FC = () => {
   };
 
   const handleLocationField = (key: keyof typeof profile.location) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setProfile(p => ({ ...p, location: { ...p.location, [key]: e.target.value } }));
+    const value = e.target.value;
+    setProfile(p => {
+      const nextLoc = { ...p.location, [key]: value } as typeof p.location;
+      if (key === 'pincode') {
+        const digits = value.replace(/\D/g, '');
+        if (digits.length === 6 && PINCODE_CITY[digits]) {
+          nextLoc.city = PINCODE_CITY[digits];
+        }
+      }
+      return { ...p, location: nextLoc };
+    });
     setErrors(prev => {
       const copy = { ...prev };
       delete copy[`location.${key}` as keyof ProfileErrors];
@@ -251,32 +271,38 @@ const ProfilePage: React.FC = () => {
     setProfile(p => ({ ...p, preferences: { ...p.preferences, [key]: e.target.value as any } }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setFormError(null);
     const ok = validateProfile();
     if (!ok) {
       setFormError('Please fix the highlighted fields before saving.');
       return;
     }
-    setProfile(p => {
-      const next = {
-        ...p,
-        basic: {
-          ...p.basic,
-          phone: normalizePhone(p.basic.phone),
-        },
-      };
-      try {
-        localStorage.setItem('donor_profile_v2', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
+    const nextProfile = {
+      ...profile,
+      basic: {
+        ...profile.basic,
+        phone: normalizePhone(profile.basic.phone),
+      },
+    };
+    try {
+      localStorage.setItem('donor_profile_v2', JSON.stringify(nextProfile));
+    } catch {}
+    try {
+      const { photoUrl, ...basicForDb } = nextProfile.basic as any;
+      const payload = { ...nextProfile, basic: basicForDb, gallery: [], firebaseUid: nextProfile.basic.firebaseUid } as any;
+      await fetch('http://localhost:5000/api/v1/profile/upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {}
+    setProfile(() => nextProfile);
     setIsEditing(false);
     setErrors({});
   };
 
   const handleCancel = () => {
-    setAvatarPreview(null);
     setIsEditing(false);
     setErrors({});
     setFormError(null);
@@ -318,12 +344,14 @@ const ProfilePage: React.FC = () => {
     return badges;
   }, [metrics.mealsServed, metrics.totalDonationsCount, profile.trust.verifiedStatus]);
   
-  // Quick Actions handlers (demo wiring)
+  // Quick Actions handlers
   const handleDonateAgain = () => {
-    alert('Navigating to Donate Items...');
+    if (onNavigateToDashboard) {
+      onNavigateToDashboard();
+    }
   };
   const handleChangePassword = () => {
-    alert('Password change flow will open here.');
+    setShowChangePassword(true);
   };
   const handleDeleteAccount = () => {
     if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
@@ -695,35 +723,59 @@ const ProfilePage: React.FC = () => {
                   )}
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">Latitude</div>
+                  <div className="text-xs text-gray-500 mb-1">Pincode <span className="text-red-600">*</span></div>
                   {isEditing ? (
                     <>
                       <input
-                        value={profile.location.latitude}
-                        onChange={handleLocationField('latitude')}
-                        className={`w-full bg-white border rounded-lg px-3 py-2 ${errors['location.latitude'] ? 'border-red-300 focus:ring-red-200 focus:border-red-400' : 'border-gray-200'}`}
-                        placeholder="18.5204"
+                        value={profile.location.pincode}
+                        onChange={handleLocationField('pincode')}
+                        className={`w-full bg-white border rounded-lg px-3 py-2 ${errors['location.pincode'] ? 'border-red-300 focus:ring-red-200 focus:border-red-400' : 'border-gray-200'}`}
+                        placeholder="e.g. 560001"
                       />
-                      {errors['location.latitude'] && <div className="mt-1 text-xs text-red-600">{errors['location.latitude']}</div>}
+                      {errors['location.pincode'] && <div className="mt-1 text-xs text-red-600">{errors['location.pincode']}</div>}
                     </>
                   ) : (
-                    <div className="text-gray-900">{profile.location.latitude || '—'}</div>
+                    <div className="text-gray-900">{profile.location.pincode || '—'}</div>
                   )}
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">Longitude</div>
+                  <div className="text-xs text-gray-500 mb-1">City <span className="text-red-600">*</span></div>
                   {isEditing ? (
-                    <>
-                      <input
-                        value={profile.location.longitude}
-                        onChange={handleLocationField('longitude')}
-                        className={`w-full bg-white border rounded-lg px-3 py-2 ${errors['location.longitude'] ? 'border-red-300 focus:ring-red-200 focus:border-red-400' : 'border-gray-200'}`}
-                        placeholder="73.8567"
-                      />
-                      {errors['location.longitude'] && <div className="mt-1 text-xs text-red-600">{errors['location.longitude']}</div>}
-                    </>
+                    (() => {
+                      const digits = (profile.location.pincode || '').replace(/\D/g, '');
+                      const mapped = PINCODE_CITY[digits];
+                      const commonCities = Array.from(new Set(Object.values(PINCODE_CITY)));
+                      if (mapped) {
+                        return (
+                          <>
+                            <input
+                              value={profile.location.city || mapped}
+                              readOnly
+                              className={`w-full bg-gray-50 border rounded-lg px-3 py-2 ${errors['location.city'] ? 'border-red-300 focus:ring-red-200 focus:border-red-400' : 'border-gray-200'}`}
+                            />
+                            <div className="mt-1 text-xs text-gray-500">Auto-filled from pincode</div>
+                            {errors['location.city'] && <div className="mt-1 text-xs text-red-600">{errors['location.city']}</div>}
+                          </>
+                        );
+                      }
+                      return (
+                        <>
+                          <select
+                            value={profile.location.city}
+                            onChange={handleLocationField('city') as any}
+                            className={`w-full bg-white border rounded-lg px-3 py-2 ${errors['location.city'] ? 'border-red-300 focus:ring-red-200 focus:border-red-400' : 'border-gray-200'}`}
+                          >
+                            <option value="">Select city</option>
+                            {commonCities.map((c) => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                          </select>
+                          {errors['location.city'] && <div className="mt-1 text-xs text-red-600">{errors['location.city']}</div>}
+                        </>
+                      );
+                    })()
                   ) : (
-                    <div className="text-gray-900">{profile.location.longitude || '—'}</div>
+                    <div className="text-gray-900">{profile.location.city || '—'}</div>
                   )}
                 </div>
               </div>
@@ -872,34 +924,7 @@ const ProfilePage: React.FC = () => {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">
-              <div className="text-lg font-semibold text-gray-900 mb-4">Notification Settings</div>
-              <div className="grid sm:grid-cols-3 gap-4">
-                {([
-                  { key: 'emailNotifications' as const, label: 'Email notifications' },
-                  { key: 'pushNotifications' as const, label: 'Push notifications' },
-                  { key: 'smsNotifications' as const, label: 'SMS (optional)' },
-                ]).map((n) => (
-                  <div key={n.key} className="rounded-xl bg-white border border-gray-100 p-4">
-                    <div className="text-sm font-medium text-gray-900">{n.label}</div>
-                    <div className="mt-2">
-                      {isEditing ? (
-                        <label className="inline-flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={profile.notifications[n.key]}
-                            onChange={(e) => setProfile(p => ({ ...p, notifications: { ...p.notifications, [n.key]: e.target.checked } }))}
-                          />
-                          <span className="text-gray-700">Enabled</span>
-                        </label>
-                      ) : (
-                        <div className="text-gray-700">{profile.notifications[n.key] ? 'Enabled' : 'Disabled'}</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            
 
             <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">
               <div className="text-lg font-semibold text-gray-900 mb-4">System & Security Data</div>
@@ -943,8 +968,43 @@ const ProfilePage: React.FC = () => {
           </div>
         </div>
       </section>
+      {showChangePassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowChangePassword(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-3xl">🔒</div>
+                <h3 className="text-2xl font-bold text-purple-700 mt-1">Change Password</h3>
+                <p className="text-gray-500 mt-1">Enter your current password and choose a new one</p>
+              </div>
+              <button className="text-gray-400 hover:text-gray-600" onClick={() => setShowChangePassword(false)}>×</button>
+            </div>
+            <div className="mt-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                <input type="password" placeholder="Enter current password" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-200" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <input type="password" placeholder="Enter new password (min 6 characters)" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-200" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                <input type="password" placeholder="Confirm new password" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-200" />
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => setShowChangePassword(false)} className="px-4 py-2 rounded bg-gray-100 text-gray-700">Cancel</button>
+              <button className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700">Update Password</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default ProfilePage;
+ 
+
