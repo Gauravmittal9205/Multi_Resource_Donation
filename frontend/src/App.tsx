@@ -62,6 +62,10 @@ function App() {
   useEffect(() => {
     if (!user?.uid) {
       setUserMeta(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('userType');
+        localStorage.removeItem('organizationName');
+      }
       return;
     }
     let cancelled = false;
@@ -72,7 +76,14 @@ function App() {
       })
       .then((json) => {
         if (cancelled) return;
-        setUserMeta(json?.data ?? null);
+        const meta = json?.data ?? null;
+        setUserMeta(meta);
+        if (typeof window !== 'undefined') {
+          if (meta?.userType) localStorage.setItem('userType', meta.userType);
+          if (!meta?.userType) localStorage.removeItem('userType');
+          if (meta?.organizationName) localStorage.setItem('organizationName', meta.organizationName);
+          if (!meta?.organizationName) localStorage.removeItem('organizationName');
+        }
       })
       .catch(() => {
         if (cancelled) return;

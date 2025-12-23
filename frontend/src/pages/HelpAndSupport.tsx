@@ -1,67 +1,75 @@
-import { useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
+import { fetchFaqs, type FaqRole } from '../services/faqService';
 
 const HelpAndSupport = () => {
   const [activeTab, setActiveTab] = useState('donors');
-  const [searchQuery, setSearchQuery] = useState('');
   const [activeCard, setActiveCard] = useState<string | null>(null);
+  const [faqLoading, setFaqLoading] = useState(false);
+  const [faqError, setFaqError] = useState<string | null>(null);
   
   const toggleCard = (cardId: string) => {
     setActiveCard(activeCard === cardId ? null : cardId);
   };
 
-  const faqs = {
-    donors: [
-      {
-        id: 'donate-items',
-        question: 'How do I donate items?',
-        answer: 'Click on the "Donate Now" button, select the items you wish to donate, and follow the simple steps to schedule a pickup.'
-      },
-      {
-        id: 'volunteer-info',
-        question: 'How can I volunteer?',
-        answer: 'Join our volunteer program by signing up on our platform. You can help with pickup, sorting, and distribution of donations.'
-      },
-      {
-        question: 'What items can I donate?',
-        answer: 'We accept food (non-perishable), clothes, books, and other essentials in good condition. Please ensure items are clean and usable.'
-      },
-      {
-        question: 'How do I track my donation?',
-        answer: 'You can track your donation status in real-time through your dashboard. You\'ll receive notifications at each step of the process.'
-      },
-      {
-        question: 'Are there any tax benefits?',
-        answer: 'Yes, all donations are tax-deductible. You\'ll receive a tax receipt via email for your records.'
-      },
-      {
-        question: 'How do I schedule a pickup?',
-        answer: 'After submitting your donation details, you can choose a convenient pickup time slot from the available options.'
+  const [faqs, setFaqs] = useState({ donors: [], ngos: [], volunteers: [] } as {
+    donors: { id: string; question: string; answer: string }[];
+    ngos: { id: string; question: string; answer: string }[];
+    volunteers: { id: string; question: string; answer: string }[];
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadFaqs = async () => {
+      try {
+        setFaqLoading(true);
+        setFaqError(null);
+
+        const [donorsRes, ngosRes, volunteersRes] = await Promise.all([
+          fetchFaqs('donors' as FaqRole),
+          fetchFaqs('ngos' as FaqRole),
+          fetchFaqs('volunteers' as FaqRole)
+        ]);
+
+        if (!isMounted) return;
+
+        const donors = (donorsRes.data || []).map((f) => ({
+          id: f._id,
+          question: f.question,
+          answer: f.answer
+        }));
+        const ngos = (ngosRes.data || []).map((f) => ({
+          id: f._id,
+          question: f.question,
+          answer: f.answer
+        }));
+        const volunteers = (volunteersRes.data || []).map((f) => ({
+          id: f._id,
+          question: f.question,
+          answer: f.answer
+        }));
+
+        setFaqs({
+          donors,
+          ngos,
+          volunteers
+        });
+      } catch (err) {
+        if (!isMounted) return;
+        setFaqs({ donors: [], ngos: [], volunteers: [] });
+        setFaqError('Failed to load FAQs from server.');
+      } finally {
+        if (!isMounted) return;
+        setFaqLoading(false);
       }
-    ],
-    ngos: [
-      {
-        id: 'ngo-registration',
-        question: 'How do we register as an NGO?',
-        answer: 'Click on "Register as NGO" and complete the verification process by submitting the required documents for approval.'
-      },
-      {
-        question: 'What documents are required?',
-        answer: 'We require 12A/80G registration, PAN card, and a valid ID proof of the authorized signatory.'
-      },
-      {
-        question: 'How do we receive donations?',
-        answer: 'Once registered, you can view and accept available donations in your area through your dashboard.'
-      },
-      {
-        question: 'What are our responsibilities?',
-        answer: 'NGOs are responsible for timely pickup, proper utilization, and reporting of all received donations.'
-      },
-      {
-        question: 'How to report impact?',
-        answer: 'Use our impact reporting tool in your dashboard to share how the donations are being utilized.'
-      }
-    ]
-  };
+    };
+
+    loadFaqs();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const contactInfo = {
     donors: {
@@ -76,23 +84,17 @@ const HelpAndSupport = () => {
     }
   };
 
-  // Filter FAQs based on search query
   const filteredFaqs = {
-    donors: faqs.donors.filter(faq => 
-      faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
-    ),
-    ngos: faqs.ngos.filter(faq => 
-      faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    donors: faqs.donors,
+    ngos: faqs.ngos,
+    volunteers: faqs.volunteers
   };
 
   const activeFaqs = filteredFaqs[activeTab as keyof typeof filteredFaqs];
   const activeContact = contactInfo[activeTab as keyof typeof contactInfo];
 
   // Function to close modal when clicking outside content
-  const closeModal = (e: React.MouseEvent) => {
+  const closeModal = (e: MouseEvent) => {
     if (e.target === e.currentTarget) {
       setActiveCard(null);
     }
@@ -107,31 +109,42 @@ const HelpAndSupport = () => {
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Find answers to common questions and get the support you need
           </p>
+          {faqLoading && (
+            <p className="mt-3 text-sm text-gray-500">
+              Loading FAQs...
+            </p>
+          )}
+          {!faqLoading && faqError && (
+            <p className="mt-3 text-sm text-amber-600">
+              {faqError}
+            </p>
+          )}
         </div>
 
-        {/* Search Bar */}
-        <div className="max-w-2xl mx-auto mb-12">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search help articles..."
-              className="w-full px-6 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <svg
-              className="absolute right-3 top-3 h-6 w-6 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
+        <div className="max-w-4xl mx-auto mb-10">
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="text-left">
+                <p className="text-sm font-semibold text-emerald-700">Quick Help</p>
+                <p className="mt-1 text-sm text-gray-700">
+                  Select your role below to view FAQs. If you still need help, use the contact details at the bottom.
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-xl bg-white p-3 border border-emerald-100 text-center">
+                  <p className="text-xs text-gray-500">Donors</p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">Donate</p>
+                </div>
+                <div className="rounded-xl bg-white p-3 border border-emerald-100 text-center">
+                  <p className="text-xs text-gray-500">Volunteers</p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">Join</p>
+                </div>
+                <div className="rounded-xl bg-white p-3 border border-emerald-100 text-center">
+                  <p className="text-xs text-gray-500">NGOs</p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">Partner</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -276,20 +289,7 @@ const HelpAndSupport = () => {
                           <p className="text-gray-600 max-w-2xl mx-auto">Join our team of dedicated volunteers and make a difference in your community.</p>
                         </div>
                         <div className="space-y-8">
-                          {[
-                            {
-                              question: 'How can I become a volunteer?',
-                              answer: 'Sign up through our volunteer portal, complete the registration process, and attend an orientation session.'
-                            },
-                            {
-                              question: 'What are the volunteer requirements?',
-                              answer: 'You must be at least 18 years old, complete a background check, and attend a training session.'
-                            },
-                            {
-                              question: 'What kind of volunteer work is available?',
-                              answer: 'We need help with donation pickup, sorting, distribution, and community outreach programs.'
-                            }
-                          ].map((faq, index) => (
+                          {faqs.volunteers.map((faq, index) => (
                             <div key={index} className="bg-gray-50 rounded-xl p-6 hover:bg-gray-100 transition-colors duration-200">
                               <h4 className="text-xl font-semibold text-gray-800 mb-3 flex items-center">
                                 <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-orange-100 text-orange-700 mr-3 flex-shrink-0">
@@ -300,6 +300,17 @@ const HelpAndSupport = () => {
                               <p className="text-gray-600 pl-11">{faq.answer}</p>
                             </div>
                           ))}
+
+                          {!faqLoading && !faqError && faqs.volunteers.length === 0 && (
+                            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+                              <p className="text-sm text-gray-600">
+                                No FAQs found for this section.
+                              </p>
+                              <p className="mt-1 text-xs text-gray-500">
+                                Add FAQs in MongoDB (Faq collection) and refresh.
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -365,26 +376,21 @@ const HelpAndSupport = () => {
         </div>
 
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          {/* Search Bar */}
-          <div className="p-6 border-b border-gray-200">
-            <div className="relative max-w-2xl mx-auto">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                placeholder={`Search ${activeTab === 'donors' ? 'donor' : 'NGO'} help articles...`}
-              />
-            </div>
-          </div>
-
           {/* FAQ Section */}
           <div className="p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Frequently Asked Questions</h2>
             <div className="space-y-4">
+              {!faqLoading && !faqError && activeFaqs.length === 0 && (
+                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+                  <p className="text-sm text-gray-600">
+                    No FAQs found for this section.
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Add FAQs in MongoDB (Faq collection) and refresh.
+                  </p>
+                </div>
+              )}
+
               {activeFaqs.map((faq, index) => (
                 <div key={index} id={faq.id} className="border-b border-gray-200 pb-6 mb-6 rounded-lg p-4 hover:bg-gray-50 transition-colors duration-200">
                   <h3 className="font-medium text-gray-900">{faq.question}</h3>
