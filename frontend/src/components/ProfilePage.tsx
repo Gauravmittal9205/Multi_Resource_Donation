@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { auth } from '../firebase';
-import { FiUser, FiMail, FiPhone, FiCalendar, FiShield, FiImage } from 'react-icons/fi';
+import { FiUser, FiMail, FiPhone, FiCalendar, FiShield, FiImage, FiEye, FiEyeOff } from 'react-icons/fi';
+import { EmailAuthProvider, reauthenticateWithCredential, signOut, updatePassword } from 'firebase/auth';
+import type { User as FirebaseUser } from 'firebase/auth';
 // Lightweight count-up hook
 function useCountUp(target: number, duration = 1200) {
   const [value, setValue] = useState(0);
@@ -36,7 +38,7 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; 
   );
 };
 
-const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavigateToDashboard }) => {
+const ProfilePage: React.FC = () => {
   // Simple pincode -> city lookup (extend as needed)
   const PINCODE_CITY: Record<string, string> = {
     '560001': 'Bengaluru',
@@ -84,8 +86,24 @@ const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavig
   const [errors, setErrors] = useState<ProfileErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [changePasswordError, setChangePasswordError] = useState<string | null>(null);
+  const [changePasswordSubmitting, setChangePasswordSubmitting] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
-  const authUser = useMemo(() => auth.currentUser ?? null, []);
+  const [authUser, setAuthUser] = useState<FirebaseUser | null>(() => auth.currentUser ?? null);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((u) => setAuthUser(u));
+    return () => unsubscribe();
+  }, []);
+
+  const storedUserType = typeof window !== 'undefined' ? (localStorage.getItem('userType') as 'donor' | 'ngo' | null) : null;
+  const roleLabel = storedUserType === 'ngo' ? 'NGO' : storedUserType === 'donor' ? 'Donor' : 'User';
 
   const formatAuthTime = (value?: string | null) => {
     if (!value) return '—';
@@ -173,18 +191,47 @@ const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavig
     },
   });
 
-  // Load saved profile from localStorage on first render
   useEffect(() => {
+    if (!authUser?.email) return;
+    const emailKey = 'donor_profile_v2_email';
+    const storedEmail = localStorage.getItem(emailKey);
+    if (storedEmail && storedEmail !== authUser.email) {
+      localStorage.removeItem('donor_profile_v2');
+    }
+    localStorage.setItem(emailKey, authUser.email);
+
+    setProfile((p) => ({
+      ...p,
+      basic: {
+        ...p.basic,
+        name: authUser.displayName || '—',
+        email: authUser.email || '—',
+        phone: authUser.phoneNumber || '',
+        photoUrl: authUser.photoURL || '',
+        firebaseUid: authUser.uid || '—',
+        accountCreationDate: formatAuthTime(authUser.metadata?.creationTime || null),
+      },
+      systemSecurity: {
+        ...p.systemSecurity,
+        lastLoginTime: formatAuthTime(authUser.metadata?.lastSignInTime || null),
+      },
+    }));
+
     try {
       const raw = localStorage.getItem('donor_profile_v2');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
-          setProfile((p) => ({ ...p, ...parsed, basic: { ...p.basic, ...(parsed.basic || {}) } }));
+          setProfile((p) => ({
+            ...p,
+            ...parsed,
+            basic: { ...p.basic, ...(parsed.basic || {}), email: authUser.email || p.basic.email },
+            systemSecurity: { ...p.systemSecurity, ...(parsed.systemSecurity || {}), lastLoginTime: formatAuthTime(authUser.metadata?.lastSignInTime || null) },
+          }));
         }
       }
     } catch {}
-  }, []);
+  }, [authUser?.email, authUser?.displayName, authUser?.phoneNumber, authUser?.photoURL, authUser?.uid, authUser?.metadata?.creationTime, authUser?.metadata?.lastSignInTime]);
 
   const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -267,10 +314,6 @@ const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavig
     });
   };
 
-  const handlePrefField = (key: keyof typeof profile.preferences) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setProfile(p => ({ ...p, preferences: { ...p.preferences, [key]: e.target.value as any } }));
-  };
-
   const handleSave = async () => {
     setFormError(null);
     const ok = validateProfile();
@@ -289,8 +332,7 @@ const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavig
       localStorage.setItem('donor_profile_v2', JSON.stringify(nextProfile));
     } catch {}
     try {
-      const { photoUrl, ...basicForDb } = nextProfile.basic as any;
-      const payload = { ...nextProfile, basic: basicForDb, gallery: [], firebaseUid: nextProfile.basic.firebaseUid } as any;
+      const payload = { ...nextProfile, firebaseUid: nextProfile.basic.firebaseUid } as any;
       await fetch('http://localhost:5000/api/v1/profile/upsert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -308,33 +350,13 @@ const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavig
     setFormError(null);
   };
 
-  type DonationItem = { type: 'Food'|'Clothes'|'Books'|'Medicines'; qty: string; status: string; date: string; countdown?: string };
-  const donations = useMemo<Record<'active'|'completed', DonationItem[]>>(() => ({
-    active: [
-      { type: 'Food', qty: '25 kg', status: 'Pending', date: 'Dec 18, 2025', countdown: '02:45:10' },
-    ],
-    completed: [
-      { type: 'Books', qty: '120', status: 'Distributed', date: 'Dec 12, 2025' },
-      { type: 'Medicines', qty: '15 kits', status: 'Distributed', date: 'Dec 02, 2025' },
-    ],
-  }), []);
-
   const metrics = useMemo(() => {
-    const all = [...donations.active, ...donations.completed];
-    const totalDonationsCount = all.length;
-    const mealsServed = all.filter(d => d.type === 'Food').length;
-    const clothesDonated = all.filter(d => d.type === 'Clothes').length;
-    const booksDonated = all.filter(d => d.type === 'Books').length;
-
-    return { totalDonationsCount, mealsServed, clothesDonated, booksDonated };
-  }, [donations.active, donations.completed]);
+    return { totalDonationsCount: 0, mealsServed: 0, clothesDonated: 0, booksDonated: 0 };
+  }, []);
 
   const activity = useMemo(() => {
-    const all = [...donations.active, ...donations.completed];
-    const lastDonationDate = all.length ? all[0].date : '—';
-    const isActive = donations.active.length > 0;
-    return { lastDonationDate, isActive };
-  }, [donations.active, donations.completed]);
+    return { lastDonationDate: null as string | null, isActive: null as boolean | null };
+  }, []);
 
   const trustBadges = useMemo(() => {
     const badges: string[] = [];
@@ -345,13 +367,59 @@ const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavig
   }, [metrics.mealsServed, metrics.totalDonationsCount, profile.trust.verifiedStatus]);
   
   // Quick Actions handlers
-  const handleDonateAgain = () => {
-    if (onNavigateToDashboard) {
-      onNavigateToDashboard();
-    }
-  };
   const handleChangePassword = () => {
+    setChangePasswordError(null);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmNewPassword(false);
     setShowChangePassword(true);
+  };
+
+  const handleUpdatePassword = async () => {
+    setChangePasswordError(null);
+
+    if (!auth.currentUser) {
+      setChangePasswordError('You are not logged in. Please login again and retry.');
+      return;
+    }
+
+    if (!currentPassword) {
+      setChangePasswordError('Please enter your current password.');
+      return;
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      setChangePasswordError('New password must be at least 6 characters.');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setChangePasswordError('New password and confirm password do not match.');
+      return;
+    }
+
+    const email = auth.currentUser.email;
+    if (!email) {
+      setChangePasswordError('Your account email is missing. Please login again and retry.');
+      return;
+    }
+
+    try {
+      setChangePasswordSubmitting(true);
+      const cred = EmailAuthProvider.credential(email, currentPassword);
+      await reauthenticateWithCredential(auth.currentUser, cred);
+      await updatePassword(auth.currentUser, newPassword);
+      setShowChangePassword(false);
+      await signOut(auth);
+    } catch (e: any) {
+      const msg = typeof e?.message === 'string' ? e.message : 'Failed to update password.';
+      setChangePasswordError(msg);
+    } finally {
+      setChangePasswordSubmitting(false);
+    }
   };
   const handleDeleteAccount = () => {
     if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
@@ -433,10 +501,13 @@ const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavig
               </div>
               <div className="text-center md:text-left">
                 <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">{profile.basic.name}</h1>
-                <p className="text-blue-100 mb-2">{profile.donorType}</p>
+                <p className="text-blue-100 mb-2">{roleLabel}</p>
                 <div className="flex flex-wrap justify-center md:justify-start gap-3 text-sm">
                   <span className="flex items-center text-blue-100 bg-white/20 px-3 py-1 rounded-full">
                     <FiMail className="mr-1" /> {profile.basic.email}
+                  </span>
+                  <span className="flex items-center text-blue-100 bg-white/20 px-3 py-1 rounded-full">
+                    <FiCalendar className="mr-1" /> {profile.systemSecurity.lastLoginTime}
                   </span>
                   {profile.basic.phone && (
                     <span className="flex items-center text-blue-100 bg-white/20 px-3 py-1 rounded-full">
@@ -584,126 +655,6 @@ const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavig
               </div>
             </div>
 
-            {/* Profile Gallery Section */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow duration-200">
-              <div className="flex items-center mb-6">
-                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600 mr-3">
-                  <FiImage className="w-5 h-5" />
-                </div>
-                <h2 className="text-xl font-semibold text-gray-800">Gallery</h2>
-                {isEditing && (
-                  <button
-                    type="button"
-                    onClick={() => galleryInputRef.current?.click()}
-                    className="ml-auto inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
-                  >
-                    <svg className="-ml-1 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    Add Images
-                  </button>
-                )}
-              </div>
-
-              <input
-                ref={galleryInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={handleGalleryFiles}
-              />
-
-              {(profile.gallery?.length || 0) === 0 ? (
-                <div className="text-sm text-gray-600">No images uploaded yet.</div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {profile.gallery.map((img, i) => (
-                    <div 
-                      key={i} 
-                      className="relative group rounded-xl overflow-hidden aspect-square bg-gray-50 border border-gray-100 hover:border-indigo-200 transition-all duration-200"
-                    >
-                      <img 
-                        src={img} 
-                        alt={`Gallery ${i + 1}`} 
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
-                      />
-                      {isEditing && (
-                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemoveGalleryItem(i);
-                            }}
-                            className="w-8 h-8 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                            title="Remove image"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-            </div>
-
-            {/* Organization Details Section */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow duration-200">
-              <div className="flex items-center mb-6">
-                <div className="p-2 bg-orange-50 rounded-lg text-orange-600 mr-3">
-                  <FiShield className="w-5 h-5" />
-                </div>
-                <h2 className="text-xl font-semibold text-gray-800">Organization Details</h2>
-                <span className="ml-2 text-sm text-gray-500">(Optional)</span>
-              </div>
-              
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Organization Name
-                  </label>
-                  {isEditing ? (
-                    <input 
-                      value={profile.organization.organizationName} 
-                      onChange={handleOrgField('organizationName')} 
-                      className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-orange-200 focus:border-orange-400 transition-all duration-200 outline-none"
-                      placeholder="Enter organization name"
-                    />
-                  ) : (
-                    <div className="text-gray-900">{profile.organization.organizationName || '—'}</div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">Business type</div>
-                  {isEditing ? (
-                    <input value={profile.organization.businessType} onChange={handleOrgField('businessType')} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2" />
-                  ) : (
-                    <div className="text-gray-900">{profile.organization.businessType || '—'}</div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">Address</div>
-                  {isEditing ? (
-                    <input value={profile.organization.address} onChange={handleOrgField('address')} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2" />
-                  ) : (
-                    <div className="text-gray-900">{profile.organization.address || '—'}</div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">License / registration number (e.g. FSSAI)</div>
-                  {isEditing ? (
-                    <input value={profile.organization.licenseNumber} onChange={handleOrgField('licenseNumber')} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2" />
-                  ) : (
-                    <div className="text-gray-900">{profile.organization.licenseNumber || '—'}</div>
-                  )}
-                </div>
-              </div>
-            </div>
-
             <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">
               <div className="text-lg font-semibold text-gray-900 mb-4">Location Information</div>
               <div className="grid sm:grid-cols-2 gap-4">
@@ -781,61 +732,121 @@ const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavig
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">
-              <div className="text-lg font-semibold text-gray-900 mb-4">Donation Preferences</div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-gray-500 mb-2">Donation categories <span className="text-red-600">*</span></div>
-                  <div className="flex flex-wrap gap-2">
-                    {(['food','clothes','books'] as DonationCategory[]).map((c) => {
-                      const checked = profile.preferences.donationCategories.includes(c);
-                      return (
-                        <label key={c} className={`px-3 py-1 rounded-full text-sm border ${checked ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-white border-gray-200 text-gray-700'}`}>
-                          <input
-                            type="checkbox"
-                            className="mr-2"
-                            checked={checked}
-                            disabled={!isEditing}
-                            onChange={(e) => {
-                              if (!isEditing) return;
-                              setProfile(p => {
-                                const next = e.target.checked
-                                  ? [...p.preferences.donationCategories, c]
-                                  : p.preferences.donationCategories.filter(x => x !== c);
-                                return { ...p, preferences: { ...p.preferences, donationCategories: next } };
-                              });
-                              setErrors(prev => {
-                                const copy = { ...prev };
-                                delete copy['preferences.donationCategories'];
-                                return copy;
-                              });
-                            }}
-                          />
-                          {c}
-                        </label>
-                      );
-                    })}
-                  </div>
-                  {isEditing && errors['preferences.donationCategories'] && <div className="mt-1 text-xs text-red-600">{errors['preferences.donationCategories']}</div>}
+            {/* Profile Gallery Section */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow duration-200">
+              <div className="flex items-center mb-6">
+                <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600 mr-3">
+                  <FiImage className="w-5 h-5" />
                 </div>
+                <h2 className="text-xl font-semibold text-gray-800">Gallery</h2>
+                {isEditing && (
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="ml-auto inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
+                  >
+                    <svg className="-ml-1 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Add Images
+                  </button>
+                )}
+              </div>
+
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleGalleryFiles}
+              />
+
+              {(profile.gallery?.length || 0) === 0 ? (
+                <div className="text-sm text-gray-600">No images uploaded yet.</div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {profile.gallery.map((img, i) => (
+                    <div 
+                      key={i} 
+                      className="relative group rounded-xl overflow-hidden aspect-square bg-gray-50 border border-gray-100 hover:border-indigo-200 transition-all duration-200"
+                    >
+                      <img 
+                        src={img} 
+                        alt={`Gallery ${i + 1}`} 
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
+                      />
+                      {isEditing && (
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveGalleryItem(i);
+                            }}
+                            className="w-8 h-8 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                            title="Remove image"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+            </div>
+
+            {/* Organization Details Section */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow duration-200">
+              <div className="flex items-center mb-6">
+                <div className="p-2 bg-orange-50 rounded-lg text-orange-600 mr-3">
+                  <FiShield className="w-5 h-5" />
+                </div>
+                <h2 className="text-xl font-semibold text-gray-800">Organization Details</h2>
+                <span className="ml-2 text-sm text-gray-500">(Optional)</span>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">Preferred pickup time</div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Organization Name
+                  </label>
                   {isEditing ? (
-                    <input value={profile.preferences.preferredPickupTime} onChange={handlePrefField('preferredPickupTime')} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2" placeholder="10:00 AM - 02:00 PM" />
+                    <input
+                      value={profile.organization.organizationName}
+                      onChange={handleOrgField('organizationName')}
+                      className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-orange-200 focus:border-orange-400 transition-all duration-200 outline-none"
+                      placeholder="Enter organization name"
+                    />
                   ) : (
-                    <div className="text-gray-900">{profile.preferences.preferredPickupTime || '—'}</div>
+                    <div className="text-gray-900">{profile.organization.organizationName || '—'}</div>
                   )}
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">Notification preference</div>
+                  <div className="text-xs text-gray-500 mb-1">Business type</div>
                   {isEditing ? (
-                    <select value={profile.preferences.notificationPreference} onChange={handlePrefField('notificationPreference')} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2">
-                      <option value="email">Email</option>
-                      <option value="push">Push</option>
-                      <option value="sms">SMS</option>
-                    </select>
+                    <input value={profile.organization.businessType} onChange={handleOrgField('businessType')} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2" />
                   ) : (
-                    <div className="text-gray-900">{profile.preferences.notificationPreference}</div>
+                    <div className="text-gray-900">{profile.organization.businessType || '—'}</div>
+                  )}
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Address</div>
+                  {isEditing ? (
+                    <input value={profile.organization.address} onChange={handleOrgField('address')} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2" />
+                  ) : (
+                    <div className="text-gray-900">{profile.organization.address || '—'}</div>
+                  )}
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">License / registration number (e.g. FSSAI)</div>
+                  {isEditing ? (
+                    <input value={profile.organization.licenseNumber} onChange={handleOrgField('licenseNumber')} className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2" />
+                  ) : (
+                    <div className="text-gray-900">{profile.organization.licenseNumber || '—'}</div>
                   )}
                 </div>
               </div>
@@ -913,39 +924,16 @@ const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavig
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Last donation date</div>
-                  <div className="text-gray-900">{activity.lastDonationDate}</div>
+                  <div className="text-gray-900">{activity.lastDonationDate ?? '—'}</div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Active / inactive status</div>
-                  <div className={`inline-flex px-3 py-1 rounded-full text-sm ${activity.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700'}`}>
-                    {activity.isActive ? 'Active' : 'Inactive'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            
-
-            <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">
-              <div className="text-lg font-semibold text-gray-900 mb-4">System & Security Data</div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">Last login time</div>
-                  <div className="text-gray-900">{profile.systemSecurity.lastLoginTime}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">Account blocked flag</div>
-                  {isEditing ? (
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={profile.systemSecurity.accountBlocked}
-                        onChange={(e) => setProfile(p => ({ ...p, systemSecurity: { ...p.systemSecurity, accountBlocked: e.target.checked } }))}
-                      />
-                      <span className="text-gray-900">Blocked</span>
-                    </label>
+                  {activity.isActive === null ? (
+                    <div className="inline-flex px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700">—</div>
                   ) : (
-                    <div className="text-gray-900">{profile.systemSecurity.accountBlocked ? 'True' : 'False'}</div>
+                    <div className={`inline-flex px-3 py-1 rounded-full text-sm ${activity.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700'}`}>
+                      {activity.isActive ? 'Active' : 'Inactive'}
+                    </div>
                   )}
                 </div>
               </div>
@@ -960,7 +948,6 @@ const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavig
             <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5">
               <div className="text-center text-xl font-semibold text-gray-900 mb-4">Quick Actions</div>
               <div className="flex flex-wrap gap-3 justify-center">
-                <button onClick={handleDonateAgain} className="px-5 py-2 rounded-full bg-emerald-600 text-white hover:bg-emerald-700">Donate Again</button>
                 <button onClick={handleChangePassword} className="px-5 py-2 rounded-full bg-white border border-gray-200 text-gray-700 hover:bg-gray-50">Change Password</button>
                 <button onClick={handleDeleteAccount} className="px-5 py-2 rounded-full bg-white border border-gray-200 text-red-600 hover:bg-gray-50">Delete Account</button>
               </div>
@@ -981,22 +968,81 @@ const ProfilePage: React.FC<{ onNavigateToDashboard?: () => void }> = ({ onNavig
               <button className="text-gray-400 hover:text-gray-600" onClick={() => setShowChangePassword(false)}>×</button>
             </div>
             <div className="mt-6 space-y-4">
+              {changePasswordError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {changePasswordError}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
-                <input type="password" placeholder="Enter current password" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-200" />
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    className="w-full pr-12 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword((v) => !v)}
+                    className="absolute inset-y-0 right-0 px-4 text-gray-500 hover:text-gray-700"
+                    aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showCurrentPassword ? <FiEyeOff /> : <FiEye />}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                <input type="password" placeholder="Enter new password (min 6 characters)" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-200" />
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password (min 6 characters)"
+                    className="w-full pr-12 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((v) => !v)}
+                    className="absolute inset-y-0 right-0 px-4 text-gray-500 hover:text-gray-700"
+                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showNewPassword ? <FiEyeOff /> : <FiEye />}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
-                <input type="password" placeholder="Confirm new password" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-200" />
+                <div className="relative">
+                  <input
+                    type={showConfirmNewPassword ? 'text' : 'password'}
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    className="w-full pr-12 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmNewPassword((v) => !v)}
+                    className="absolute inset-y-0 right-0 px-4 text-gray-500 hover:text-gray-700"
+                    aria-label={showConfirmNewPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmNewPassword ? <FiEyeOff /> : <FiEye />}
+                  </button>
+                </div>
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button onClick={() => setShowChangePassword(false)} className="px-4 py-2 rounded bg-gray-100 text-gray-700">Cancel</button>
-              <button className="px-4 py-2 rounded bg-purple-600 text-white hover:bg-purple-700">Update Password</button>
+              <button
+                onClick={handleUpdatePassword}
+                disabled={changePasswordSubmitting}
+                className={`px-4 py-2 rounded text-white ${changePasswordSubmitting ? 'bg-purple-400' : 'bg-purple-600 hover:bg-purple-700'}`}
+              >
+                {changePasswordSubmitting ? 'Updating...' : 'Update Password'}
+              </button>
             </div>
           </div>
         </div>
