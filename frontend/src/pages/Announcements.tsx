@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { fetchAnnouncements, type Announcement } from '../services/announcementService';
 
+interface ContactFormData {
+  name: string;
+  email: string;
+  phone: string;
+  message: string;
+  eventType?: string;
+}
+
 interface Event {
   id: string;
   title: string;
@@ -50,6 +58,17 @@ export default function Announcements() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactFormData, setContactFormData] = useState<ContactFormData>({
+    name: '',
+    email: '',
+    phone: '',
+    message: '',
+    eventType: ''
+  });
+  
+  const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
+  const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -432,12 +451,12 @@ export default function Announcements() {
         </div>
 
         {/* Upcoming Events Section */}
-        <div className="mt-20">
-          <div className="text-center mb-10">
+        <div className="mt-20 mb-16">
+          <div className="text-center mb-12">
             <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
               Upcoming Events
             </h2>
-            <p className="mt-3 max-w-2xl mx-auto text-xl text-gray-500 sm:mt-4">
+            <p className="mt-4 max-w-2xl mx-auto text-xl text-gray-600">
               Join us in making a difference. Here are our upcoming events where you can participate.
             </p>
           </div>
@@ -483,13 +502,22 @@ export default function Announcements() {
               ))}
             </div>
 
-            <div className="bg-gray-50 px-6 py-4 text-center">
-              <p className="text-sm text-gray-600">
-                Want to host your own event?{' '}
-                <a href="#" className="font-medium text-emerald-600 hover:text-emerald-500">
-                  Contact us to get started
-                </a>
+            <div className="bg-gray-50 px-6 py-8 text-center border-t border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Want to host your own event?
+              </h3>
+              <p className="text-gray-600 max-w-2xl mx-auto mb-4">
+                Partner with us to organize community events and make an even bigger impact together.
               </p>
+              <button 
+                onClick={() => setShowContactModal(true)}
+                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors duration-200"
+              >
+                Contact Us
+                <svg className="ml-2 -mr-1 w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
             </div>
           </div>
         </div>
@@ -635,6 +663,180 @@ export default function Announcements() {
           </div>
         )}
       </div>
+      {/* Contact Form Modal */}
+      {showContactModal && (
+        <div className="fixed z-50 inset-0 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={() => setShowContactModal(false)}></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            
+            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+              <div className="sm:flex sm:items-start">
+                <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl leading-6 font-medium text-gray-900">
+                      Host Your Event With Us
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowContactModal(false)}
+                      className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                    >
+                      <span className="sr-only">Close</span>
+                      <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  <div className="mt-4">
+                    <p className="text-sm text-gray-500 mb-6">
+                      Fill out the form below and our team will get back to you within 24 hours to discuss your event details.
+                    </p>
+                    
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      // Handle form submission
+                      console.log('Contact form submitted:', contactFormData);
+                      setIsSubmittingContact(true);
+                      
+                      // Simulate API call
+                      setTimeout(() => {
+                        setIsSubmittingContact(false);
+                        setShowContactModal(false);
+                        alert('Thank you for your interest! Our team will contact you soon to discuss your event.');
+                        setContactFormData({
+                          name: '',
+                          email: '',
+                          phone: '',
+                          message: '',
+                          eventType: ''
+                        });
+                      }, 1500);
+                    }}>
+                      <div className="space-y-4">
+                        <div>
+                          <label htmlFor="contact-name" className="block text-sm font-medium text-gray-700 mb-1">
+                            Full Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            id="contact-name"
+                            required
+                            value={contactFormData.name}
+                            onChange={(e) => setContactFormData({...contactFormData, name: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                            placeholder="Your name"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label htmlFor="contact-email" className="block text-sm font-medium text-gray-700 mb-1">
+                            Email <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="email"
+                            id="contact-email"
+                            required
+                            value={contactFormData.email}
+                            onChange={(e) => setContactFormData({...contactFormData, email: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                            placeholder="your.email@example.com"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label htmlFor="contact-phone" className="block text-sm font-medium text-gray-700 mb-1">
+                            Phone Number <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="tel"
+                            id="contact-phone"
+                            required
+                            value={contactFormData.phone}
+                            onChange={(e) => setContactFormData({...contactFormData, phone: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                            placeholder="+1 (555) 123-4567"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label htmlFor="event-type" className="block text-sm font-medium text-gray-700 mb-1">
+                            Type of Event <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            id="event-type"
+                            required
+                            value={contactFormData.eventType}
+                            onChange={(e) => setContactFormData({...contactFormData, eventType: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                          >
+                            <option value="">Select event type</option>
+                            <option value="food-drive">Food Drive</option>
+                            <option value="fundraiser">Fundraiser</option>
+                            <option value="community">Community Event</option>
+                            <option value="volunteer">Volunteer Event</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label htmlFor="contact-message" className="block text-sm font-medium text-gray-700 mb-1">
+                            Tell us about your event <span className="text-red-500">*</span>
+                          </label>
+                          <textarea
+                            id="contact-message"
+                            rows={4}
+                            required
+                            value={contactFormData.message}
+                            onChange={(e) => setContactFormData({...contactFormData, message: e.target.value})}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                            placeholder="Please provide details about your event, including preferred date, expected number of attendees, and any special requirements."
+                          ></textarea>
+                        </div>
+                        
+                        <div className="pt-2">
+                          <button
+                            type="submit"
+                            disabled={isSubmittingContact}
+                            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-70 disabled:cursor-not-allowed"
+                          >
+                            {isSubmittingContact ? (
+                              <>
+                                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Sending...
+                              </>
+                            ) : 'Submit Request'}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={() => setShowContactModal(false)}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-gray-100 text-base font-medium text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Additional Footer Spacing */}
+      <div className="py-12"></div>
     </div>
   );
 }
