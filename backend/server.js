@@ -34,7 +34,7 @@ if (process.env.NODE_ENV === 'development') {
 // Mount routers
 app.use('/api/v1/auth', auth);
 app.use('/api/v1/profile', profileRoutes);
-<<<<<<<<< Temporary merge branch 1
+
 app.use('/api/v1/impact', impactRoutes);
 app.use('/api/v1/contacts', contactsRoutes);
 
