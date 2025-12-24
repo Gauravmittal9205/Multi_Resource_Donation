@@ -3,6 +3,10 @@ import { auth } from '../firebase';
 import { FiUser, FiMail, FiPhone, FiCalendar, FiShield, FiImage, FiEye, FiEyeOff } from 'react-icons/fi';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut, updatePassword } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
+
+interface ProfilePageProps {
+  user: FirebaseUser;
+}
 // Lightweight count-up hook
 function useCountUp(target: number, duration = 1200) {
   const [value, setValue] = useState(0);
@@ -38,7 +42,7 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; 
   );
 };
 
-const ProfilePage: React.FC = () => {
+const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
   // Simple pincode -> city lookup (extend as needed)
   const PINCODE_CITY: Record<string, string> = {
     '560001': 'Bengaluru',
@@ -102,12 +106,14 @@ const ProfilePage: React.FC = () => {
   type GeoCandidate = { displayName: string; city: string; state: string; country: string };
   const [geoCandidates, setGeoCandidates] = useState<GeoCandidate[]>([]);
 
-  const [authUser, setAuthUser] = useState<FirebaseUser | null>(() => auth.currentUser ?? null);
+  // Use the passed user prop instead of auth state
+  const [authUser, setAuthUser] = useState<FirebaseUser | null>(propUser ?? null);
 
+  // Still keep the auth state listener for changes
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => setAuthUser(u));
     return () => unsubscribe();
-  }, []);
+  }, [propUser]);
 
   const roleLabel = 'User';
 
