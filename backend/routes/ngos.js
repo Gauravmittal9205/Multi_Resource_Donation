@@ -2,6 +2,7 @@ const express = require('express');
 const { protect } = require('../middleware/auth');
 const { 
   getNgoProfile, 
+  getNgoProfileById,
   createOrUpdateNgoProfile, 
   uploadDocument 
 } = require('../controllers/ngoProfile');
@@ -13,6 +14,9 @@ router.use(protect);
 
 router.route('/me')
   .get(getNgoProfile);
+
+router.route('/:id')
+  .get(getNgoProfileById);
 
 router.route('/')
   .post(createOrUpdateNgoProfile);
