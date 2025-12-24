@@ -826,22 +826,6 @@ function App() {
                           onClick={(e) => {
                             e.preventDefault();
                             setShowAbout(false);
-                            console.log('Dashboard clicked - User type:', userMeta?.userType);
-                            console.log('isDonorUser:', isDonorUser, 'isNgoUser:', isNgoUser);
-                            const targetLink = isDonorUser ? 'donor-dashboard' : isNgoUser ? 'ngo-dashboard' : 'home';
-                            console.log('Navigating to:', targetLink);
-                            setActiveLink(targetLink);
-                            setIsProfileOpen(false);
-                          }}
-                        >
-                          Dashboard
-                        </a>
-                        <a
-                          href="#"
-                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setShowAbout(false);
                             setActiveLink('profile');
                             setIsProfileOpen(false);
                           }}
@@ -1050,7 +1034,24 @@ function App() {
                         onClick={(e) => {
                           e.preventDefault();
                           setShowAbout(false);
-                          setActiveLink(isDonorUser ? 'donor-dashboard' : isNgoUser ? 'ngo-dashboard' : 'home');
+                          console.log('Dashboard clicked - User type:', userMeta?.userType);
+                          console.log('isDonorUser:', isDonorUser, 'isNgoUser:', isNgoUser);
+                          console.log('userMeta:', userMeta);
+                          
+                          // Check user type and navigate to appropriate dashboard
+                          let targetLink = 'home';
+                          if (isNgoUser) {
+                            targetLink = 'ngo-dashboard';
+                          } else if (isDonorUser) {
+                            targetLink = 'donor-dashboard';
+                          } else if (user && !userMeta) {
+                            // If user exists but userMeta is not loaded, default to donor-dashboard
+                            console.log('User exists but userMeta not loaded, defaulting to donor-dashboard');
+                            targetLink = 'donor-dashboard';
+                          }
+                          
+                          console.log('Navigating to:', targetLink);
+                          setActiveLink(targetLink);
                           setIsProfileOpen(false);
                         }}
                       >

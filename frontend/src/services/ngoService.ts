@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { auth } from '../firebase';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword as firebaseUpdatePassword } from 'firebase/auth';
 
 const API_URL = 'http://localhost:5000/api/v1';
 
@@ -96,7 +97,7 @@ export const updatePassword = async (currentPassword: string, newPassword: strin
     await reauthenticateWithCredential(user, credential);
     
     // Update password
-    await updatePassword(user, newPassword);
+    await firebaseUpdatePassword(user, newPassword);
     
     return { success: true };
   } catch (error) {
