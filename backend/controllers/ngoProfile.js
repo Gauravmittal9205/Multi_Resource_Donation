@@ -19,6 +19,23 @@ const getNgoProfile = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc    Get NGO profile by ID
+// @route   GET /api/v1/ngos/:id
+// @access  Private
+const getNgoProfileById = asyncHandler(async (req, res, next) => {
+  const ngoProfile = await NgoProfile.findOne({ user: req.params.id })
+    .populate('user', 'name email phone userType');
+
+  if (!ngoProfile) {
+    return next(new ErrorResponse('NGO profile not found', 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: ngoProfile
+  });
+});
+
 // @desc    Create or Update NGO profile
 // @route   POST /api/v1/ngos
 // @access  Private
@@ -83,6 +100,7 @@ const uploadDocument = asyncHandler(async (req, res, next) => {
 
 module.exports = {
   getNgoProfile,
+  getNgoProfileById,
   createOrUpdateNgoProfile,
   uploadDocument
 };
