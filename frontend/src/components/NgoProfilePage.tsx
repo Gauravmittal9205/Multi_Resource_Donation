@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { FiUser, FiFileText } from 'react-icons/fi';
-import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, signOut } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
+import { auth } from '../firebase';
 
 interface NgoProfilePageProps {
   user: FirebaseUser;
@@ -18,6 +19,38 @@ const NgoProfilePage: React.FC<NgoProfilePageProps> = ({ user: propUser }) => {
   const [showCurrentPassword] = useState(false);
   const [showNewPassword] = useState(false);
   const [showConfirmNewPassword] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) return;
+
+    if (!auth.currentUser) {
+      alert('You are not logged in. Please login again and retry.');
+      return;
+    }
+
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch('http://localhost:5000/api/v1/auth/delete-me', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || `Failed to delete account in backend (${res.status})`);
+      }
+
+      await signOut(auth);
+      localStorage.setItem('postAccountDeleteAction', 'login');
+      window.location.href = '/';
+    } catch (e: any) {
+      const code = e?.code;
+      const msg = typeof e?.message === 'string' ? e.message : 'Failed to delete your account.';
+      alert(msg);
+    }
+  };
 
   // NGO Profile Data
   const [profile, setProfile] = useState({
@@ -745,12 +778,7 @@ const NgoProfilePage: React.FC<NgoProfilePageProps> = ({ user: propUser }) => {
                 <button
                   type="button"
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                  onClick={() => {
-                    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-                      // Handle account deletion
-                      console.log('Account deletion requested');
-                    }
-                  }}
+                  onClick={handleDeleteAccount}
                 >
                   Delete Account
                 </button>
