@@ -1,0 +1,116 @@
+import axios from 'axios';
+import { auth } from '../firebase';
+
+const API_URL = 'http://localhost:5000/api/v1/donations';
+
+const getAuthToken = async (): Promise<string> => {
+  const user = auth.currentUser;
+  if (!user) throw new Error('No authenticated user');
+  return await user.getIdToken();
+};
+
+export type DonationStatus = 'pending' | 'assigned' | 'picked' | 'completed' | 'cancelled';
+
+export interface DonationPayload {
+  resourceType: 'Food' | 'Clothes' | 'Books' | 'Medical Supplies' | 'Other Essentials';
+  quantity: number;
+  unit: 'kg' | 'items' | 'packets' | 'boxes';
+  address: {
+    addressLine: string;
+    city: string;
+    state: string;
+    pincode: string;
+  };
+  pickup: {
+    pickupDate: string; // ISO date string
+    timeSlot: 'Morning' | 'Afternoon' | 'Evening';
+  };
+  notes?: string;
+  images?: string[];
+  details?: Record<string, unknown>;
+}
+
+export interface DonationItem {
+  _id: string;
+  donorFirebaseUid: string;
+  resourceType: DonationPayload['resourceType'];
+  quantity: number;
+  unit: DonationPayload['unit'];
+  address: DonationPayload['address'];
+  pickup: { pickupDate: string; timeSlot: DonationPayload['pickup']['timeSlot'] };
+  notes?: string;
+  images: string[];
+  details: Record<string, unknown>;
+  status: DonationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DonorDashboardResponse {
+  summary: {
+    totalDonations: number;
+    activePickups: number;
+    completedDonations: number;
+  };
+  activity: { label: string; count: number }[];
+  recentDonations: DonationItem[];
+}
+
+export interface DonorProfile {
+  firebaseUid: string;
+  basic?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+  };
+  location?: {
+    pickupAddress?: string;
+    pincode?: string;
+    city?: string;
+    state?: string;
+  };
+  preferences?: {
+    preferredPickupTime?: string;
+  };
+}
+
+export const createDonation = async (payload: DonationPayload) => {
+  const token = await getAuthToken();
+  const response = await axios.post(
+    API_URL,
+    payload,
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      }
+    }
+  );
+  return response.data as { success: boolean; data: DonationItem };
+};
+
+export const fetchDonorDashboard = async () => {
+  const token = await getAuthToken();
+  const response = await axios.get(`${API_URL}/dashboard`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return response.data as { success: boolean; data: DonorDashboardResponse };
+};
+
+export const fetchMyDonations = async (status?: DonationStatus) => {
+  const token = await getAuthToken();
+  const response = await axios.get(API_URL, {
+    params: status ? { status } : undefined,
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return response.data as { success: boolean; count: number; data: DonationItem[] };
+};
+
+export const fetchDonorProfileByUid = async (firebaseUid: string) => {
+  const response = await axios.get(`http://localhost:5000/api/v1/profile/${encodeURIComponent(firebaseUid)}`);
+  return response.data as { success: boolean; data: DonorProfile };
+};
