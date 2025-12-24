@@ -88,14 +88,34 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
 export const signInWithEmail = async (email: string, password: string) => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    // Here you would typically fetch additional user data from Firestore
-    // const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
-    // const userData = userDoc.data();
+    const { user } = userCredential;
     
-    return { 
-      user: userCredential.user,
-      // userType: userData?.userType
-    };
+    try {
+      // Try to fetch user profile
+      const response = await fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`);
+      if (!response.ok) {
+        // If profile not found, create a default donor profile
+        const idToken = await user.getIdToken();
+        await fetch('http://localhost:5000/api/v1/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            name: user.displayName || email.split('@')[0],
+            email: user.email,
+            userType: 'donor', // Default to donor
+            phone: user.phoneNumber || '',
+            firebaseUid: user.uid
+          }),
+        });
+      }
+    } catch (profileError) {
+      console.warn('Profile auto-creation failed (non-critical):', profileError);
+    }
+    
+    return { user };
   } catch (error: any) {
     console.error("Error signing in:", error);
     throw error;

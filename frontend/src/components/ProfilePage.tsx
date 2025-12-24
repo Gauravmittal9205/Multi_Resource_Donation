@@ -109,8 +109,7 @@ const ProfilePage: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const storedUserType = typeof window !== 'undefined' ? (localStorage.getItem('userType') as 'donor' | 'ngo' | null) : null;
-  const roleLabel = storedUserType === 'ngo' ? 'NGO' : storedUserType === 'donor' ? 'Donor' : 'User';
+  const roleLabel = 'User';
 
   const formatAuthTime = (value?: string | null) => {
     if (!value) return '—';
@@ -202,12 +201,6 @@ const ProfilePage: React.FC = () => {
 
   useEffect(() => {
     if (!authUser?.email) return;
-    const emailKey = 'donor_profile_v2_email';
-    const storedEmail = localStorage.getItem(emailKey);
-    if (storedEmail && storedEmail !== authUser.email) {
-      localStorage.removeItem('donor_profile_v2');
-    }
-    localStorage.setItem(emailKey, authUser.email);
 
     setProfile((p) => ({
       ...p,
@@ -225,21 +218,6 @@ const ProfilePage: React.FC = () => {
         lastLoginTime: formatAuthTime(authUser.metadata?.lastSignInTime || null),
       },
     }));
-
-    try {
-      const raw = localStorage.getItem('donor_profile_v2');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          setProfile((p) => ({
-            ...p,
-            ...parsed,
-            basic: { ...p.basic, ...(parsed.basic || {}), email: authUser.email || p.basic.email },
-            systemSecurity: { ...p.systemSecurity, ...(parsed.systemSecurity || {}), lastLoginTime: formatAuthTime(authUser.metadata?.lastSignInTime || null) },
-          }));
-        }
-      }
-    } catch {}
   }, [authUser?.email, authUser?.displayName, authUser?.phoneNumber, authUser?.photoURL, authUser?.uid, authUser?.metadata?.creationTime, authUser?.metadata?.lastSignInTime]);
 
   useEffect(() => {
@@ -447,9 +425,6 @@ const ProfilePage: React.FC = () => {
         phone: normalizePhone(profile.basic.phone),
       },
     };
-    try {
-      localStorage.setItem('donor_profile_v2', JSON.stringify(nextProfile));
-    } catch {}
     try {
       const payload = { ...nextProfile, firebaseUid: nextProfile.basic.firebaseUid } as any;
       await fetch('http://localhost:5000/api/v1/profile/upsert', {
