@@ -1146,6 +1146,7 @@ function App() {
           activeLink={activeLink}
           setActiveLink={setActiveLink}
           user={user}
+          userMeta={userMeta}
         />
       </div>
       <Footer/>

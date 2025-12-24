@@ -288,36 +288,63 @@ const AboutUs = ({ onBack, authUser, userMeta }: AboutUsProps) => {
         
         <div className="grid gap-6 md:grid-cols-3 mb-12">
           {/* Card 1 */}
-          <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 mx-auto">
-              <span className="text-2xl">🏠</span>
+          <div className="group relative w-full h-64 overflow-hidden rounded-xl shadow-md">
+            <div className="absolute inset-0 p-6 flex flex-col items-center justify-center bg-white transition-all duration-300 group-hover:opacity-0">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+                <img src="https://images.unsplash.com/photo-1593113630400-ea4288922497" alt="For Donors" className="w-10 h-10 object-cover rounded-full" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">For Donors</h3>
+              <p className="text-gray-600 text-center">
+                Individuals, restaurants, and organizations can easily donate surplus items through our platform.
+              </p>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">For Donors</h3>
-            <p className="text-gray-600 text-center">
-              Individuals, restaurants, and organizations can easily donate surplus items through our platform.
-            </p>
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <img 
+                src="https://images.unsplash.com/photo-1593113630400-ea4288922497" 
+                alt="For Donors" 
+                className="w-full h-full object-cover"
+              />
+            </div>
           </div>
           
           {/* Card 2 */}
-          <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 mx-auto">
-              <span className="text-2xl">🔔</span>
+          <div className="group relative w-full h-64 overflow-hidden rounded-xl shadow-md">
+            <div className="absolute inset-0 p-6 flex flex-col items-center justify-center bg-white transition-all duration-300 group-hover:opacity-0">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+                <img src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf" alt="For NGOs & Volunteers" className="w-10 h-10 object-cover rounded-full" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">For NGOs & Volunteers</h3>
+              <p className="text-gray-600 text-center">
+                Receive real-time alerts for nearby donations and coordinate pickups efficiently.
+              </p>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">For NGOs & Volunteers</h3>
-            <p className="text-gray-600 text-center">
-              Receive real-time alerts for nearby donations and coordinate pickups efficiently.
-            </p>
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <img 
+                src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf" 
+                alt="For NGOs & Volunteers" 
+                className="w-full h-full object-cover"
+              />
+            </div>
           </div>
           
           {/* Card 3 */}
-          <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 mx-auto">
-              <span className="text-2xl">✅</span>
+          <div className="group relative w-full h-64 overflow-hidden rounded-xl shadow-md">
+            <div className="absolute inset-0 p-6 flex flex-col items-center justify-center bg-white transition-all duration-300 group-hover:opacity-0">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+                <img src="https://images.unsplash.com/photo-1563013544-824ae1b704d3" alt="Secure & Transparent" className="w-10 h-10 object-cover rounded-full" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">Secure & Transparent</h3>
+              <p className="text-gray-600 text-center">
+                Our verification systems ensure secure pickups and transparent distribution of donations.
+              </p>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">Secure & Transparent</h3>
-            <p className="text-gray-600 text-center">
-              Our verification systems ensure secure pickups and transparent distribution of donations.
-            </p>
+            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <img 
+                src="https://images.unsplash.com/photo-1563013544-824ae1b704d3" 
+                alt="Secure & Transparent" 
+                className="w-full h-full object-cover"
+              />
+            </div>
           </div>
         </div>
         
@@ -327,33 +354,33 @@ const AboutUs = ({ onBack, authUser, userMeta }: AboutUsProps) => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {/* Food */}
             <div className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-              <div className="h-40 bg-cover bg-center" style={{backgroundImage: 'url(https://images.unsplash.com/photo-1504674900247-0877039348bf?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80)'}}></div>
+              <div className="h-40 bg-cover bg-center" style={{backgroundImage: 'url(/src/assets/food.jpg)'}}></div>
               <div className="p-4">
-                <h4 className="text-lg font-semibold text-center">🍱 Food</h4>
+                <h4 className="text-lg font-semibold text-center">Food</h4>
               </div>
             </div>
             
             {/* Clothes */}
             <div className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-              <div className="h-40 bg-cover bg-center" style={{backgroundImage: 'url(https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80)'}}></div>
+              <div className="h-40 bg-cover bg-center" style={{backgroundImage: 'url(/src/assets/clothes.jpg)'}}></div>
               <div className="p-4">
-                <h4 className="text-lg font-semibold text-center">👕 Clothes</h4>
+                <h4 className="text-lg font-semibold text-center">Clothes</h4>
               </div>
             </div>
             
             {/* Books */}
             <div className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-              <div className="h-40 bg-cover bg-center" style={{backgroundImage: 'url(https://images.unsplash.com/photo-1541963463532-d68292c34b19?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1176&q=80)'}}></div>
+              <div className="h-40 bg-cover bg-center" style={{backgroundImage: 'url(/src/assets/books.jpg)'}}></div>
               <div className="p-4">
-                <h4 className="text-lg font-semibold text-center">📚 Books</h4>
+                <h4 className="text-lg font-semibold text-center">Books</h4>
               </div>
             </div>
             
             {/* Essential Items */}
             <div className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-              <div className="h-40 bg-cover bg-center" style={{backgroundImage: 'url(https://images.unsplash.com/photo-1607082349566-187342175e2f?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80)'}}></div>
+              <div className="h-40 bg-cover bg-center" style={{backgroundImage: 'url(/src/assets/items.jpg)'}}></div>
               <div className="p-4">
-                <h4 className="text-lg font-semibold text-center">🧺 Essential Items</h4>
+                <h4 className="text-lg font-semibold text-center">Essential Items</h4>
               </div>
             </div>
           </div>
@@ -381,8 +408,7 @@ const AboutUs = ({ onBack, authUser, userMeta }: AboutUsProps) => {
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={closeModal}></div>
-          <div className="relative bg-white w-full max-w-6xl mx-4 rounded-2xl shadow-xl overflow-hidden max-h-[80vh]">
+          <div className="relative bg-gray-50 w-full max-w-6xl mx-4 rounded-2xl overflow-hidden max-h-[80vh] border border-gray-200 shadow-2xl">
             <button
               aria-label="Close"
               onClick={closeModal}
@@ -400,7 +426,7 @@ const AboutUs = ({ onBack, authUser, userMeta }: AboutUsProps) => {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr] overflow-y-auto">
-                <div className="p-6 md:p-7 bg-gray-50">
+                <div className="p-6 md:p-7 bg-blue-50">
                   <div className="flex items-center gap-4 mb-4">
                     <img src="https://i.pravatar.cc/80?img=5" alt="Admin" className="w-14 h-14 rounded-full object-cover" />
                     <div>
@@ -428,7 +454,7 @@ const AboutUs = ({ onBack, authUser, userMeta }: AboutUsProps) => {
                   </div>
                 </div>
 
-                <div className="p-6 md:p-7">
+                <div className="p-6 md:p-7 bg-blue-50">
                   <h3 className="text-xl font-semibold text-gray-900 mb-1">Contact Form</h3>
                   <p className="text-sm text-gray-600 mb-4">
                     {userType === 'ngo'
