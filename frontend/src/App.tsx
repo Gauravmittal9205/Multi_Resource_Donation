@@ -26,8 +26,6 @@ function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [userMeta, setUserMeta] = useState<UserMeta>(null);
-  const [userMetaLoading, setUserMetaLoading] = useState(false);
-  const [userMetaError, setUserMetaError] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('email');
   const [formData, setFormData] = useState<AuthFormData>({
@@ -67,13 +65,9 @@ function App() {
   useEffect(() => {
     if (!user?.uid) {
       setUserMeta(null);
-      setUserMetaError(null);
-      setUserMetaLoading(false);
       return;
     }
     let cancelled = false;
-    setUserMetaLoading(true);
-    setUserMetaError(null);
     fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`)
       .then(async (res) => {
         if (!res.ok) {
@@ -99,13 +93,10 @@ function App() {
           : null;
         console.log('Setting user meta:', userMetaData);
         setUserMeta(userMetaData);
-        setUserMetaLoading(false);
       })
       .catch((e: any) => {
         if (cancelled) return;
         setUserMeta(null);
-        setUserMetaLoading(false);
-        setUserMetaError(typeof e?.message === 'string' ? e.message : 'Failed to load user profile');
       });
     return () => {
       cancelled = true;
@@ -133,7 +124,7 @@ function App() {
   
   // Handle browser back/forward navigation
   useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
+    const handlePopState = () => {
       // Get the path from the URL
       const path = window.location.pathname.replace(/^\//, '') || 'home';
       
@@ -664,70 +655,82 @@ function App() {
         <header className="fixed top-0 w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-50">
           <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-8">
-                <div className="flex items-center space-x-2">
-                  <span className="text-2xl font-bold text-emerald-600">ShareCare</span>
-                </div>
-                
-                {/* Desktop Navigation */}
-                <div className="hidden md:flex items-center space-x-1">
+              {/* Left section - Logo */}
+              <div className="flex items-center space-x-2">
+                <span className="text-2xl font-bold text-emerald-600">ShareCare</span>
+              </div>
+              
+              {/* Center section - Desktop Navigation */}
+              <div className="hidden md:flex items-center justify-center flex-1">
+                <div className="flex items-center space-x-1">
                   <button 
-                    onClick={() => { setShowAbout(false); setActiveLink('home'); }}
+                    onClick={() => {
+                      setShowAbout(false);
+                      setActiveLink('home');
+                      window.history.pushState({}, '', '/');
+                    }}
                     className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'home' && !showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
                   >
                     Home
                   </button>
                   <button 
-                    onClick={() => { setShowAbout(false); setActiveLink('donate'); }}
-                    className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'donate' && !showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                    onClick={() => {
+                      setShowAbout(false);
+                      setActiveLink('impact');
+                      window.history.pushState({}, '', '/impact');
+                    }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'impact' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
                   >
                     Impact
                   </button>
                   <button 
-                    onClick={() => { setShowAbout(false); setActiveLink('help'); }}
+                    onClick={() => {
+                      setShowAbout(false);
+                      setActiveLink('help');
+                    }}
                     className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'help' && !showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
                   >
-                  Help & Support
+                    Help & Support
                   </button>
                   <button 
-                    onClick={() => { setShowAbout(false); setActiveLink('announcements'); }}
+                    onClick={() => {
+                      setShowAbout(false);
+                      setActiveLink('announcements');
+                    }}
                     className={`px-4 py-2 rounded-md text-sm font-medium ${activeLink === 'announcements' && !showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'}`}
                   >
-                  Announcements
+                    Announcements
                   </button>
-<button 
-  onClick={() => setShowAbout(true)}
-  className={`px-4 py-2 rounded-md text-sm font-medium ${
-    showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50 hover:text-emerald-600'
-  }`}
->
-  About Us
-</button>
+                  <button 
+                    onClick={() => setShowAbout(true)}
+                    className={`px-4 py-2 rounded-md text-sm font-medium ${
+                      showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50 hover:text-emerald-600'
+                    }`}
+                  >
+                    About Us
+                  </button>
                 </div>
               </div>
 
-              {/* Mobile menu button */}
-              <div className="md:hidden">
-                <button
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-emerald-600 hover:bg-gray-100 focus:outline-none"
-                >
-                  <span className="sr-only">Open main menu</span>
-                  {isMobileMenuOpen ? 'Close' : 'Menu'}
-                </button>
-              </div>
-
-              {/* User Actions */}
-              {user ? (
-                <div className="hidden md:flex items-center space-x-4">
-                  <button className="relative px-3 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    <span className="absolute top-1 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+              {/* Right section - User Actions & Admin Button */}
+              <div className="flex items-center space-x-4">
+                {/* Mobile menu button */}
+                <div className="md:hidden">
+                  <button
+                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-emerald-600 hover:bg-gray-100 focus:outline-none"
+                  >
+                    <span className="sr-only">Open main menu</span>
+                    {isMobileMenuOpen ? 'Close' : 'Menu'}
                   </button>
-                  
-                  <div className="relative profile-menu-container">
+                </div>
+
+                {/* User Actions */}
+                {user ? (
+                  <div className="hidden md:flex items-center space-x-4">
+                    <Notification />
+                    
+                    <div className="relative profile-menu-container">
                     <button
                       onClick={() => setIsProfileOpen(!isProfileOpen)}
                       className="flex items-center space-x-2 focus:outline-none"
@@ -781,7 +784,8 @@ function App() {
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                           onClick={(e) => {
                             e.preventDefault();
-                            // Handle profile click
+                            setShowAbout(false);
+                            setActiveLink('profile');
                             setIsProfileOpen(false);
                           }}
                         >
@@ -817,6 +821,17 @@ function App() {
                   </button>
                 </div>
               )}
+              
+              {/* Admin Button - Last in navbar */}
+              <button 
+                onClick={() => {
+                  setShowAbout(false);
+                  setActiveLink('admin-login');
+                }}
+                className="hidden md:flex px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Admin
+              </button>
             </div>
 
             {/* Mobile menu */}
@@ -869,6 +884,7 @@ function App() {
                 )}
               </div>
             )}
+            </div>
           </nav>
         </header>
         <AboutUs onBack={() => setShowAbout(false)} authUser={user} userMeta={userMeta} />
@@ -987,6 +1003,7 @@ function App() {
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                         onClick={(e) => {
                           e.preventDefault();
+                          setShowAbout(false);
                           setActiveLink(isDonorUser ? 'donor-dashboard' : isNgoUser ? 'ngo-dashboard' : 'home');
                           setIsProfileOpen(false);
                         }}
@@ -998,6 +1015,7 @@ function App() {
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                         onClick={(e) => {
                           e.preventDefault();
+                          setShowAbout(false);
                           setActiveLink('profile');
                           setIsProfileOpen(false);
                         }}
