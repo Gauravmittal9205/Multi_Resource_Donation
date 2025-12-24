@@ -882,13 +882,14 @@ function App() {
       <header className="fixed top-0 w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-50">
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-8">
-              <div className="flex items-center space-x-2">
-                <span className="text-2xl font-bold text-emerald-600">ShareCare</span>
-              </div>
-              
-              {/* Desktop Navigation */}
-              <div className="hidden md:flex items-center space-x-1">
+            {/* Left section - Logo */}
+            <div className="flex items-center space-x-2">
+              <span className="text-2xl font-bold text-emerald-600">ShareCare</span>
+            </div>
+            
+            {/* Center section - Desktop Navigation */}
+            <div className="hidden md:flex items-center justify-center flex-1">
+              <div className="flex items-center space-x-1">
                 <button 
                   onClick={() => {
                     setActiveLink('home');
@@ -919,27 +920,29 @@ function App() {
                 >
                   Announcements
                 </button>
-<button 
-  onClick={() => setShowAbout(true)}
-  className={`px-4 py-2 rounded-md text-sm font-medium ${
-    showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50 hover:text-emerald-600'
-  }`}
->
-  About Us
-</button>
+                <button 
+                  onClick={() => setShowAbout(true)}
+                  className={`px-4 py-2 rounded-md text-sm font-medium ${
+                    showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50 hover:text-emerald-600'
+                  }`}
+                >
+                  About Us
+                </button>
               </div>
-            </div> 
-
-            {/* Mobile menu button */}
-            <div className="md:hidden">
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-emerald-600 hover:bg-gray-100 focus:outline-none"
-              >
-                <span className="sr-only">Open main menu</span>
-                {isMobileMenuOpen ? 'Close' : 'Menu'}
-              </button>
             </div>
+
+            {/* Right section - User Actions & Admin Button */}
+            <div className="flex items-center space-x-4">
+              {/* Mobile menu button */}
+              <div className="md:hidden">
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-emerald-600 hover:bg-gray-100 focus:outline-none"
+                >
+                  <span className="sr-only">Open main menu</span>
+                  {isMobileMenuOpen ? 'Close' : 'Menu'}
+                </button>
+              </div>
 
             {/* User Actions */}
             {user ? (
@@ -1035,6 +1038,15 @@ function App() {
               </div>
             )}
             
+            {/* Admin Button - Last in navbar */}
+            <button 
+              onClick={() => setActiveLink('admin-login')}
+              className="hidden md:flex px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Admin
+            </button>
+            </div>
+            
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
               <div className="md:hidden absolute top-16 left-0 right-0 bg-white border-t border-gray-200 shadow-lg py-2">
@@ -1048,14 +1060,14 @@ function App() {
                   >
                     View Requests
                   </button>
-<button 
-  onClick={() => setShowAbout(true)}
-  className={`px-4 py-2 rounded-md text-sm font-medium ${
-    showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50 hover:text-emerald-600'
-  }`}
->
-  About Us
-</button>
+                  <button 
+                    onClick={() => setShowAbout(true)}
+                    className={`px-4 py-2 rounded-md text-sm font-medium ${
+                      showAbout ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50 hover:text-emerald-600'
+                    }`}
+                  >
+                    About Us
+                  </button>
                   
                   {!user && (
                     <div className="pt-4 border-t border-gray-200">
