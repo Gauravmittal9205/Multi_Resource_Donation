@@ -3,7 +3,6 @@ import type { User } from 'firebase/auth';
 import DonorDashboard from './DonorDashboard';
 import NgoDashboard from './NgoDashboard';
 import ProfilePage from './ProfilePage';
-import NgoProfilePage from './NgoProfilePage';
 import Home from '../pages/Home';
 import Announcements from '../pages/Announcements';
 import HelpAndSupport from '../pages/HelpAndSupport';
@@ -52,7 +51,7 @@ export default function Body({ activeLink, user, setActiveLink, userMeta }: Body
         />
       ) : activeLink === 'profile' ? (
         isNgo ? (
-          <NgoProfilePage user={user} />
+          <NgoDashboard user={user} onBack={() => setActiveLink('home')} />
         ) : (
           <ProfilePage user={user} />
         )
