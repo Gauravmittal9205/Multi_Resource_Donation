@@ -1,16 +1,19 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { signInWithEmail, onAuthStateChanged } from '../firebase';
+import type { User as FirebaseUser } from 'firebase/auth';
 
 interface AdminLoginProps {
   onBack: () => void;
+  onLoginSuccess: () => void;
 }
 
-const AdminLogin = ({ onBack }: AdminLoginProps) => {
+const AdminLogin = ({ onBack, onLoginSuccess }: AdminLoginProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [waitingForAuth, setWaitingForAuth] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,18 +21,91 @@ const AdminLogin = ({ onBack }: AdminLoginProps) => {
     setIsLoading(true);
 
     try {
-      // Basic admin credentials validation
-      // In a real app, this would be handled by backend authentication
-      if (email === 'admin@sharecare.com' && password === 'admin123') {
-        // Store admin session in localStorage
-        localStorage.setItem('isAdmin', 'true');
-        // Navigate to admin dashboard
-        window.location.href = '/admin-dashboard';
-      } else {
-        setError('Invalid admin credentials');
+      // Step 1: Verify admin credentials in MongoDB via backend API
+      const response = await fetch('http://localhost:5000/api/v1/auth/admin/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Invalid admin credentials');
       }
-    } catch (err) {
-      setError('Login failed. Please try again.');
+
+      // Step 2: If MongoDB authentication succeeds, authenticate with Firebase
+      try {
+        // Skip profile creation for admin users
+        const result = await signInWithEmail(email, password, true);
+        console.log('Firebase authentication successful:', result);
+        
+        // Step 3: Wait for auth state to update
+        setWaitingForAuth(true);
+        
+        // Set up a listener to wait for user state
+        const unsubscribe = onAuthStateChanged((currentUser: FirebaseUser | null) => {
+          if (currentUser && currentUser.email === email) {
+            console.log('Admin user authenticated, calling onLoginSuccess');
+            setWaitingForAuth(false);
+            unsubscribe();
+            onLoginSuccess();
+          }
+        });
+        
+        // Fallback: if auth state doesn't update in 5 seconds, proceed anyway
+        setTimeout(() => {
+          if (waitingForAuth) {
+            console.log('Timeout waiting for auth state, proceeding anyway');
+            setWaitingForAuth(false);
+            unsubscribe();
+            onLoginSuccess();
+          }
+        }, 5000);
+      } catch (firebaseError: any) {
+        console.error('Firebase authentication error:', firebaseError);
+        setWaitingForAuth(false);
+        
+        // Check if error is because user doesn't exist
+        if (firebaseError.code === 'auth/user-not-found' || firebaseError.code === 'auth/invalid-credential' || firebaseError.code === 'auth/wrong-password') {
+          // Backend should have created the Firebase user, try again after a delay
+          console.log('User not found in Firebase, waiting for backend to create user...');
+          setTimeout(async () => {
+            try {
+              await signInWithEmail(email, password, true);
+              setWaitingForAuth(true);
+              const unsubscribe = onAuthStateChanged((currentUser: FirebaseUser | null) => {
+                if (currentUser && currentUser.email === email) {
+                  console.log('Admin user authenticated after retry');
+                  setWaitingForAuth(false);
+                  unsubscribe();
+                  onLoginSuccess();
+                }
+              });
+              setTimeout(() => {
+                if (waitingForAuth) {
+                  setWaitingForAuth(false);
+                  unsubscribe();
+                  onLoginSuccess();
+                }
+              }, 5000);
+            } catch (retryError: any) {
+              console.error('Firebase retry failed:', retryError);
+              setWaitingForAuth(false);
+              onLoginSuccess();
+            }
+          }, 2000);
+        } else {
+          // Other Firebase errors - still allow login since MongoDB verified
+          console.warn('Firebase authentication warning, but MongoDB verified:', firebaseError);
+          onLoginSuccess();
+        }
+      }
+    } catch (err: any) {
+      console.error('Admin login error:', err);
+      setError(err.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -120,19 +196,13 @@ const AdminLogin = ({ onBack }: AdminLoginProps) => {
 
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || waitingForAuth}
                 className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? 'Signing In...' : 'Sign In'}
+                {isLoading || waitingForAuth ? 'Signing In...' : 'Sign In'}
               </button>
             </form>
 
-            {/* Demo Credentials */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800 font-medium mb-1">Demo Credentials:</p>
-              <p className="text-xs text-blue-600">Email: admin@sharecare.com</p>
-              <p className="text-xs text-blue-600">Password: admin123</p>
-            </div>
           </div>
         </div>
       </div>
