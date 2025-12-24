@@ -7,6 +7,7 @@ import Footer from './components/Footer';
 import Body from './components/Body';
 import Notification from './components/Notification';
 import AdminLogin from './components/AdminLogin';
+import AdminDashboard from './components/AdminDashboard';
 // Auth form type
 type AuthMode = 'email' | 'phone';
 type PhoneAuthStep = 'phone' | 'code';
@@ -52,12 +53,14 @@ function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const isDonorUser = userMeta?.userType === 'donor';
   const isNgoUser = userMeta?.userType === 'ngo';
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((currentUser: FirebaseUser | null) => {
+      console.log('Auth state changed:', currentUser?.email || 'No user');
       setUser(currentUser);
       setLoading(false);
     });
@@ -79,9 +82,30 @@ function App() {
   useEffect(() => {
     if (!user?.uid) {
       setUserMeta(null);
+      setIsAdmin(false);
       return;
     }
     let cancelled = false;
+    
+    // Check if user is admin
+    fetch(`http://localhost:5000/api/v1/auth/admin/check?email=${encodeURIComponent(user.email || '')}`)
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.isAdmin) {
+            setIsAdmin(true);
+          } else {
+            setIsAdmin(false);
+          }
+        } else {
+          setIsAdmin(false);
+        }
+      })
+      .catch(() => {
+        setIsAdmin(false);
+      });
+    
+    // Fetch user meta for regular users
     fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`)
       .then(async (res) => {
         if (!res.ok) {
@@ -115,26 +139,35 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [user?.uid]);
+  }, [user?.uid, user?.email]);
 
   // Handle initial page load and user type changes
   useEffect(() => {
-    if (!user) {
+    // Pages that should not be reset
+    const protectedPages = ['donor-dashboard', 'ngo-dashboard', 'profile', 'admin-login', 'admin-dashboard'];
+    const publicPages = ['home', 'impact', 'help', 'announcements'];
+    const allProtectedPages = [...protectedPages, ...publicPages];
+    
+    // Don't reset activeLink if we're on any of these pages
+    if (allProtectedPages.includes(activeLink)) return;
+    
+    // Only reset if activeLink is invalid or empty
+    if (!activeLink || activeLink === '') {
+      if (!user) {
+        setActiveLink('home');
+      }
+      return;
+    }
+    
+    // If user is not logged in and trying to access protected pages, redirect to home
+    if (!user && protectedPages.includes(activeLink)) {
       setActiveLink('home');
       return;
     }
     
-    // Redirect to home page after login
-    setActiveLink('home');
-    window.history.pushState({}, '', '/home');
-    
-    // Optional: If you want to keep the dashboard redirection for other cases
-    // if (userMeta) {
-    //   const targetPath = userMeta.userType === 'donor' ? 'donor-dashboard' : 'ngo-dashboard';
-    //   setActiveLink(targetPath);
-    //   window.history.pushState({}, '', `/${targetPath}`);
-    // }
-  }, [user, userMeta]);
+    // Don't redirect if user is admin (let them stay on admin-dashboard)
+    if (isAdmin) return;
+  }, [user, userMeta, activeLink, isAdmin]);
   
   // Handle browser back/forward navigation
   useEffect(() => {
@@ -331,12 +364,53 @@ function App() {
           setActiveLink('home');
           setShowLanding(false);
         }}
+        onLoginSuccess={() => {
+          // After successful admin login, set activeLink to admin-dashboard
+          // The user will be authenticated via Firebase, and we'll check if they're admin
+          console.log('onLoginSuccess called, setting activeLink to admin-dashboard');
+          setActiveLink('admin-dashboard');
+          // Manually set isAdmin to true since we know login was successful
+          setIsAdmin(true);
+          console.log('isAdmin set to true, activeLink set to admin-dashboard');
+        }}
       />
     );
   }
 
-  // Render auth form if user is not logged in
-  if (!user) {
+  // Render Admin Dashboard if user is admin and on admin-dashboard
+  // Show dashboard if: (isAdmin OR activeLink is admin-dashboard) AND user exists
+  // IMPORTANT: Check this BEFORE checking !user to prevent landing page redirect
+  if (activeLink === 'admin-dashboard' || isAdmin) {
+    console.log('activeLink is admin-dashboard or isAdmin is true, user:', user?.email, 'isAdmin:', isAdmin);
+    if (user) {
+      // If user is logged in, show dashboard
+      console.log('Showing AdminDashboard');
+      return (
+        <AdminDashboard
+          user={user}
+          onBack={() => {
+            setActiveLink('home');
+            setIsAdmin(false);
+          }}
+        />
+      );
+    } else {
+      // If user is not logged in yet, show loading (don't redirect to landing)
+      console.log('Waiting for user to be set...');
+      return (
+        <div className="flex items-center justify-center min-h-screen bg-gray-50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Authenticating... Please wait</p>
+            <p className="text-sm text-gray-500 mt-2">If this takes too long, please refresh the page</p>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Render auth form if user is not logged in (but NOT if we're waiting for admin auth)
+  if (!user && activeLink !== 'admin-dashboard') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-blue-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
@@ -826,22 +900,6 @@ function App() {
                           onClick={(e) => {
                             e.preventDefault();
                             setShowAbout(false);
-                            console.log('Dashboard clicked - User type:', userMeta?.userType);
-                            console.log('isDonorUser:', isDonorUser, 'isNgoUser:', isNgoUser);
-                            const targetLink = isDonorUser ? 'donor-dashboard' : isNgoUser ? 'ngo-dashboard' : 'home';
-                            console.log('Navigating to:', targetLink);
-                            setActiveLink(targetLink);
-                            setIsProfileOpen(false);
-                          }}
-                        >
-                          Dashboard
-                        </a>
-                        <a
-                          href="#"
-                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setShowAbout(false);
                             setActiveLink('profile');
                             setIsProfileOpen(false);
                           }}
@@ -1050,7 +1108,24 @@ function App() {
                         onClick={(e) => {
                           e.preventDefault();
                           setShowAbout(false);
-                          setActiveLink(isDonorUser ? 'donor-dashboard' : isNgoUser ? 'ngo-dashboard' : 'home');
+                          console.log('Dashboard clicked - User type:', userMeta?.userType);
+                          console.log('isDonorUser:', isDonorUser, 'isNgoUser:', isNgoUser);
+                          console.log('userMeta:', userMeta);
+                          
+                          // Check user type and navigate to appropriate dashboard
+                          let targetLink = 'home';
+                          if (isNgoUser) {
+                            targetLink = 'ngo-dashboard';
+                          } else if (isDonorUser) {
+                            targetLink = 'donor-dashboard';
+                          } else if (user && !userMeta) {
+                            // If user exists but userMeta is not loaded, default to donor-dashboard
+                            console.log('User exists but userMeta not loaded, defaulting to donor-dashboard');
+                            targetLink = 'donor-dashboard';
+                          }
+                          
+                          console.log('Navigating to:', targetLink);
+                          setActiveLink(targetLink);
                           setIsProfileOpen(false);
                         }}
                       >
@@ -1153,14 +1228,16 @@ function App() {
           </div>
         </nav>
       </header>
-      <div className="min-h-[calc(100vh-64px)]">
-        <Body 
-          activeLink={activeLink}
-          setActiveLink={setActiveLink}
-          user={user}
-          userMeta={userMeta}
-        />
-      </div>
+      {!(isAdmin && activeLink === 'admin-dashboard') && (
+        <div className="min-h-[calc(100vh-64px)]">
+          <Body 
+            activeLink={activeLink}
+            setActiveLink={setActiveLink}
+            user={user}
+            userMeta={userMeta}
+          />
+        </div>
+      )}
       <Footer/>
     </div>
   );

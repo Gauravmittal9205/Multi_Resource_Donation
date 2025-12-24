@@ -1,9 +1,9 @@
 const User = require('../models/User');
+const Admin = require('../models/Admin');
 const ErrorResponse = require('../utils/errorResponse');
 const asyncHandler = require('../middleware/async');
 const { validatePassword } = require('../utils/passwordValidator');
 const Profile = require('../models/Profile');
-const NgoProfile = require('../models/NgoProfile');
 const admin = require('../config/firebase');
 
 exports.getUserByFirebaseUid = asyncHandler(async (req, res) => {
@@ -32,9 +32,6 @@ exports.deleteMe = asyncHandler(async (req, res, next) => {
   const user = await User.findOne({ firebaseUid }).select('_id');
 
   await Profile.deleteOne({ firebaseUid });
-  if (user?._id) {
-    await NgoProfile.deleteOne({ user: user._id });
-  }
   await User.deleteOne({ firebaseUid });
 
   return res.status(200).json({ success: true, data: {} });
@@ -233,3 +230,121 @@ const sendTokenResponse = (user, statusCode, res) => {
       }
     });
 };
+
+// @desc    Admin Login
+// @route   POST /api/v1/auth/admin/login
+// @access  Public
+exports.adminLogin = asyncHandler(async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    console.log('Admin login attempt for email:', email);
+
+    // Validate email & password
+    if (!email || !password) {
+      console.log('Admin login failed: Missing email or password');
+      return next(new ErrorResponse('Please provide an email and password', 400));
+    }
+
+    // Check for admin in MongoDB
+    const adminUser = await Admin.findOne({ email, isActive: true }).select('+password');
+
+    if (!adminUser) {
+      console.log('Admin login failed: No admin found with email:', email);
+      return next(new ErrorResponse('Invalid admin credentials', 401));
+    }
+
+    // Check if password matches
+    const isMatch = await adminUser.matchPassword(password);
+
+    if (!isMatch) {
+      console.log('Admin login failed: Invalid password for email:', email);
+      return next(new ErrorResponse('Invalid admin credentials', 401));
+    }
+
+    // Verify admin exists in Firebase or create Firebase user
+    let firebaseUid = adminUser.firebaseUid;
+    
+    try {
+      if (firebaseUid) {
+        // Verify Firebase user exists
+        try {
+          await admin.auth().getUser(firebaseUid);
+        } catch (firebaseError) {
+          // If Firebase user doesn't exist, create one
+          firebaseUid = null;
+        }
+      }
+
+      if (!firebaseUid) {
+        // Create Firebase user for admin (without password - will be set by frontend)
+        // Frontend will handle Firebase authentication after MongoDB verification
+        const firebaseUser = await admin.auth().createUser({
+          email: adminUser.email,
+          displayName: adminUser.name,
+          disabled: false
+        });
+        
+        firebaseUid = firebaseUser.uid;
+        
+        // Update admin record with Firebase UID
+        adminUser.firebaseUid = firebaseUid;
+        await adminUser.save();
+        
+        // Set password for Firebase user (this is a one-time operation)
+        await admin.auth().updateUser(firebaseUid, {
+          password: password
+        });
+      }
+    } catch (firebaseError) {
+      console.error('Firebase admin creation/verification error:', firebaseError);
+      // Continue with MongoDB authentication even if Firebase fails
+    }
+
+    console.log('Admin login successful:', { id: adminUser._id, email: adminUser.email });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: adminUser._id,
+        name: adminUser.name,
+        email: adminUser.email,
+        firebaseUid: firebaseUid,
+        role: 'admin'
+      }
+    });
+  } catch (err) {
+    console.error('Admin login error:', err);
+    next(err);
+  }
+});
+
+// @desc    Check if user is admin
+// @route   GET /api/v1/auth/admin/check
+// @access  Public
+exports.checkAdmin = asyncHandler(async (req, res, next) => {
+  try {
+    const { email } = req.query;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        isAdmin: false,
+        error: 'Email is required'
+      });
+    }
+
+    const adminUser = await Admin.findOne({ email: email.toLowerCase(), isActive: true });
+
+    res.status(200).json({
+      success: true,
+      isAdmin: !!adminUser
+    });
+  } catch (err) {
+    console.error('Check admin error:', err);
+    res.status(200).json({
+      success: true,
+      isAdmin: false
+    });
+  }
+});
