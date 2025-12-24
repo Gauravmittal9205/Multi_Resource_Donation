@@ -5,7 +5,9 @@ const {
   getMe,
   getUserByFirebaseUid,
   deleteMe,
-  logout 
+  logout,
+  adminLogin,
+  checkAdmin
 } = require('../controllers/auth');
 
 const router = express.Router();
@@ -16,6 +18,8 @@ const { firebaseProtect } = require('../middleware/firebaseAuth');
 // Public routes
 router.post('/register', register);
 router.post('/login', login);
+router.post('/admin/login', adminLogin);
+router.get('/admin/check', checkAdmin);
 router.get('/user/:firebaseUid', getUserByFirebaseUid);
 
 // Firebase protected route
