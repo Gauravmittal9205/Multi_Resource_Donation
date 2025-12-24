@@ -25,16 +25,56 @@ export default function Body({ activeLink, user, setActiveLink, userMeta }: Body
   const isDonor = userMeta?.userType === 'donor';
   const isNgo = userMeta?.userType === 'ngo';
   
+  // Public pages that don't require authentication
+  const publicPages = ['home', 'impact', 'help', 'announcements'];
+  const isPublicPage = publicPages.includes(activeLink);
+  
   // Redirect to home if trying to access unauthorized pages
   useEffect(() => {
     if (activeLink === 'profile' && !user) {
       setActiveLink('home');
     }
+    // Redirect dashboard pages to home if not logged in
+    if ((activeLink === 'donor-dashboard' || activeLink === 'ngo-dashboard') && !user) {
+      setActiveLink('home');
+    }
   }, [activeLink, user, setActiveLink]);
 
-  // Don't render anything if user is not authenticated
+  // For public pages, render even without user
+  if (isPublicPage) {
+    return (
+      <main className="pt-16">
+        {activeLink === 'announcements' ? (
+          <Announcements />
+        ) : activeLink === 'help' ? (
+          <HelpAndSupport />
+        ) : activeLink === 'impact' ? (
+          <Impact />
+        ) : (
+          <Home />
+        )}
+      </main>
+    );
+  }
+
+  // For protected pages, require authentication
   if (!user) {
-    return <div>Please log in to continue</div>;
+    return (
+      <main className="pt-16">
+        <div className="flex items-center justify-center min-h-[calc(100vh-16rem)]">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Authentication Required</h2>
+            <p className="text-gray-600 mb-4">Please log in to access this page</p>
+            <button
+              onClick={() => setActiveLink('home')}
+              className="px-6 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors"
+            >
+              Go to Home
+            </button>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   return (

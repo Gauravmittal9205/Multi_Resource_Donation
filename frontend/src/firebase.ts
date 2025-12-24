@@ -85,34 +85,47 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
 };
 
 // Sign in with email and password
-export const signInWithEmail = async (email: string, password: string) => {
+export const signInWithEmail = async (email: string, password: string, skipProfileCreation: boolean = false) => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const { user } = userCredential;
     
-    try {
-      // Try to fetch user profile
-      const response = await fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`);
-      if (!response.ok) {
-        // If profile not found, create a default donor profile
-        const idToken = await user.getIdToken();
-        await fetch('http://localhost:5000/api/v1/auth/register', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          },
-          body: JSON.stringify({
-            name: user.displayName || email.split('@')[0],
-            email: user.email,
-            userType: 'donor', // Default to donor
-            phone: user.phoneNumber || '',
-            firebaseUid: user.uid
-          }),
-        });
+    // Skip profile creation for admin users or if explicitly requested
+    if (!skipProfileCreation) {
+      try {
+        // Check if user is admin first
+        const adminCheck = await fetch(`http://localhost:5000/api/v1/auth/admin/check?email=${encodeURIComponent(email)}`);
+        const adminData = await adminCheck.json();
+        
+        // If user is admin, don't create a User profile
+        if (adminData.success && adminData.isAdmin) {
+          console.log('Admin user detected, skipping User profile creation');
+          return { user };
+        }
+        
+        // Try to fetch user profile
+        const response = await fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`);
+        if (!response.ok) {
+          // If profile not found, create a default donor profile
+          const idToken = await user.getIdToken();
+          await fetch('http://localhost:5000/api/v1/auth/register', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              name: user.displayName || email.split('@')[0],
+              email: user.email,
+              userType: 'donor', // Default to donor
+              phone: user.phoneNumber || '',
+              firebaseUid: user.uid
+            }),
+          });
+        }
+      } catch (profileError) {
+        console.warn('Profile auto-creation failed (non-critical):', profileError);
       }
-    } catch (profileError) {
-      console.warn('Profile auto-creation failed (non-critical):', profileError);
     }
     
     return { user };
