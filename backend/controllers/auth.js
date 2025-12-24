@@ -3,7 +3,6 @@ const ErrorResponse = require('../utils/errorResponse');
 const asyncHandler = require('../middleware/async');
 const { validatePassword } = require('../utils/passwordValidator');
 const Profile = require('../models/Profile');
-const NgoProfile = require('../models/NgoProfile');
 const admin = require('../config/firebase');
 
 exports.getUserByFirebaseUid = asyncHandler(async (req, res) => {
@@ -32,9 +31,6 @@ exports.deleteMe = asyncHandler(async (req, res, next) => {
   const user = await User.findOne({ firebaseUid }).select('_id');
 
   await Profile.deleteOne({ firebaseUid });
-  if (user?._id) {
-    await NgoProfile.deleteOne({ user: user._id });
-  }
   await User.deleteOne({ firebaseUid });
 
   return res.status(200).json({ success: true, data: {} });
