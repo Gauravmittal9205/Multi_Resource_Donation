@@ -2,6 +2,9 @@ const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 const asyncHandler = require('../middleware/async');
 const { validatePassword } = require('../utils/passwordValidator');
+const Profile = require('../models/Profile');
+const NgoProfile = require('../models/NgoProfile');
+const admin = require('../config/firebase');
 
 exports.getUserByFirebaseUid = asyncHandler(async (req, res) => {
   const { firebaseUid } = req.params;
@@ -10,6 +13,31 @@ exports.getUserByFirebaseUid = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, error: 'User not found' });
   }
   return res.status(200).json({ success: true, data: user });
+});
+
+exports.deleteMe = asyncHandler(async (req, res, next) => {
+  const firebaseUid = req.firebaseUid;
+  if (!firebaseUid) {
+    return next(new ErrorResponse('Not authorized to access this route', 401));
+  }
+
+  try {
+    await admin.auth().deleteUser(firebaseUid);
+  } catch (err) {
+    if (err?.errorInfo?.code !== 'auth/user-not-found') {
+      return next(new ErrorResponse('Failed to delete Firebase account', 500));
+    }
+  }
+
+  const user = await User.findOne({ firebaseUid }).select('_id');
+
+  await Profile.deleteOne({ firebaseUid });
+  if (user?._id) {
+    await NgoProfile.deleteOne({ user: user._id });
+  }
+  await User.deleteOne({ firebaseUid });
+
+  return res.status(200).json({ success: true, data: {} });
 });
 
 // @desc    Register user

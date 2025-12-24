@@ -127,7 +127,32 @@ export const signInWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
   try {
     const result = await signInWithPopup(auth, provider);
-    return result.user;
+    const user = result.user;
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`);
+      if (!response.ok) {
+        const idToken = await user.getIdToken();
+        await fetch('http://localhost:5000/api/v1/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            name: user.displayName || (user.email ? user.email.split('@')[0] : 'User'),
+            email: user.email,
+            userType: 'donor',
+            phone: user.phoneNumber || '',
+            firebaseUid: user.uid
+          }),
+        });
+      }
+    } catch (profileError) {
+      console.warn('Profile auto-creation failed (non-critical):', profileError);
+    }
+
+    return user;
   } catch (error) {
     console.error('Error signing in with Google:', error);
     throw error;

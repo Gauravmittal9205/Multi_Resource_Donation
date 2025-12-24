@@ -521,9 +521,34 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
       setChangePasswordSubmitting(false);
     }
   };
-  const handleDeleteAccount = () => {
-    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      alert('Account deletion flow will proceed.');
+  const handleDeleteAccount = async () => {
+    if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) return;
+
+    if (!auth.currentUser) {
+      alert('You are not logged in. Please login again and retry.');
+      return;
+    }
+
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch('http://localhost:5000/api/v1/auth/delete-me', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || `Failed to delete account in backend (${res.status})`);
+      }
+
+      await signOut(auth);
+      localStorage.setItem('postAccountDeleteAction', 'login');
+      window.location.href = '/';
+    } catch (e: any) {
+      const msg = typeof e?.message === 'string' ? e.message : 'Failed to delete your account.';
+      alert(msg);
     }
   };
 

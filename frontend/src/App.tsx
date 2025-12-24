@@ -65,6 +65,18 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (user) return;
+
+    const action = localStorage.getItem('postAccountDeleteAction');
+    if (action === 'login') {
+      localStorage.removeItem('postAccountDeleteAction');
+      setIsSignUp(false);
+      setShowLanding(false);
+      setAuthMode('email');
+    }
+  }, [user]);
+
+  useEffect(() => {
     if (!user?.uid) {
       setUserMeta(null);
       return;
@@ -96,7 +108,7 @@ function App() {
         console.log('Setting user meta:', userMetaData);
         setUserMeta(userMetaData);
       })
-      .catch((e: any) => {
+      .catch(() => {
         if (cancelled) return;
         setUserMeta(null);
       });
