@@ -1,0 +1,60 @@
+const mongoose = require('mongoose');
+
+const DonationSchema = new mongoose.Schema(
+  {
+    donorFirebaseUid: {
+      type: String,
+      required: true,
+      index: true
+    },
+    resourceType: {
+      type: String,
+      required: true,
+      enum: ['Food', 'Clothes', 'Books', 'Medical Supplies', 'Other Essentials']
+    },
+    quantity: {
+      type: Number,
+      required: true
+    },
+    unit: {
+      type: String,
+      required: true,
+      enum: ['kg', 'items', 'packets', 'boxes']
+    },
+    address: {
+      addressLine: { type: String, required: true },
+      city: { type: String, required: true },
+      state: { type: String, required: true },
+      pincode: { type: String, required: true }
+    },
+    pickup: {
+      pickupDate: { type: Date, required: true },
+      timeSlot: {
+        type: String,
+        required: true,
+        enum: ['Morning', 'Afternoon', 'Evening']
+      }
+    },
+    notes: {
+      type: String,
+      default: ''
+    },
+    images: {
+      type: [String],
+      default: []
+    },
+    details: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'assigned', 'picked', 'completed', 'cancelled'],
+      default: 'pending',
+      index: true
+    }
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model('Donation', DonationSchema);
