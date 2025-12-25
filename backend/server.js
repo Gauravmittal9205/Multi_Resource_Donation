@@ -19,6 +19,7 @@ const donationsRoutes = require('./routes/donations');
 const ngoRequestsRoutes = require('./routes/ngoRequests');
 const feedbackRoutes = require('./routes/feedback');
 const ngoRegistrationRoutes = require('./routes/ngoRegistration');
+const adminUsersRoutes = require('./routes/adminUsers');
 
 
 // Create Express app
@@ -52,6 +53,7 @@ app.use('/api/v1/donations', donationsRoutes);
 app.use('/api/v1/ngo-requests', ngoRequestsRoutes);
 app.use('/api/v1/feedback', feedbackRoutes);
 app.use('/api/v1/ngo-registration', ngoRegistrationRoutes);
+app.use('/api/v1/users/admin', adminUsersRoutes);
 
 // Set static folder
 app.use(express.static(path.join(__dirname, 'public')));

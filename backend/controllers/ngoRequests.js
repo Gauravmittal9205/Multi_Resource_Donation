@@ -214,6 +214,10 @@ exports.getNgoDashboard = asyncHandler(async (req, res) => {
     ngoFirebaseUid,
     status: 'fulfilled'
   });
+  const rejectedRequests = await NgoRequest.countDocuments({
+    ngoFirebaseUid,
+    status: 'rejected'
+  });
 
   const urgentRequests = await NgoRequest.find({
     ngoFirebaseUid,
@@ -231,7 +235,8 @@ exports.getNgoDashboard = asyncHandler(async (req, res) => {
         totalRequests,
         pendingRequests,
         approvedRequests,
-        fulfilledRequests
+        fulfilledRequests,
+        rejectedRequests
       },
       urgentRequests
     }

@@ -1,6 +1,6 @@
 import type { User } from 'firebase/auth';
 import { useState, useEffect } from 'react';
-import { createNgoRequest, getMyRequests } from '../services/ngoRequestService';
+import { createNgoRequest, getMyRequests, getNgoDashboard } from '../services/ngoRequestService';
 import { createFeedback } from '../services/feedbackService';
 import { createContact } from '../services/contactService';
 import NgoRegistration from './NgoRegistration';
@@ -83,6 +83,16 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
   const [myRequests, setMyRequests] = useState<any[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requestsError, setRequestsError] = useState<string | null>(null);
+  const [timeFilter, setTimeFilter] = useState<'all' | '7days' | 'weekly' | 'monthly'>('all');
+
+  // State for dashboard statistics
+  const [dashboardStats, setDashboardStats] = useState({
+    totalRequests: 0,
+    pendingRequests: 0,
+    approvedRequests: 0,
+    rejectedRequests: 0
+  });
+  const [dashboardLoading, setDashboardLoading] = useState(true);
 
   const [verificationStatus, setVerificationStatus] = useState('unregistered');
   const [ngoName, setNgoName] = useState('');
@@ -145,6 +155,32 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
     return () => clearTimeout(timer);
   }, []);
 
+  // Fetch dashboard statistics
+  useEffect(() => {
+    const fetchDashboardStats = async () => {
+      try {
+        setDashboardLoading(true);
+        const response = await getNgoDashboard();
+        if (response.success && response.data?.summary) {
+          setDashboardStats({
+            totalRequests: response.data.summary.totalRequests || 0,
+            pendingRequests: response.data.summary.pendingRequests || 0,
+            approvedRequests: response.data.summary.approvedRequests || 0,
+            rejectedRequests: response.data.summary.rejectedRequests || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard stats:', error);
+      } finally {
+        setDashboardLoading(false);
+      }
+    };
+
+    if (user && activeTab === 'overview') {
+      fetchDashboardStats();
+    }
+  }, [user, activeTab]);
+
   // Fetch requests when My Requests tab is active
   useEffect(() => {
     if (activeTab === 'my-requests') {
@@ -167,6 +203,43 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
       setRequestsLoading(false);
     }
   };
+
+  // Filter requests based on time filter
+  const getFilteredRequests = () => {
+    if (timeFilter === 'all') return myRequests;
+    
+    const now = new Date();
+    return myRequests.filter((req: any) => {
+      const requestDate = new Date(req.createdAt);
+      
+      if (timeFilter === '7days') {
+        // Last 7 days
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return requestDate >= sevenDaysAgo;
+      }
+      
+      if (timeFilter === 'weekly') {
+        // This week (Monday to Sunday)
+        const today = new Date(now);
+        const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+        const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert to Monday = 0
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - daysFromMonday);
+        monday.setHours(0, 0, 0, 0);
+        return requestDate >= monday;
+      }
+      
+      if (timeFilter === 'monthly') {
+        // This month (current month)
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        return requestDate >= startOfMonth;
+      }
+      
+      return true;
+    });
+  };
+
+  const filteredRequests = getFilteredRequests();
 
   if (loading) {
     return (
@@ -284,7 +357,7 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                 },
                 { 
                   id: 'incoming-donations', 
-                  label: 'Donations',
+                  label: 'Notifications',
                   icon: (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -470,84 +543,15 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
               </div>
             </div>
 
-            {/* 2. Action Required Panel */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 bg-amber-50">
-                <h2 className="text-lg font-medium text-amber-800 flex items-center">
-                  <svg className="w-5 h-5 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  Action Required
-                </h2>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="flex items-start p-3 bg-red-50 rounded-lg">
-                    <div className="flex-shrink-0">
-                      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-red-100 text-red-600">
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                        </svg>
-                      </div>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-red-800">2 Pending Registration Steps</h3>
-                      <p className="mt-1 text-sm text-red-700">Complete verification to receive donations</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start p-3 bg-blue-50 rounded-lg">
-                    <div className="flex-shrink-0">
-                      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-blue-100 text-blue-600">
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                        </svg>
-                      </div>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-blue-800">3 Pending Pickups</h3>
-                      <p className="mt-1 text-sm text-blue-700">Schedule pickups for donations</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start p-3 bg-amber-50 rounded-lg">
-                    <div className="flex-shrink-0">
-                      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-amber-100 text-amber-600">
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                        </svg>
-                      </div>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-amber-800">5 Unread Messages</h3>
-                      <p className="mt-1 text-sm text-amber-700">From potential donors</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start p-3 bg-purple-50 rounded-lg">
-                    <div className="flex-shrink-0">
-                      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-purple-100 text-purple-600">
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
-                      </div>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-purple-800">Proof Upload Required</h3>
-                      <p className="mt-1 text-sm text-purple-700">For 2 recent donations</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 3. Key Numbers */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* 2. Key Numbers */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Active Requests</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">8</p>
+                    <p className="text-sm font-medium text-gray-500">Total Requests Made</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">
+                      {dashboardLoading ? '...' : dashboardStats.totalRequests}
+                    </p>
                   </div>
                   <div className="flex-shrink-0 bg-emerald-100 rounded-lg p-3">
                     <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -557,110 +561,50 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                 </div>
               </div>
               
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Incoming Donations</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">5</p>
-                  </div>
-                  <div className="flex-shrink-0 bg-blue-100 rounded-lg p-3">
-                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-              
               <div className="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Pending Pickups</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">3</p>
+                    <p className="text-sm font-medium text-gray-500">Pending Requests</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">
+                      {dashboardLoading ? '...' : dashboardStats.pendingRequests}
+                    </p>
                   </div>
                   <div className="flex-shrink-0 bg-yellow-100 rounded-lg p-3">
                     <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V8a1 1 0 00-1-1H4a1 1 0 00-1 1v8a1 1 0 001 1h1m8-2h1m4 0h2a1 1 0 001-1v-3.65a1 1 0 00-.22-.624l-3.48-4.35A1 1 0 0014.38 7H14m-8 7h7m-7 0v2a1 1 0 001 1h2" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                 </div>
               </div>
-              
+
+              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Approved Requests</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">
+                      {dashboardLoading ? '...' : dashboardStats.approvedRequests}
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 bg-green-100 rounded-lg p-3">
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
               <div className="bg-white rounded-lg shadow p-6 border-l-4 border-red-500">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Inventory Alerts</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">2</p>
+                    <p className="text-sm font-medium text-gray-500">Rejected Requests</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">
+                      {dashboardLoading ? '...' : dashboardStats.rejectedRequests}
+                    </p>
                   </div>
                   <div className="flex-shrink-0 bg-red-100 rounded-lg p-3">
                     <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v2m0 4h.01" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 4. Urgent Needs Highlight */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 bg-red-50">
-                <h2 className="text-lg font-medium text-red-800 flex items-center">
-                  <svg className="w-5 h-5 mr-2 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  Urgent Needs
-                </h2>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  <div className="flex items-start">
-                    <div className="flex-shrink-0 pt-0.5">
-                      <div className="flex items-center justify-center h-5 w-5 rounded-full bg-red-100 text-red-600">
-                        <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 8 8">
-                          <circle cx="4" cy="4" r="3" />
-                        </svg>
-                      </div>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-gray-900">Rice & Pulses - High Urgency</h3>
-                      <div className="mt-1 text-sm text-gray-500">
-                        <span className="font-medium">Needed by:</span> Today | 
-                        <span className="ml-1">Request ID: #REQ-0042</span>
-                      </div>
-                      <div className="mt-1 text-xs text-red-600">
-                        <span className="font-medium">Only 12 hours left</span> to fulfill this request
-                      </div>
-                    </div>
-                    <div className="ml-auto">
-                      <button className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                        View Details
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start">
-                    <div className="flex-shrink-0 pt-0.5">
-                      <div className="flex items-center justify-center h-5 w-5 rounded-full bg-yellow-100 text-yellow-600">
-                        <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 8 8">
-                          <circle cx="4" cy="4" r="3" />
-                        </svg>
-                      </div>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-gray-900">Winter Blankets - Medium Urgency</h3>
-                      <div className="mt-1 text-sm text-gray-500">
-                        <span className="font-medium">Needed by:</span> 2 days | 
-                        <span className="ml-1">Request ID: #REQ-0039</span>
-                      </div>
-                      <div className="mt-1 text-xs text-amber-600">
-                        <span className="font-medium">2 days left</span> to fulfill this request
-                      </div>
-                    </div>
-                    <div className="ml-auto">
-                      <button className="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
-                        View Details
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1499,23 +1443,70 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 bg-emerald-50">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-medium text-emerald-800 flex items-center">
-                    <svg className="w-5 h-5 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    My Requests
-                  </h2>
-                  <div className="flex items-center space-x-4">
-                    <span className="text-sm text-emerald-700 font-medium">
-                      Total: {myRequests.length} request{myRequests.length !== 1 ? 's' : ''}
-                    </span>
+                <div className="flex flex-col space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-medium text-emerald-800 flex items-center">
+                      <svg className="w-5 h-5 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      My Requests
+                    </h2>
+                    <div className="flex items-center space-x-4">
+                      <span className="text-sm text-emerald-700 font-medium">
+                        Showing: {filteredRequests.length} request{filteredRequests.length !== 1 ? 's' : ''} / Total: {myRequests.length}
+                      </span>
+                      <button
+                        onClick={loadMyRequests}
+                        disabled={requestsLoading}
+                        className="px-4 py-2 text-sm font-medium text-emerald-700 bg-white border border-emerald-200 rounded-md hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {requestsLoading ? 'Refreshing...' : 'Refresh'}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Time Filter Buttons */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-emerald-700 mr-2">Filter by:</span>
                     <button
-                      onClick={loadMyRequests}
-                      disabled={requestsLoading}
-                      className="px-4 py-2 text-sm font-medium text-emerald-700 bg-white border border-emerald-200 rounded-md hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => setTimeFilter('all')}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        timeFilter === 'all'
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
+                      }`}
                     >
-                      {requestsLoading ? 'Refreshing...' : 'Refresh'}
+                      All
+                    </button>
+                    <button
+                      onClick={() => setTimeFilter('7days')}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        timeFilter === '7days'
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
+                      }`}
+                    >
+                      Last 7 Days
+                    </button>
+                    <button
+                      onClick={() => setTimeFilter('weekly')}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        timeFilter === 'weekly'
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
+                      }`}
+                    >
+                      This Week
+                    </button>
+                    <button
+                      onClick={() => setTimeFilter('monthly')}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        timeFilter === 'monthly'
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
+                      }`}
+                    >
+                      This Month
                     </button>
                   </div>
                 </div>
@@ -1549,9 +1540,31 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                       </button>
                     </div>
                   </div>
+                ) : filteredRequests.length === 0 ? (
+                  <div className="text-center py-12">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No requests found</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {timeFilter === 'all' 
+                        ? 'Get started by creating your first donation request.'
+                        : `No requests found for the selected time period. Try selecting a different filter.`}
+                    </p>
+                    {timeFilter !== 'all' && (
+                      <div className="mt-6">
+                        <button
+                          onClick={() => setTimeFilter('all')}
+                          className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                        >
+                          Show All Requests
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="space-y-4">
-                    {myRequests.map((request: any) => (
+                    {filteredRequests.map((request: any) => (
                       <div
                         key={request._id}
                         className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
@@ -2056,7 +2069,7 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
             </div>
 
             {/* Quick Links */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[
                 {
                   title: 'Getting Started',
@@ -2066,15 +2079,6 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     </svg>
                   ),
                   description: 'Learn how to make the most of our platform',
-                },
-                {
-                  title: 'FAQs',
-                  icon: (
-                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  ),
-                  description: 'Find answers to common questions',
                 },
                 {
                   title: 'Video Tutorials',
@@ -2098,6 +2102,16 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                 <div
                   key={index}
                   className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow cursor-pointer border border-gray-100 hover:border-blue-100"
+                  onClick={() => {
+                    // Open relevant websites based on card type
+                    if (item.title === 'Getting Started') {
+                      window.open('https://www.youtube.com/results?search_query=donation+platform+tutorial', '_blank');
+                    } else if (item.title === 'Video Tutorials') {
+                      window.open('https://www.youtube.com/results?search_query=ngo+donation+management+tutorial', '_blank');
+                    } else if (item.title === 'Contact Support') {
+                      window.open('mailto:support@donationhub.com', '_blank');
+                    }
+                  }}
                 >
                   <div className="flex items-center space-x-4">
                     <div className="p-2 bg-blue-50 rounded-full">
