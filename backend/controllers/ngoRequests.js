@@ -1,5 +1,6 @@
 const NgoRequest = require('../models/NgoRequest');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const asyncHandler = require('../middleware/async');
 
 // @desc    Create NGO request
@@ -310,6 +311,29 @@ exports.updateRequestStatus = asyncHandler(async (req, res) => {
 
   request.status = status;
   await request.save();
+
+  // Create notification for NGO
+  if (status === 'approved' || status === 'rejected') {
+    const ngo = await User.findOne({ firebaseUid: request.ngoFirebaseUid });
+    const ngoName = ngo?.organizationName || ngo?.name || 'NGO';
+    
+    const notificationType = status === 'approved' ? 'request_approved' : 'request_rejected';
+    const title = status === 'approved' 
+      ? 'Request Approved' 
+      : 'Request Rejected';
+    const message = status === 'approved'
+      ? `Your request "${request.requestTitle}" has been approved by the admin.`
+      : `Your request "${request.requestTitle}" has been rejected by the admin.`;
+
+    await Notification.create({
+      ngoFirebaseUid: request.ngoFirebaseUid,
+      type: notificationType,
+      title,
+      message,
+      relatedId: request._id.toString(),
+      relatedType: 'request'
+    });
+  }
 
   res.status(200).json({
     success: true,

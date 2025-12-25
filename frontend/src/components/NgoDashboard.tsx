@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { createNgoRequest, getMyRequests, getNgoDashboard } from '../services/ngoRequestService';
 import { createFeedback } from '../services/feedbackService';
 import { createContact } from '../services/contactService';
+import { getMyNotifications, markNotificationAsRead, markAllNotificationsAsRead, type Notification } from '../services/notificationService';
 import NgoRegistration from './NgoRegistration';
 
 interface NgoDashboardProps {
@@ -93,6 +94,12 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
     rejectedRequests: 0
   });
   const [dashboardLoading, setDashboardLoading] = useState(true);
+
+  // State for Notifications tab
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const [verificationStatus, setVerificationStatus] = useState('unregistered');
   const [ngoName, setNgoName] = useState('');
@@ -187,6 +194,63 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
       loadMyRequests();
     }
   }, [activeTab]);
+
+  // Fetch notifications when Notifications tab is active or on mount
+  useEffect(() => {
+    if (activeTab === 'incoming-donations') {
+      loadNotifications();
+    }
+  }, [activeTab]);
+
+  // Also fetch notifications on component mount to show badge count
+  useEffect(() => {
+    if (hasRegistered && user) {
+      loadNotifications();
+    }
+  }, [hasRegistered, user]);
+
+  const loadNotifications = async () => {
+    setNotificationsLoading(true);
+    setNotificationsError(null);
+    try {
+      const response = await getMyNotifications();
+      if (response.success) {
+        setNotifications(response.data || []);
+        setUnreadCount(response.unreadCount || 0);
+      }
+    } catch (error: any) {
+      console.error('Error loading notifications:', error);
+      setNotificationsError(error.response?.data?.error || 'Failed to load notifications');
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const handleMarkAsRead = async (notificationId: string) => {
+    try {
+      await markNotificationAsRead(notificationId);
+      setNotifications(prev =>
+        prev.map(n =>
+          n._id === notificationId ? { ...n, isRead: true, readAt: new Date().toISOString() } : n
+        )
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllNotificationsAsRead();
+      setNotifications(prev =>
+        prev.map(n => ({ ...n, isRead: true, readAt: new Date().toISOString() }))
+      );
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
 
   const loadMyRequests = async () => {
     setRequestsLoading(true);
@@ -421,8 +485,13 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
                   } ${tab.id === 'signout' ? 'text-red-500 hover:bg-red-50' : ''}`}
                 >
-                  <span className={`${activeTab === tab.id ? 'opacity-100' : 'opacity-70'}`}>
+                  <span className={`relative ${activeTab === tab.id ? 'opacity-100' : 'opacity-70'}`}>
                     {tab.icon}
+                    {tab.id === 'incoming-donations' && unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
                   </span>
                   <span className="text-sm font-medium whitespace-nowrap">{tab.label}</span>
                   {activeTab === tab.id && (
@@ -2437,6 +2506,144 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     </form>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'incoming-donations' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 bg-emerald-50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-medium text-emerald-800 flex items-center">
+                      <svg className="w-5 h-5 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                      Notifications
+                    </h2>
+                    {unreadCount > 0 && (
+                      <p className="text-sm text-emerald-600 mt-1">
+                        {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllAsRead}
+                        className="px-4 py-2 text-sm font-medium text-emerald-700 bg-white border border-emerald-200 rounded-md hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                      >
+                        Mark All as Read
+                      </button>
+                    )}
+                    <button
+                      onClick={loadNotifications}
+                      disabled={notificationsLoading}
+                      className="px-4 py-2 text-sm font-medium text-emerald-700 bg-white border border-emerald-200 rounded-md hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {notificationsLoading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6">
+                {notificationsError && (
+                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-sm text-red-800">{notificationsError}</p>
+                  </div>
+                )}
+
+                {notificationsLoading && notifications.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+                    <p className="mt-4 text-sm text-gray-600">Loading notifications...</p>
+                  </div>
+                ) : notifications.length === 0 ? (
+                  <div className="text-center py-12">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No notifications</h3>
+                    <p className="mt-1 text-sm text-gray-500">You don't have any notifications yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {notifications.map((notification) => {
+                      const getNotificationIcon = () => {
+                        if (notification.type === 'request_approved' || notification.type === 'registration_approved') {
+                          return (
+                            <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </div>
+                          );
+                        }
+                      };
+
+                      const getNotificationColor = () => {
+                        if (notification.type === 'request_approved' || notification.type === 'registration_approved') {
+                          return notification.isRead
+                            ? 'bg-white border-gray-200 hover:bg-gray-50'
+                            : 'bg-green-50 border-green-200 hover:bg-green-100';
+                        } else {
+                          return notification.isRead
+                            ? 'bg-white border-gray-200 hover:bg-gray-50'
+                            : 'bg-red-50 border-red-200 hover:bg-red-100';
+                        }
+                      };
+
+                      return (
+                        <div
+                          key={notification._id}
+                          className={`p-4 rounded-lg border transition-all cursor-pointer ${getNotificationColor()}`}
+                          onClick={() => {
+                            if (!notification.isRead) {
+                              handleMarkAsRead(notification._id);
+                            }
+                          }}
+                        >
+                          <div className="flex items-start space-x-4">
+                            {getNotificationIcon()}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
+                                  <p className="mt-1 text-sm text-gray-600">{notification.message}</p>
+                                  <p className="mt-2 text-xs text-gray-500">
+                                    {new Date(notification.createdAt).toLocaleString('en-US', {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </p>
+                                </div>
+                                {!notification.isRead && (
+                                  <div className="flex-shrink-0 ml-2">
+                                    <div className="w-2 h-2 bg-emerald-600 rounded-full"></div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>
