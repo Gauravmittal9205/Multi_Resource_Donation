@@ -1007,8 +1007,7 @@ function App() {
               {/* Left section - Logo */}
               <div className="flex items-center space-x-2">
                 <span className="text-2xl font-bold text-emerald-600">ShareCare</span>
-              <span className="text-2xl font-bold text-emerald-600">ShareCare</span>
-            </div>
+              </div>
             
             {/* Center section - Desktop Navigation */}
             <div className="hidden md:flex items-center justify-center flex-1">

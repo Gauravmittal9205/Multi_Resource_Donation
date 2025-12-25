@@ -12,7 +12,10 @@ const ContactSchema = new mongoose.Schema(
     message: { type: String, required: true, trim: true },
     status: { type: String, enum: ['new', 'read', 'closed'], default: 'new' }
   },
-  { timestamps: true }
+  { 
+    timestamps: true,
+    collection: 'helpmessages' // Custom collection name
+  }
 );
 
 module.exports = mongoose.model('Contact', ContactSchema);
