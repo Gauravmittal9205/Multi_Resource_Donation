@@ -30,7 +30,7 @@ export interface NgoRegistrationData {
   alternateIdFile?: string; // URL or file path
   
   // Step 4: Organization Documents
-  registrationNumber: string;
+  registrationNumber?: string; // Optional as it's auto-generated on the backend
   ngoCertificate: string; // URL or file path
   addressProof: string; // URL or file path
   

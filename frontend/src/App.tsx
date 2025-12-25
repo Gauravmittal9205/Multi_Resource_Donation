@@ -1155,20 +1155,6 @@ function App() {
                       >
                         Sign Out
                       </button>
-                      {isNgoUser && (
-                        <a
-                          href="#"
-                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setShowAbout(false);
-                            setActiveLink('registration');
-                            setIsProfileOpen(false);
-                          }}
-                        >
-                          Registration
-                        </a>
-                      )}
                     </div>
                   )}
                 </div>

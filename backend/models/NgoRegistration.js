@@ -77,8 +77,9 @@ const NgoRegistrationSchema = new mongoose.Schema(
     // Step 4: Organization Documents
     registrationNumber: {
       type: String,
-      required: [true, 'Registration number is required'],
-      trim: true
+      trim: true,
+      unique: true,
+      sparse: true
     },
     ngoCertificate: {
       type: String, // URL or file path

@@ -1,6 +1,14 @@
 const NgoRegistration = require('../models/NgoRegistration');
 const asyncHandler = require('../middleware/async');
 
+// Function to generate a random 12-digit number as string
+const generateRegistrationNumber = () => {
+  const min = 100000000000; // 12-digit number starting with 1
+  const max = 999999999999; // 12-digit number
+  const randomNum = Math.floor(Math.random() * (max - min + 1)) + min;
+  return randomNum.toString();
+};
+
 // @desc    Create NGO registration
 // @route   POST /api/v1/ngo-registration
 // @access  Private (Firebase)
@@ -16,6 +24,19 @@ exports.createNgoRegistration = asyncHandler(async (req, res) => {
     });
   }
 
+  // Generate a unique 12-digit registration number
+  let registrationNumber;
+  let isUnique = false;
+  
+  // Keep generating until we get a unique number (should be first try in most cases)
+  while (!isUnique) {
+    registrationNumber = generateRegistrationNumber();
+    const existing = await NgoRegistration.findOne({ registrationNumber });
+    if (!existing) {
+      isUnique = true;
+    }
+  }
+
   const {
     organizationType,
     ngoName,
@@ -29,7 +50,6 @@ exports.createNgoRegistration = asyncHandler(async (req, res) => {
     aadhaarCard,
     alternateIdType,
     alternateIdFile,
-    registrationNumber,
     ngoCertificate,
     addressProof,
     declarationAccepted,

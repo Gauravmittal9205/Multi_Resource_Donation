@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { createNgoRequest, getMyRequests } from '../services/ngoRequestService';
 import { createFeedback } from '../services/feedbackService';
 import { createContact } from '../services/contactService';
+import NgoRegistration from './NgoRegistration';
 
 interface NgoDashboardProps {
   user: User | null;
@@ -82,6 +83,59 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
   const [myRequests, setMyRequests] = useState<any[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requestsError, setRequestsError] = useState<string | null>(null);
+
+  const [verificationStatus, setVerificationStatus] = useState('unregistered');
+  const [ngoName, setNgoName] = useState('');
+  const [registrationNumber, setRegistrationNumber] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [hasRegistered, setHasRegistered] = useState(false);
+  const [showRegistrationForm, setShowRegistrationForm] = useState(false);
+
+  useEffect(() => {
+    const fetchNgoDetails = async () => {
+      try {
+        const token = await user?.getIdToken();
+        if (!token) return;
+        
+        const response = await fetch('http://localhost:5000/api/v1/ngo-registration', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const { data } = await response.json();
+          if (data) {
+            setVerificationStatus(data.status || 'pending');
+            setNgoName(data.ngoName || '');
+            setRegistrationNumber(data.registrationNumber || '');
+            setCity(data.city || '');
+            setState(data.state || '');
+            setHasRegistered(true);
+          } else {
+            setVerificationStatus('unregistered');
+            setHasRegistered(false);
+          }
+        } else if (response.status === 404) {
+          // No registration found
+          setVerificationStatus('unregistered');
+          setHasRegistered(false);
+        }
+      } catch (error) {
+        console.error('Error fetching NGO details:', error);
+        setVerificationStatus('unregistered');
+        setHasRegistered(false);
+      }
+    };
+
+    if (user) {
+      fetchNgoDetails();
+    } else {
+      setVerificationStatus('unregistered');
+      setHasRegistered(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -195,131 +249,170 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
         </div>
       </div>
 
-      {/* Enhanced Navigation Tabs */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-1 overflow-x-auto py-1 hide-scrollbar">
-            {[
-              { 
-                id: 'overview', 
-                label: 'Overview',
-                icon: (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                  </svg>
-                ) 
-              },
-              { 
-                id: 'create-request', 
-                label: 'Create Request',
-                icon: (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                ) 
-              },
-              { 
-                id: 'my-requests', 
-                label: 'My Requests',
-                icon: (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                ) 
-              },
-              { 
-                id: 'incoming-donations', 
-                label: 'Donations',
-                icon: (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                ) 
-              },
-              { 
-                id: 'pickups-deliveries', 
-                label: 'Pickups',
-                icon: (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13 16V8a1 1 0 00-1-1H4a1 1 0 00-1 1v8a1 1 0 001 1h1m8-2h1m4 0h2a1 1 0 001-1v-3.65a1 1 0 00-.22-.624l-3.48-4.35A1 1 0 0014.38 7H14m-8 7h7m-7 0v2a1 1 0 001 1h2" />
-                  </svg>
-                ) 
-              },
-              { 
-                id: 'feedback', 
-                label: 'Feedback',
-                icon: (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                  </svg>
-                ) 
-              },
-              { 
-                id: 'help-support', 
-                label: 'Help',
-                icon: (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                ) 
-              },
-              { 
-                id: 'settings', 
-                label: 'Settings',
-                icon: (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                ) 
-              },
-              { 
-                id: 'signout', 
-                label: 'Sign Out',
-                icon: (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                ) 
+      {/* Enhanced Navigation Tabs - Only show if NGO has registered */}
+      {hasRegistered && (
+        <div className="bg-white border-b shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav className="flex space-x-1 overflow-x-auto py-1 hide-scrollbar">
+              {[
+                { 
+                  id: 'overview', 
+                  label: 'Overview',
+                  icon: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                  ) 
+                },
+                { 
+                  id: 'create-request', 
+                  label: 'Create Request',
+                  icon: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                  ) 
+                },
+                { 
+                  id: 'my-requests', 
+                  label: 'My Requests',
+                  icon: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  ) 
+                },
+                { 
+                  id: 'incoming-donations', 
+                  label: 'Donations',
+                  icon: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) 
+                },
+                { 
+                  id: 'pickups-deliveries', 
+                  label: 'Pickups',
+                  icon: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13 16V8a1 1 0 00-1-1H4a1 1 0 00-1 1v8a1 1 0 001 1h1m8-2h1m4 0h2a1 1 0 001-1v-3.65a1 1 0 00-.22-.624l-3.48-4.35A1 1 0 0014.38 7H14m-8 7h7m-7 0v2a1 1 0 001 1h2" />
+                    </svg>
+                  ) 
+                },
+                { 
+                  id: 'feedback', 
+                  label: 'Feedback',
+                  icon: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                  ) 
+                },
+                { 
+                  id: 'help-support', 
+                  label: 'Help',
+                  icon: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) 
+                },
+                { 
+                  id: 'settings', 
+                  label: 'Settings',
+                  icon: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  ) 
+                },
+                { 
+                  id: 'signout', 
+                  label: 'Sign Out',
+                  icon: (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                  ) 
+                }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => tab.id === 'signout' ? onBack() : setActiveTab(tab.id)}
+                  className={`flex items-center space-x-2 px-4 py-3 rounded-lg mx-1 transition-all duration-200 ${
+                    activeTab === tab.id
+                      ? 'bg-emerald-50 text-emerald-600 shadow-sm'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                  } ${tab.id === 'signout' ? 'text-red-500 hover:bg-red-50' : ''}`}
+                >
+                  <span className={`${activeTab === tab.id ? 'opacity-100' : 'opacity-70'}`}>
+                    {tab.icon}
+                  </span>
+                  <span className="text-sm font-medium whitespace-nowrap">{tab.label}</span>
+                  {activeTab === tab.id && (
+                    <span className="absolute bottom-0 left-1/2 w-6 h-1 bg-emerald-500 rounded-full -translate-x-1/2"></span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
+          <style dangerouslySetInnerHTML={{
+            __html: `
+              .hide-scrollbar::-webkit-scrollbar {
+                display: none;
               }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => tab.id === 'signout' ? onBack() : setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 px-4 py-3 rounded-lg mx-1 transition-all duration-200 ${
-                  activeTab === tab.id
-                    ? 'bg-emerald-50 text-emerald-600 shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
-                } ${tab.id === 'signout' ? 'text-red-500 hover:bg-red-50' : ''}`}
-              >
-                <span className={`${activeTab === tab.id ? 'opacity-100' : 'opacity-70'}`}>
-                  {tab.icon}
-                </span>
-                <span className="text-sm font-medium whitespace-nowrap">{tab.label}</span>
-                {activeTab === tab.id && (
-                  <span className="absolute bottom-0 left-1/2 w-6 h-1 bg-emerald-500 rounded-full -translate-x-1/2"></span>
-                )}
-              </button>
-            ))}
-          </nav>
+              .hide-scrollbar {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+              }
+            `
+          }} />
         </div>
-        <style dangerouslySetInnerHTML={{
-          __html: `
-            .hide-scrollbar::-webkit-scrollbar {
-              display: none;
-            }
-            .hide-scrollbar {
-              -ms-overflow-style: none;
-              scrollbar-width: none;
-            }
-          `
-        }} />
-      </div>
+      )}
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'overview' && (
+        {!hasRegistered ? (
+          showRegistrationForm ? (
+            <div className="bg-white rounded-lg shadow p-6">
+              <NgoRegistration 
+                onBack={() => setShowRegistrationForm(false)} 
+                onSuccess={() => {
+                  setShowRegistrationForm(false);
+                  setHasRegistered(true);
+                  setVerificationStatus('pending');
+                  setActiveTab('overview'); // Switch to dashboard tab
+                  // Refresh the page to show the updated dashboard
+                  window.location.reload();
+                }} 
+              />
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow p-6 text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-emerald-100">
+                <svg className="h-6 w-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              </div>
+              <h3 className="mt-2 text-lg font-medium text-gray-900">No Registration Found</h3>
+              <p className="mt-1 text-sm text-gray-500">You haven't registered your NGO yet. Please complete the registration process to access all features.</p>
+              <div className="mt-6">
+                <button
+                  onClick={() => setShowRegistrationForm(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors duration-200"
+                >
+                  <svg className="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Register Your NGO
+                </button>
+              </div>
+            </div>
+          )
+        ) : activeTab === 'overview' && (
           <div className="space-y-6">
             {/* 1. Profile & Verification Status */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -328,24 +421,48 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
               </div>
               <div className="p-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-medium">Helping Hands Foundation</h3>
-                    <p className="text-gray-600 flex items-center mt-1">
-                      <svg className="w-4 h-4 mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      Mumbai, Maharashtra
-                    </p>
+                  <div className="mb-4 md:mb-0">
+                    <h3 className="text-xl font-semibold text-gray-900">{ngoName || 'Your Organization'}</h3>
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center text-gray-600">
+                        <svg className="w-4 h-4 mr-2 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span>{city || 'City'}, {state || 'State'}</span>
+                      </div>
+                      <div className="flex items-center text-gray-600">
+                        <svg className="w-4 h-4 mr-2 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="font-mono">{registrationNumber || 'N/A'}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-4 md:mt-0">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Verification Pending
-                    </span>
-                    <button className="ml-3 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                  <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                    {verificationStatus === 'approved' ? (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Verified
+                      </span>
+                    ) : verificationStatus === 'rejected' ? (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Verification Rejected
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Verification Pending
+                      </span>
+                    )}
+                    <button className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
                       Complete Profile
                     </button>
                   </div>
@@ -724,7 +841,7 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                       await createNgoRequest(requestData);
                       setFormSuccess('Request is created successfully!');
                       
-                      // Reset form
+                      // Reset form with all fields
                       setFormData({
                         requestTitle: '',
                         category: '',
@@ -732,7 +849,23 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                         urgencyLevel: '',
                         description: '',
                         neededBy: '',
-                        images: []
+                        images: [],
+                        // Reset all category-specific fields
+                        foodType: '',
+                        foodCategory: '',
+                        approxWeight: '',
+                        expiryTime: '',
+                        clothingType: '',
+                        condition: '',
+                        season: '',
+                        medicalType: '',
+                        expiryDate: '',
+                        storageRequirements: '',
+                        bookType: '',
+                        subject: '',
+                        ageGroup: '',
+                        itemType: '',
+                        specifications: ''
                       });
 
                       // Refresh requests and switch to my-requests tab after 3 seconds
