@@ -45,6 +45,84 @@ const NgoRequestSchema = new mongoose.Schema(
       enum: ['pending', 'approved', 'fulfilled', 'cancelled'],
       default: 'pending',
       index: true
+    },
+    // Dynamic fields based on category
+    // Food category fields
+    foodType: {
+      type: String,
+      enum: ['Veg', 'Non-Veg', ''],
+      default: ''
+    },
+    foodCategory: {
+      type: String,
+      enum: ['Cooked', 'Packed', 'Raw', ''],
+      default: ''
+    },
+    approxWeight: {
+      type: Number,
+      default: null
+    },
+    expiryTime: {
+      type: Date,
+      default: null
+    },
+    // Clothing category fields
+    clothingType: {
+      type: String,
+      enum: ['Men', 'Women', 'Kids', ''],
+      default: ''
+    },
+    condition: {
+      type: String,
+      enum: ['New', 'Gently Used', ''],
+      default: ''
+    },
+    season: {
+      type: String,
+      enum: ['Summer', 'Winter', 'All-season', ''],
+      default: ''
+    },
+    // Medical category fields
+    medicalType: {
+      type: String,
+      enum: ['Medicines', 'Medical Equipment', 'First Aid Supplies', 'Sanitary Products', 'Other', ''],
+      default: ''
+    },
+    expiryDate: {
+      type: Date,
+      default: null
+    },
+    storageRequirements: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    // Education category fields
+    bookType: {
+      type: String,
+      enum: ['Textbooks', 'Story Books', 'Reference Books', 'Notebooks', 'Stationery', 'Other', ''],
+      default: ''
+    },
+    subject: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    ageGroup: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    // Other category fields
+    itemType: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    specifications: {
+      type: String,
+      trim: true,
+      default: ''
     }
   },
   { timestamps: true }

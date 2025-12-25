@@ -1,6 +1,6 @@
 import type { User } from 'firebase/auth';
 import { useState, useEffect } from 'react';
-import { createNgoRequest } from '../services/ngoRequestService';
+import { createNgoRequest, getMyRequests } from '../services/ngoRequestService';
 import { createFeedback } from '../services/feedbackService';
 import { createContact } from '../services/contactService';
 
@@ -21,7 +21,28 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
     urgencyLevel: '',
     description: '',
     neededBy: '',
-    images: [] as File[]
+    images: [] as File[],
+    // Dynamic fields based on category
+    // Food category fields
+    foodType: '',
+    foodCategory: '',
+    approxWeight: '',
+    expiryTime: '',
+    // Clothing category fields
+    clothingType: '',
+    condition: '',
+    season: '',
+    // Medical category fields
+    medicalType: '',
+    expiryDate: '',
+    storageRequirements: '',
+    // Education category fields
+    bookType: '',
+    subject: '',
+    ageGroup: '',
+    // Other category fields
+    itemType: '',
+    specifications: ''
   });
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -57,6 +78,11 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
   const [contactSuccess, setContactSuccess] = useState<string | null>(null);
   const [contactFieldErrors, setContactFieldErrors] = useState<Record<string, string>>({});
 
+  // State for My Requests tab
+  const [myRequests, setMyRequests] = useState<any[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [requestsError, setRequestsError] = useState<string | null>(null);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setLoading(false);
@@ -64,6 +90,29 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
     
     return () => clearTimeout(timer);
   }, []);
+
+  // Fetch requests when My Requests tab is active
+  useEffect(() => {
+    if (activeTab === 'my-requests') {
+      loadMyRequests();
+    }
+  }, [activeTab]);
+
+  const loadMyRequests = async () => {
+    setRequestsLoading(true);
+    setRequestsError(null);
+    try {
+      const response = await getMyRequests();
+      if (response.success && response.data) {
+        setMyRequests(response.data);
+      }
+    } catch (error: any) {
+      console.error('Error loading requests:', error);
+      setRequestsError(error.response?.data?.message || 'Failed to load requests. Please try again.');
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -599,6 +648,38 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                       }
                     }
 
+                    // Category-specific validations
+                    if (formData.category === 'food') {
+                      if (!formData.foodType) {
+                        errors.foodType = 'Food type is required';
+                      }
+                      if (!formData.foodCategory) {
+                        errors.foodCategory = 'Food category is required';
+                      }
+                    } else if (formData.category === 'clothing') {
+                      if (!formData.clothingType) {
+                        errors.clothingType = 'Clothing type is required';
+                      }
+                      if (!formData.condition) {
+                        errors.condition = 'Condition is required';
+                      }
+                      if (!formData.season) {
+                        errors.season = 'Season is required';
+                      }
+                    } else if (formData.category === 'medical') {
+                      if (!formData.medicalType) {
+                        errors.medicalType = 'Medical type is required';
+                      }
+                    } else if (formData.category === 'education') {
+                      if (!formData.bookType) {
+                        errors.bookType = 'Book type is required';
+                      }
+                    } else if (formData.category === 'other') {
+                      if (!formData.itemType || !formData.itemType.trim()) {
+                        errors.itemType = 'Item type is required';
+                      }
+                    }
+
                     if (Object.keys(errors).length > 0) {
                       setFormFieldErrors(errors);
                       return;
@@ -607,7 +688,7 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     setFormLoading(true);
 
                     try {
-                      const requestData = {
+                      const requestData: any = {
                         requestTitle: formData.requestTitle.trim(),
                         category: formData.category as 'food' | 'clothing' | 'medical' | 'education' | 'other',
                         quantity: Number(formData.quantity),
@@ -616,6 +697,29 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                         neededBy: formData.neededBy || undefined,
                         images: [] // TODO: Handle image uploads
                       };
+
+                      // Add category-specific fields
+                      if (formData.category === 'food') {
+                        requestData.foodType = formData.foodType;
+                        requestData.foodCategory = formData.foodCategory;
+                        requestData.approxWeight = formData.approxWeight ? Number(formData.approxWeight) : undefined;
+                        requestData.expiryTime = formData.expiryTime || undefined;
+                      } else if (formData.category === 'clothing') {
+                        requestData.clothingType = formData.clothingType;
+                        requestData.condition = formData.condition;
+                        requestData.season = formData.season;
+                      } else if (formData.category === 'medical') {
+                        requestData.medicalType = formData.medicalType;
+                        requestData.expiryDate = formData.expiryDate || undefined;
+                        requestData.storageRequirements = formData.storageRequirements || undefined;
+                      } else if (formData.category === 'education') {
+                        requestData.bookType = formData.bookType;
+                        requestData.subject = formData.subject || undefined;
+                        requestData.ageGroup = formData.ageGroup || undefined;
+                      } else if (formData.category === 'other') {
+                        requestData.itemType = formData.itemType;
+                        requestData.specifications = formData.specifications || undefined;
+                      }
 
                       await createNgoRequest(requestData);
                       setFormSuccess('Request is created successfully!');
@@ -631,8 +735,9 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                         images: []
                       });
 
-                      // Switch to my-requests tab after 3 seconds
+                      // Refresh requests and switch to my-requests tab after 3 seconds
                       setTimeout(() => {
+                        loadMyRequests(); // Refresh the requests list
                         setActiveTab('my-requests');
                         setFormSuccess(null);
                       }, 3000);
@@ -676,7 +781,26 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                       required
                       value={formData.category}
                       onChange={(e) => {
-                        setFormData({ ...formData, category: e.target.value });
+                        // Reset all dynamic fields when category changes
+                        setFormData({ 
+                          ...formData, 
+                          category: e.target.value,
+                          foodType: '',
+                          foodCategory: '',
+                          approxWeight: '',
+                          expiryTime: '',
+                          clothingType: '',
+                          condition: '',
+                          season: '',
+                          medicalType: '',
+                          expiryDate: '',
+                          storageRequirements: '',
+                          bookType: '',
+                          subject: '',
+                          ageGroup: '',
+                          itemType: '',
+                          specifications: ''
+                        });
                         if (formFieldErrors.category) {
                           setFormFieldErrors({ ...formFieldErrors, category: '' });
                         }
@@ -696,6 +820,329 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                       <p className="mt-1 text-sm text-red-600">{formFieldErrors.category}</p>
                     )}
                   </div>
+
+                  {/* Dynamic Fields based on Category */}
+                  {formData.category === 'food' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Food Type <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          required
+                          value={formData.foodType}
+                          onChange={(e) => {
+                            setFormData({ ...formData, foodType: e.target.value });
+                            if (formFieldErrors.foodType) {
+                              setFormFieldErrors({ ...formFieldErrors, foodType: '' });
+                            }
+                          }}
+                          className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm ${
+                            formFieldErrors.foodType ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                        >
+                          <option value="">Select food type</option>
+                          <option value="Veg">Vegetarian</option>
+                          <option value="Non-Veg">Non-Vegetarian</option>
+                        </select>
+                        {formFieldErrors.foodType && (
+                          <p className="mt-1 text-sm text-red-600">{formFieldErrors.foodType}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Food Category <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          required
+                          value={formData.foodCategory}
+                          onChange={(e) => {
+                            setFormData({ ...formData, foodCategory: e.target.value });
+                            if (formFieldErrors.foodCategory) {
+                              setFormFieldErrors({ ...formFieldErrors, foodCategory: '' });
+                            }
+                          }}
+                          className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm ${
+                            formFieldErrors.foodCategory ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                        >
+                          <option value="">Select category</option>
+                          <option value="Cooked">Cooked</option>
+                          <option value="Packed">Packed</option>
+                          <option value="Raw">Raw</option>
+                        </select>
+                        {formFieldErrors.foodCategory && (
+                          <p className="mt-1 text-sm text-red-600">{formFieldErrors.foodCategory}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Approximate Weight (kg)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={formData.approxWeight}
+                          onChange={(e) => setFormData({ ...formData, approxWeight: e.target.value })}
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="e.g., 10.5"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Expiry Time
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={formData.expiryTime}
+                          onChange={(e) => setFormData({ ...formData, expiryTime: e.target.value })}
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.category === 'clothing' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Clothing Type <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          required
+                          value={formData.clothingType}
+                          onChange={(e) => {
+                            setFormData({ ...formData, clothingType: e.target.value });
+                            if (formFieldErrors.clothingType) {
+                              setFormFieldErrors({ ...formFieldErrors, clothingType: '' });
+                            }
+                          }}
+                          className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm ${
+                            formFieldErrors.clothingType ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                        >
+                          <option value="">Select type</option>
+                          <option value="Men">Men</option>
+                          <option value="Women">Women</option>
+                          <option value="Kids">Kids</option>
+                        </select>
+                        {formFieldErrors.clothingType && (
+                          <p className="mt-1 text-sm text-red-600">{formFieldErrors.clothingType}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Condition <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          required
+                          value={formData.condition}
+                          onChange={(e) => {
+                            setFormData({ ...formData, condition: e.target.value });
+                            if (formFieldErrors.condition) {
+                              setFormFieldErrors({ ...formFieldErrors, condition: '' });
+                            }
+                          }}
+                          className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm ${
+                            formFieldErrors.condition ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                        >
+                          <option value="">Select condition</option>
+                          <option value="New">New</option>
+                          <option value="Gently Used">Gently Used</option>
+                        </select>
+                        {formFieldErrors.condition && (
+                          <p className="mt-1 text-sm text-red-600">{formFieldErrors.condition}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Season <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          required
+                          value={formData.season}
+                          onChange={(e) => {
+                            setFormData({ ...formData, season: e.target.value });
+                            if (formFieldErrors.season) {
+                              setFormFieldErrors({ ...formFieldErrors, season: '' });
+                            }
+                          }}
+                          className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm ${
+                            formFieldErrors.season ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                        >
+                          <option value="">Select season</option>
+                          <option value="Summer">Summer</option>
+                          <option value="Winter">Winter</option>
+                          <option value="All-season">All-season</option>
+                        </select>
+                        {formFieldErrors.season && (
+                          <p className="mt-1 text-sm text-red-600">{formFieldErrors.season}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.category === 'medical' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Medical Type <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          required
+                          value={formData.medicalType}
+                          onChange={(e) => {
+                            setFormData({ ...formData, medicalType: e.target.value });
+                            if (formFieldErrors.medicalType) {
+                              setFormFieldErrors({ ...formFieldErrors, medicalType: '' });
+                            }
+                          }}
+                          className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm ${
+                            formFieldErrors.medicalType ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                        >
+                          <option value="">Select type</option>
+                          <option value="Medicines">Medicines</option>
+                          <option value="Medical Equipment">Medical Equipment</option>
+                          <option value="First Aid Supplies">First Aid Supplies</option>
+                          <option value="Sanitary Products">Sanitary Products</option>
+                          <option value="Other">Other</option>
+                        </select>
+                        {formFieldErrors.medicalType && (
+                          <p className="mt-1 text-sm text-red-600">{formFieldErrors.medicalType}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Expiry Date
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.expiryDate}
+                          onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
+                          min={new Date().toISOString().split('T')[0]}
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Storage Requirements
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={formData.storageRequirements}
+                          onChange={(e) => setFormData({ ...formData, storageRequirements: e.target.value })}
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="e.g., Store in cool, dry place. Keep away from direct sunlight."
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.category === 'education' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Book Type <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          required
+                          value={formData.bookType}
+                          onChange={(e) => {
+                            setFormData({ ...formData, bookType: e.target.value });
+                            if (formFieldErrors.bookType) {
+                              setFormFieldErrors({ ...formFieldErrors, bookType: '' });
+                            }
+                          }}
+                          className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm ${
+                            formFieldErrors.bookType ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                        >
+                          <option value="">Select type</option>
+                          <option value="Textbooks">Textbooks</option>
+                          <option value="Story Books">Story Books</option>
+                          <option value="Reference Books">Reference Books</option>
+                          <option value="Notebooks">Notebooks</option>
+                          <option value="Stationery">Stationery</option>
+                          <option value="Other">Other</option>
+                        </select>
+                        {formFieldErrors.bookType && (
+                          <p className="mt-1 text-sm text-red-600">{formFieldErrors.bookType}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Subject
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.subject}
+                          onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="e.g., Mathematics, Science"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Age Group
+                        </label>
+                        <select
+                          value={formData.ageGroup}
+                          onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value })}
+                          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                        >
+                          <option value="">Select age group</option>
+                          <option value="Pre-school (3-5 years)">Pre-school (3-5 years)</option>
+                          <option value="Primary (6-10 years)">Primary (6-10 years)</option>
+                          <option value="Middle (11-14 years)">Middle (11-14 years)</option>
+                          <option value="High School (15-18 years)">High School (15-18 years)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.category === 'other' && (
+                    <div className="grid grid-cols-1 gap-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Item Type <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.itemType}
+                          onChange={(e) => {
+                            setFormData({ ...formData, itemType: e.target.value });
+                            if (formFieldErrors.itemType) {
+                              setFormFieldErrors({ ...formFieldErrors, itemType: '' });
+                            }
+                          }}
+                          className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 ${
+                            formFieldErrors.itemType ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                          placeholder="e.g., Furniture, Electronics, Toys"
+                        />
+                        {formFieldErrors.itemType && (
+                          <p className="mt-1 text-sm text-red-600">{formFieldErrors.itemType}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">
+                          Specifications
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={formData.specifications}
+                          onChange={(e) => setFormData({ ...formData, specifications: e.target.value })}
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="Please provide detailed specifications of the items needed..."
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
@@ -873,7 +1320,22 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                           urgencyLevel: '',
                           description: '',
                           neededBy: '',
-                          images: []
+                          images: [],
+                          foodType: '',
+                          foodCategory: '',
+                          approxWeight: '',
+                          expiryTime: '',
+                          clothingType: '',
+                          condition: '',
+                          season: '',
+                          medicalType: '',
+                          expiryDate: '',
+                          storageRequirements: '',
+                          bookType: '',
+                          subject: '',
+                          ageGroup: '',
+                          itemType: '',
+                          specifications: ''
                         });
                         // Clear messages and errors
                         setFormError(null);
@@ -898,6 +1360,262 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                 </div>
               </div>
             </div>
+        )}
+
+        {activeTab === 'my-requests' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 bg-emerald-50">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-medium text-emerald-800 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    My Requests
+                  </h2>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm text-emerald-700 font-medium">
+                      Total: {myRequests.length} request{myRequests.length !== 1 ? 's' : ''}
+                    </span>
+                    <button
+                      onClick={loadMyRequests}
+                      disabled={requestsLoading}
+                      className="px-4 py-2 text-sm font-medium text-emerald-700 bg-white border border-emerald-200 rounded-md hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {requestsLoading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6">
+                {requestsError && (
+                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-sm text-red-800">{requestsError}</p>
+                  </div>
+                )}
+
+                {requestsLoading && myRequests.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+                    <p className="mt-4 text-sm text-gray-600">Loading requests...</p>
+                  </div>
+                ) : myRequests.length === 0 ? (
+                  <div className="text-center py-12">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No requests found</h3>
+                    <p className="mt-1 text-sm text-gray-500">Get started by creating your first donation request.</p>
+                    <div className="mt-6">
+                      <button
+                        onClick={() => setActiveTab('create-request')}
+                        className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                      >
+                        Create Request
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {myRequests.map((request: any) => (
+                      <div
+                        key={request._id}
+                        className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-3">
+                              <h3 className="text-lg font-semibold text-gray-900">{request.requestTitle}</h3>
+                              <span
+                                className={`px-3 py-1 text-xs font-medium rounded-full ${
+                                  request.status === 'pending'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : request.status === 'approved'
+                                    ? 'bg-green-100 text-green-800'
+                                    : request.status === 'fulfilled'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}
+                              >
+                                {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                              </span>
+                              <span
+                                className={`px-3 py-1 text-xs font-medium rounded-full ${
+                                  request.urgencyLevel === 'high'
+                                    ? 'bg-red-100 text-red-800'
+                                    : request.urgencyLevel === 'medium'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-green-100 text-green-800'
+                                }`}
+                              >
+                                {request.urgencyLevel.charAt(0).toUpperCase() + request.urgencyLevel.slice(1)} Priority
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                              <div>
+                                <p className="text-sm font-medium text-gray-500">Category</p>
+                                <p className="text-sm text-gray-900 capitalize">{request.category}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-500">Quantity Needed</p>
+                                <p className="text-sm text-gray-900">{request.quantity}</p>
+                              </div>
+                              {request.neededBy && (
+                                <div>
+                                  <p className="text-sm font-medium text-gray-500">Needed By</p>
+                                  <p className="text-sm text-gray-900">
+                                    {new Date(request.neededBy).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="mb-4">
+                              <p className="text-sm font-medium text-gray-500 mb-1">Description</p>
+                              <p className="text-sm text-gray-900">{request.description}</p>
+                            </div>
+
+                            {/* Category-specific fields */}
+                            {request.category === 'food' && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-green-50 rounded-lg">
+                                {request.foodType && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Food Type</p>
+                                    <p className="text-sm text-gray-900">{request.foodType}</p>
+                                  </div>
+                                )}
+                                {request.foodCategory && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Food Category</p>
+                                    <p className="text-sm text-gray-900">{request.foodCategory}</p>
+                                  </div>
+                                )}
+                                {request.approxWeight && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Approximate Weight</p>
+                                    <p className="text-sm text-gray-900">{request.approxWeight} kg</p>
+                                  </div>
+                                )}
+                                {request.expiryTime && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Expiry Time</p>
+                                    <p className="text-sm text-gray-900">
+                                      {new Date(request.expiryTime).toLocaleString()}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {request.category === 'clothing' && (
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 bg-blue-50 rounded-lg">
+                                {request.clothingType && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Clothing Type</p>
+                                    <p className="text-sm text-gray-900">{request.clothingType}</p>
+                                  </div>
+                                )}
+                                {request.condition && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Condition</p>
+                                    <p className="text-sm text-gray-900">{request.condition}</p>
+                                  </div>
+                                )}
+                                {request.season && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Season</p>
+                                    <p className="text-sm text-gray-900">{request.season}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {request.category === 'medical' && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-red-50 rounded-lg">
+                                {request.medicalType && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Medical Type</p>
+                                    <p className="text-sm text-gray-900">{request.medicalType}</p>
+                                  </div>
+                                )}
+                                {request.expiryDate && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Expiry Date</p>
+                                    <p className="text-sm text-gray-900">
+                                      {new Date(request.expiryDate).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                )}
+                                {request.storageRequirements && (
+                                  <div className="md:col-span-2">
+                                    <p className="text-sm font-medium text-gray-500">Storage Requirements</p>
+                                    <p className="text-sm text-gray-900">{request.storageRequirements}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {request.category === 'education' && (
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 bg-yellow-50 rounded-lg">
+                                {request.bookType && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Book Type</p>
+                                    <p className="text-sm text-gray-900">{request.bookType}</p>
+                                  </div>
+                                )}
+                                {request.subject && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Subject</p>
+                                    <p className="text-sm text-gray-900">{request.subject}</p>
+                                  </div>
+                                )}
+                                {request.ageGroup && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Age Group</p>
+                                    <p className="text-sm text-gray-900">{request.ageGroup}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {request.category === 'other' && (
+                              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                                {request.itemType && (
+                                  <div className="mb-2">
+                                    <p className="text-sm font-medium text-gray-500">Item Type</p>
+                                    <p className="text-sm text-gray-900">{request.itemType}</p>
+                                  </div>
+                                )}
+                                {request.specifications && (
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-500">Specifications</p>
+                                    <p className="text-sm text-gray-900">{request.specifications}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                              <div className="text-xs text-gray-500">
+                                Created: {new Date(request.createdAt).toLocaleString()}
+                                {request.updatedAt && request.updatedAt !== request.createdAt && (
+                                  <span className="ml-4">
+                                    Updated: {new Date(request.updatedAt).toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {activeTab === 'feedback' && (
