@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { signOutUser } from '../firebase';
 import { getAllNgoRequests } from '../services/ngoRequestService';
+import { getAllNgoRegistrations, updateRegistrationStatus } from '../services/ngoRegistrationService';
 
 declare global {
   namespace JSX {
@@ -190,6 +191,132 @@ const RequestDetailsModal = ({ request, onClose }: RequestDetailsModalProps) => 
                 <p className="mt-2 text-gray-700 bg-gray-50 p-4 rounded-lg">
                   {request.description || 'No description provided.'}
                 </p>
+              </div>
+
+              {/* Category-Specific Details */}
+              <div className="mt-6">
+                <p className="text-sm font-medium text-gray-500 mb-3">Category Details</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Food Category */}
+                  {request.category === 'food' && (
+                    <>
+                      {request.foodType && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Food Type</p>
+                          <p className="text-gray-900">{request.foodType}</p>
+                        </div>
+                      )}
+                      {request.foodCategory && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Food Category</p>
+                          <p className="text-gray-900">{request.foodCategory}</p>
+                        </div>
+                      )}
+                      {request.approxWeight && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Approx. Weight</p>
+                          <p className="text-gray-900">{request.approxWeight} kg</p>
+                        </div>
+                      )}
+                      {request.expiryTime && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Expiry Time</p>
+                          <p className="text-gray-900">{formatDate(request.expiryTime)}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Clothing Category */}
+                  {request.category === 'clothing' && (
+                    <>
+                      {request.clothingType && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Clothing Type</p>
+                          <p className="text-gray-900">{request.clothingType}</p>
+                        </div>
+                      )}
+                      {request.condition && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Condition</p>
+                          <p className="text-gray-900">{request.condition}</p>
+                        </div>
+                      )}
+                      {request.season && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Season</p>
+                          <p className="text-gray-900">{request.season}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Medical Category */}
+                  {request.category === 'medical' && (
+                    <>
+                      {request.medicalType && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Medical Type</p>
+                          <p className="text-gray-900">{request.medicalType}</p>
+                        </div>
+                      )}
+                      {request.expiryDate && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Expiry Date</p>
+                          <p className="text-gray-900">{formatDate(request.expiryDate)}</p>
+                        </div>
+                      )}
+                      {request.storageRequirements && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Storage Requirements</p>
+                          <p className="text-gray-900">{request.storageRequirements}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Education Category */}
+                  {request.category === 'education' && (
+                    <>
+                      {request.bookType && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Book Type</p>
+                          <p className="text-gray-900">{request.bookType}</p>
+                        </div>
+                      )}
+                      {request.subject && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Subject</p>
+                          <p className="text-gray-900">{request.subject}</p>
+                        </div>
+                      )}
+                      {request.ageGroup && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Age Group</p>
+                          <p className="text-gray-900">{request.ageGroup}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Other Category */}
+                  {request.category === 'other' && (
+                    <>
+                      {request.itemType && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Item Type</p>
+                          <p className="text-gray-900">{request.itemType}</p>
+                        </div>
+                      )}
+                      {request.specifications && (
+                        <div className="md:col-span-2">
+                          <p className="text-sm font-medium text-gray-500">Specifications</p>
+                          <p className="text-gray-900">{request.specifications}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Quantity and Unit */}
@@ -405,33 +532,39 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
   ];
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 500);
+    const timer = setTimeout(() => setLoading(false), 1000);
     
-    // Fetch completed donations count and pending NGO requests
+    // Fetch initial data
     (async () => {
       try {
         // Fetch completed donations
         const donationService = await import('../services/donationService');
-        const donationsResponse = await donationService.fetchAllDonations({ status: 'completed' });
+        const [donationsResponse, ngoRequestsResponse, ngoRegistrations] = await Promise.all([
+          donationService.fetchAllDonations({ status: 'completed' }),
+          getAllNgoRequests(),
+          getAllNgoRegistrations()
+        ]);
         
-// Fetch pending NGO requests
-        const ngoRequestsResponse = await getAllNgoRequests();
+        // Count pending NGO requests
         const pendingRequestsCount = ngoRequestsResponse.data?.filter(
           (req: any) => req.status === 'pending'
         ).length || 0;
         
+        // Count approved/verified NGOs
+        const verifiedNgosCount = Array.isArray(ngoRegistrations) 
+          ? ngoRegistrations.filter((reg: any) => reg.status === 'approved').length 
+          : 0;
+        
         if (donationsResponse.success) {
           const completedCount = donationsResponse.data.length;
           
-// Update the stats with the final counts
+          // Update the stats with the final counts
           setAnimatedStats(prev => ({
             ...prev,
             totalDonations: completedCount,
             completedDonations: completedCount,
             pendingNGOs: pendingRequestsCount,
-            verifiedNGOs: 0,
+            verifiedNGOs: verifiedNgosCount,
             activePickups: 0,
             mealsSaved: 0,
             openIssues: 0
@@ -1322,24 +1455,82 @@ interface NGOVerificationPanelProps {
 
 // NGO Verification Panel Component
 function NGOVerificationPanel({ onViewRequest }: NGOVerificationPanelProps) {
-  const [activeSection, setActiveSection] = useState<'pending' | 'verified' | 'rejected'>('pending');
+  const [activeSection, setActiveSection] = useState<'pending' | 'approved' | 'rejected'>('pending');
+  const [registrations, setRegistrations] = useState<{
+    pending: any[];
+    approved: any[];
+    rejected: any[];
+    loading: boolean;
+    error: string | null;
+  }>({
+    pending: [],
+    approved: [],
+    rejected: [],
+    loading: true,
+    error: null
+  });
 
-  const mockNGOs = {
-    pending: [
-      {
-        id: 1,
-        name: 'Help Foundation',
-        registrationNo: 'REG123456',
-        address: '123 Main St, Mumbai',
-        contactPerson: 'Raj Kumar',
-        email: 'raj@helpfoundation.org',
-        phone: '+91 98765 43210',
-        documents: ['Registration Certificate', 'PAN Card', '12A Certificate'],
-        submittedDate: '2024-01-15'
+  // Fetch NGO registrations
+  useEffect(() => {
+    const fetchRegistrations = async () => {
+      try {
+        setRegistrations(prev => ({ ...prev, loading: true, error: null }));
+        
+        // Fetch all statuses in parallel
+        const [pending, approved, rejected] = await Promise.all([
+          getAllNgoRegistrations('pending'),
+          getAllNgoRegistrations('approved'),
+          getAllNgoRegistrations('rejected')
+        ]);
+        
+        setRegistrations({
+          pending,
+          approved,
+          rejected,
+          loading: false,
+          error: null
+        });
+      } catch (error) {
+        console.error('Error fetching NGO registrations:', error);
+        setRegistrations(prev => ({
+          ...prev,
+          loading: false,
+          error: 'Failed to load NGO registrations. Please try again.'
+        }));
       }
-    ],
-    verified: [],
-    rejected: []
+    };
+
+    fetchRegistrations();
+  }, []);
+
+  // Handle status update
+  const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected') => {
+    try {
+      await updateRegistrationStatus(id, status);
+      
+      // Update local state to reflect the change
+      setRegistrations(prev => {
+        const updated = { ...prev };
+        const registration = updated[activeSection].find((r: any) => r._id === id);
+        
+        if (registration) {
+          // Remove from current section
+          updated[activeSection] = updated[activeSection].filter((r: any) => r._id !== id);
+          
+          // Add to new section
+          registration.status = status;
+          updated[status] = [registration, ...updated[status]];
+        }
+        
+        return updated;
+      });
+      
+      // Show success message
+      alert(`NGO registration ${status} successfully`);
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert(`Failed to update status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   return (
@@ -1354,9 +1545,9 @@ function NGOVerificationPanel({ onViewRequest }: NGOVerificationPanelProps) {
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6">
             {[
-              { id: 'pending', label: 'Pending', count: mockNGOs.pending.length },
-              { id: 'verified', label: 'Verified', count: mockNGOs.verified.length },
-              { id: 'rejected', label: 'Rejected', count: mockNGOs.rejected.length }
+              { id: 'pending', label: 'Pending', count: registrations.pending.length },
+              { id: 'approved', label: 'Approved', count: registrations.approved.length },
+              { id: 'rejected', label: 'Rejected', count: registrations.rejected.length }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1374,64 +1565,117 @@ function NGOVerificationPanel({ onViewRequest }: NGOVerificationPanelProps) {
         </div>
 
         <div className="p-6">
-          {activeSection === 'pending' && (
+          {registrations.loading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading NGO registrations...</p>
+            </div>
+          ) : registrations.error ? (
+            <div className="text-center py-12 text-red-600">
+              <p>{registrations.error}</p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="mt-4 px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
             <div className="space-y-4">
-              {mockNGOs.pending.map((ngo) => (
-                <div key={ngo.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900">{ngo.name}</h3>
-                      <div className="mt-2 space-y-1 text-sm text-gray-600">
-                        <p><span className="font-medium">Registration:</span> {ngo.registrationNo}</p>
-                        <p><span className="font-medium">Address:</span> {ngo.address}</p>
-                        <p><span className="font-medium">Contact:</span> {ngo.contactPerson}</p>
-                        <p><span className="font-medium">Email:</span> {ngo.email}</p>
-                        <p><span className="font-medium">Phone:</span> {ngo.phone}</p>
-                        <p><span className="font-medium">Submitted:</span> {ngo.submittedDate}</p>
-                      </div>
-                      <div className="mt-4">
-                        <p className="text-sm font-medium text-gray-700 mb-2">Documents:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {ngo.documents.map((doc, idx) => (
-                            <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              <FileText className="w-3 h-3 mr-1" />
-                              {doc}
-                            </span>
-                          ))}
+              {registrations[activeSection].length > 0 ? (
+                registrations[activeSection].map((ngo) => (
+                  <div key={ngo._id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+                      <div className="flex-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <h3 className="text-lg font-semibold text-gray-900">{ngo.ngoName}</h3>
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                            ngo.status === 'approved' ? 'bg-green-100 text-green-800' :
+                            ngo.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {ngo.status?.charAt(0).toUpperCase() + ngo.status?.slice(1) || 'Pending'}
+                          </span>
+                        </div>
+                        
+                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
+                          <div>
+                            <p><span className="font-medium">Organization Type:</span> {ngo.organizationType}</p>
+                            <p><span className="font-medium">Contact Person:</span> {ngo.contactPerson}</p>
+                            <p><span className="font-medium">Email:</span> {ngo.email || 'N/A'}</p>
+                            <p><span className="font-medium">Phone:</span> {ngo.phone}</p>
+                          </div>
+                          <div>
+                            <p><span className="font-medium">Address:</span> {[ngo.address, ngo.city, ngo.state, ngo.pincode].filter(Boolean).join(', ')}</p>
+                            <p><span className="font-medium">Registration #:</span> {ngo.registrationNumber}</p>
+                            <p><span className="font-medium">Pickup/Delivery:</span> {ngo.pickupDeliveryPreference || 'N/A'}</p>
+                            <p><span className="font-medium">Submitted:</span> {new Date(ngo.createdAt).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+
+                        {/* Documents */}
+                        <div className="mt-4">
+                          <p className="text-sm font-medium text-gray-700 mb-2">Documents:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { label: 'NGO Certificate', url: ngo.ngoCertificate },
+                              { label: 'Address Proof', url: ngo.addressProof },
+                              { label: 'Aadhaar Card', url: ngo.aadhaarCard },
+                              ...(ngo.alternateIdFile ? [{ label: ngo.alternateIdType || 'Alternate ID', url: ngo.alternateIdFile }] : [])
+                            ].map((doc, idx) => (
+                              doc.url && (
+                                <a 
+                                  key={idx} 
+                                  href={doc.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
+                                >
+                                  <FileText className="w-3 h-3 mr-1" />
+                                  {doc.label}
+                                </a>
+                              )
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="ml-6 flex flex-col space-y-2">
-                      <button className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-                        <CheckCircle className="w-4 h-4" />
-                        <span>Approve</span>
-                      </button>
-                      <button className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
-                        <XCircle className="w-4 h-4" />
-                        <span>Reject</span>
-                      </button>
-                      <button className="flex items-center space-x-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors">
-                        <Ban className="w-4 h-4" />
-                        <span>Suspend</span>
-                      </button>
-                      <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                        <MessageSquare className="w-4 h-4" />
-                        <span>Message</span>
-                      </button>
+
+                      {/* Action Buttons */}
+                      {activeSection === 'pending' && (
+                        <div className="flex flex-col sm:flex-row md:flex-col gap-2 w-full md:w-48 flex-shrink-0">
+                          <button 
+                            onClick={() => handleStatusUpdate(ngo._id, 'approved')}
+                            className="flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Approve</span>
+                          </button>
+                          <button 
+                            onClick={() => {
+                              const reason = prompt('Please enter the reason for rejection:');
+                              if (reason) {
+                                updateRegistrationStatus(ngo._id, 'rejected', reason);
+                              }
+                            }}
+                            className="flex items-center justify-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            <span>Reject</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 mx-auto text-gray-400" />
+                  <p className="mt-2 text-gray-500">
+                    No {activeSection} NGO registrations found
+                  </p>
                 </div>
-              ))}
-              {mockNGOs.pending.length === 0 && (
-                <p className="text-center text-gray-500 py-8">No pending NGO requests</p>
               )}
             </div>
-          )}
-          {activeSection === 'verified' && (
-            <p className="text-center text-gray-500 py-8">Verified NGOs will appear here</p>
-          )}
-          {activeSection === 'rejected' && (
-            <p className="text-center text-gray-500 py-8">Rejected NGOs will appear here</p>
           )}
         </div>
       </div>
