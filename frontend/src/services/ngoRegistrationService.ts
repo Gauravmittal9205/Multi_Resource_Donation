@@ -77,3 +77,37 @@ export const getMyRegistration = async () => {
   }
 };
 
+// Get all NGO registrations (admin only)
+export const getAllNgoRegistrations = async (status?: 'pending' | 'approved' | 'rejected') => {
+  try {
+    const token = await getAuthToken();
+    const response = await axios.get(`${API_URL}/ngo-registration/admin/all`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    // Filter by status if provided
+    return status 
+      ? response.data.data.filter((reg: any) => reg.status === status)
+      : response.data.data;
+  } catch (error) {
+    console.error('Error fetching NGO registrations:', error);
+    throw error;
+  }
+};
+
+// Update registration status (admin only)
+export const updateRegistrationStatus = async (id: string, status: 'approved' | 'rejected', reason?: string) => {
+  try {
+    const token = await getAuthToken();
+    const response = await axios.put(
+      `${API_URL}/ngo-registration/admin/${id}`,
+      { status, ...(reason && { reason }) },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error updating registration status:', error);
+    throw error;
+  }
+};
+
