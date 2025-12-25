@@ -1,4 +1,5 @@
 const NgoRequest = require('../models/NgoRequest');
+const User = require('../models/User');
 const asyncHandler = require('../middleware/async');
 
 // @desc    Create NGO request
@@ -14,7 +15,27 @@ exports.createNgoRequest = asyncHandler(async (req, res) => {
     urgencyLevel,
     description,
     neededBy,
-    images
+    images,
+    // Food category fields
+    foodType,
+    foodCategory,
+    approxWeight,
+    expiryTime,
+    // Clothing category fields
+    clothingType,
+    condition,
+    season,
+    // Medical category fields
+    medicalType,
+    expiryDate,
+    storageRequirements,
+    // Education category fields
+    bookType,
+    subject,
+    ageGroup,
+    // Other category fields
+    itemType,
+    specifications
   } = req.body;
 
   const ngoRequest = await NgoRequest.create({
@@ -26,7 +47,27 @@ exports.createNgoRequest = asyncHandler(async (req, res) => {
     description,
     neededBy: neededBy ? new Date(neededBy) : null,
     images: Array.isArray(images) ? images : [],
-    status: 'pending'
+    status: 'pending',
+    // Food category fields
+    foodType: foodType || '',
+    foodCategory: foodCategory || '',
+    approxWeight: approxWeight ? Number(approxWeight) : null,
+    expiryTime: expiryTime ? new Date(expiryTime) : null,
+    // Clothing category fields
+    clothingType: clothingType || '',
+    condition: condition || '',
+    season: season || '',
+    // Medical category fields
+    medicalType: medicalType || '',
+    expiryDate: expiryDate ? new Date(expiryDate) : null,
+    storageRequirements: storageRequirements || '',
+    // Education category fields
+    bookType: bookType || '',
+    subject: subject || '',
+    ageGroup: ageGroup || '',
+    // Other category fields
+    itemType: itemType || '',
+    specifications: specifications || ''
   });
 
   res.status(201).json({
@@ -208,9 +249,36 @@ exports.getAllRequests = asyncHandler(async (req, res) => {
   if (category) query.category = category;
   if (urgencyLevel) query.urgencyLevel = urgencyLevel;
 
-  const requests = await NgoRequest.find(query)
+  // First get all the requests
+  let requests = await NgoRequest.find(query)
     .sort({ createdAt: -1 })
     .lean();
+
+  // Get all unique NGO Firebase UIDs
+  const ngoFirebaseUids = [...new Set(requests.map(r => r.ngoFirebaseUid))];
+  
+  // Get NGO details in one query
+  const ngos = await User.find({ 
+    firebaseUid: { $in: ngoFirebaseUids },
+    userType: 'ngo'  // Only get NGO users
+  })
+  .select('firebaseUid name organizationName')
+  .lean();
+  
+  // Create a map for quick lookup
+  const ngoMap = {};
+  ngos.forEach(ngo => {
+    // Log the ngo object for debugging
+    console.log('NGO data:', ngo);
+    // Use organizationName if available, otherwise fall back to name
+    ngoMap[ngo.firebaseUid] = ngo.organizationName || ngo.name || 'NGO';
+  });
+  
+  // Add NGO name to each request
+  requests = requests.map(request => ({
+    ...request,
+    ngoName: ngoMap[request.ngoFirebaseUid] || 'NGO'
+  }));
 
   res.status(200).json({
     success: true,
