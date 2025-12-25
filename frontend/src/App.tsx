@@ -8,6 +8,7 @@ import Body from './components/Body';
 import Notification from './components/Notification';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
+import { FormProvider } from './context/FormContext';
 // Auth form type
 type AuthMode = 'email' | 'phone';
 type PhoneAuthStep = 'phone' | 'code';
@@ -998,12 +999,14 @@ function App() {
 
   // Main app content when user is logged in
   return (
-    <div className="min-h-screen bg-white">
-      <header className="fixed top-0 w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-50">
-        <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            {/* Left section - Logo */}
-            <div className="flex items-center space-x-2">
+    <FormProvider>
+      <div className="min-h-screen bg-white">
+        <header className="fixed top-0 w-full bg-white/95 backdrop-blur-sm border-b border-gray-100 z-50">
+          <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex items-center justify-between">
+              {/* Left section - Logo */}
+              <div className="flex items-center space-x-2">
+                <span className="text-2xl font-bold text-emerald-600">ShareCare</span>
               <span className="text-2xl font-bold text-emerald-600">ShareCare</span>
             </div>
             
@@ -1153,6 +1156,20 @@ function App() {
                       >
                         Sign Out
                       </button>
+                      {isNgoUser && (
+                        <a
+                          href="#"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setShowAbout(false);
+                            setActiveLink('registration');
+                            setIsProfileOpen(false);
+                          }}
+                        >
+                          Registration
+                        </a>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1239,7 +1256,8 @@ function App() {
         </div>
       )}
       <Footer/>
-    </div>
+      </div>
+    </FormProvider>
   );
 }
 

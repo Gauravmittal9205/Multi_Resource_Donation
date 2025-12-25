@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import type { User } from 'firebase/auth';
 import DonorDashboard from './DonorDashboard';
 import NgoDashboard from './NgoDashboard';
+import NgoRegistration from './NgoRegistration';
 import ProfilePage from './ProfilePage';
 import Home from '../pages/Home';
 import Announcements from '../pages/Announcements';
@@ -56,6 +57,15 @@ export default function Body({ activeLink, user, setActiveLink, userMeta }: Body
       </main>
     );
   }
+  
+  // If no matching route found, default to home
+  if (!activeLink || activeLink === '') {
+    return (
+      <main className="pt-16">
+        <Home />
+      </main>
+    );
+  }
 
   // For protected pages, require authentication
   if (!user) {
@@ -79,7 +89,9 @@ export default function Body({ activeLink, user, setActiveLink, userMeta }: Body
 
   return (
     <main className="pt-16">
-      {activeLink === 'donor-dashboard' ? (
+      {activeLink === 'home' ? (
+        <Home />
+      ) : activeLink === 'donor-dashboard' ? (
         <DonorDashboard
           user={user}
           onBack={() => setActiveLink('home')}
@@ -89,6 +101,26 @@ export default function Body({ activeLink, user, setActiveLink, userMeta }: Body
           user={user}
           onBack={() => setActiveLink('home')}
         />
+      ) : activeLink === 'registration' ? (
+        isNgo ? (
+          <NgoRegistration 
+            onBack={() => setActiveLink('ngo-dashboard')}
+            onSuccess={() => setActiveLink('ngo-dashboard')}
+          />
+        ) : (
+          <div className="flex items-center justify-center min-h-[calc(100vh-16rem)]">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
+              <p className="text-gray-600 mb-4">This page is only accessible to NGO users.</p>
+              <button
+                onClick={() => setActiveLink('home')}
+                className="px-6 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors"
+              >
+                Go to Home
+              </button>
+            </div>
+          </div>
+        )
       ) : activeLink === 'profile' ? (
         isNgo ? (
           <NgoDashboard user={user} onBack={() => setActiveLink('home')} />
