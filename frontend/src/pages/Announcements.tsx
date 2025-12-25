@@ -67,8 +67,7 @@ export default function Announcements() {
     message: '',
     eventType: ''
   });
-  
-  const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
+
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const [formData, setFormData] = useState({
     name: '',

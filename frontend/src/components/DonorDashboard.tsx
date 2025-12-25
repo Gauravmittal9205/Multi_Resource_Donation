@@ -5,7 +5,6 @@ import type { DonationItem } from '../services/donationService';
 import {
   FiGrid,
   FiBox,
-  FiHash,
   FiPlusCircle,
   FiTruck,
   FiClock,
@@ -25,7 +24,7 @@ type DonorDashboardProps = {
   onBack: () => void;
 };
 
-type MenuKey = 'dashboard' | 'my-donations' | 'donate-now' | 'active-pickups' | 'donation-history';
+type MenuKey = 'dashboard' | 'my-donations' | 'donate-now' | 'active-pickups' | 'donation-history' | 'impact';
 
 type ResourceType = '' | 'Food' | 'Clothes' | 'Books' | 'Medical Supplies' | 'Other Essentials';
 
@@ -130,11 +129,17 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
   const [activeItem, setActiveItem] = useState<MenuKey>('dashboard');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  const goToImpactPage = () => {
+    window.history.pushState({}, '', '/impact');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<
     | {
         summary: { totalDonations: number; activePickups: number; completedDonations: number };
+        impact?: { peopleHelped: number; ngosConnected: number; resourcesDonated: number; foodSavedKg?: number };
         activity: { label: string; count: number }[];
         recentDonations: any[];
       }
@@ -218,20 +223,40 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                     : normal);
 
               return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => {
-                    setActiveItem(item.key);
-                    setMobileSidebarOpen(false);
-                  }}
-                  className={cls}
-                >
-                  <Icon className={isPrimary && isActive ? 'h-5 w-5' : 'h-5 w-5'} />
-                  <span className={isPrimary && isActive ? 'font-semibold' : isActive ? 'font-semibold' : 'font-medium'}>
-                    {item.label}
-                  </span>
-                </button>
+                <div key={item.key} className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveItem(item.key);
+                      setMobileSidebarOpen(false);
+                    }}
+                    className={cls}
+                  >
+                    <Icon className={isPrimary && isActive ? 'h-5 w-5' : 'h-5 w-5'} />
+                    <span className={isPrimary && isActive ? 'font-semibold' : isActive ? 'font-semibold' : 'font-medium'}>
+                      {item.label}
+                    </span>
+                  </button>
+
+                  {item.key === 'donate-now' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileSidebarOpen(false);
+                        setActiveItem('impact');
+                      }}
+                      className={
+                        'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-colors ' +
+                        (activeItem === 'impact'
+                          ? 'bg-emerald-50 text-emerald-800'
+                          : 'text-gray-700 hover:bg-gray-50')
+                      }
+                    >
+                      <FiUsers className="h-5 w-5" />
+                      <span className="font-medium">Impact</span>
+                    </button>
+                  ) : null}
+                </div>
               );
             })}
           </nav>
@@ -298,6 +323,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
     const [state, setState] = useState('');
     const [pincode, setPincode] = useState('');
 
+
     const [addressResults, setAddressResults] = useState<any[]>([]);
     const [addressLookupLoading, setAddressLookupLoading] = useState(false);
     const [addressLookupError, setAddressLookupError] = useState<string | null>(null);
@@ -320,19 +346,33 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
     const [preparedHoursAgo, setPreparedHoursAgo] = useState('');
     const [expiryTime, setExpiryTime] = useState('');
 
-    const [clothingType, setClothingType] = useState<'Men' | 'Women' | 'Kids' | ''>('');
-    const [condition, setCondition] = useState<'New' | 'Gently Used' | ''>('');
-    const [season, setSeason] = useState<'Summer' | 'Winter' | 'All-season' | ''>('');
-    const [numberOfItems, setNumberOfItems] = useState('');
+    const [clothingTargetAgeGroup, setClothingTargetAgeGroup] = useState<
+      'Infant (0–2)' | 'Kids (3–12)' | 'Teen (13–18)' | 'Adult' | 'Senior Citizen' | ''
+    >('');
+    const [clothingGenderUsage, setClothingGenderUsage] = useState<'Men' | 'Women' | 'Unisex' | ''>('');
+    const [clothingCategories, setClothingCategories] = useState<string[]>([]);
+    const [clothingSeason, setClothingSeason] = useState<'Summer' | 'Winter' | 'All-Season' | ''>('');
+    const [clothingCondition, setClothingCondition] = useState<'New' | 'Gently Used' | ''>('');
+    const [clothingNumberOfItems, setClothingNumberOfItems] = useState('');
+    const [clothingWashedPacked, setClothingWashedPacked] = useState(false);
 
     const [bookType, setBookType] = useState<'Academic' | 'Story' | 'Competitive' | 'Other' | ''>('');
     const [educationLevel, setEducationLevel] = useState<'Primary' | 'Secondary' | 'College' | ''>('');
     const [language, setLanguage] = useState('');
     const [numberOfBooks, setNumberOfBooks] = useState('');
 
-    const [medicalItemType, setMedicalItemType] = useState<'Medicines' | 'Masks' | 'Equipment' | ''>('');
-    const [sealedPack, setSealedPack] = useState<'Yes' | 'No' | ''>('');
+    const [medicalCategory, setMedicalCategory] = useState<
+      'Medicines' | 'Masks / Gloves' | 'First Aid Kits' | 'Medical Equipment' | 'Hygiene Products' | ''
+    >('');
+    const [medicineType, setMedicineType] = useState<'Tablets' | 'Syrups' | 'Ointments' | ''>('');
+    const [medicineName, setMedicineName] = useState('');
+    const [medicineBrand, setMedicineBrand] = useState('');
+    const [medicineDosage, setMedicineDosage] = useState('');
+    const [medicineBatchNumber, setMedicineBatchNumber] = useState('');
+    const [prescriptionRequired, setPrescriptionRequired] = useState<'Yes' | 'No' | ''>('');
     const [medicalExpiryDate, setMedicalExpiryDate] = useState('');
+    const [sealedUnused, setSealedUnused] = useState<'Yes' | 'No' | ''>('');
+    const [storageCondition, setStorageCondition] = useState<'Normal' | 'Refrigerated' | ''>('');
     const [medicalQuantity, setMedicalQuantity] = useState('');
 
     const [essentialItemName, setEssentialItemName] = useState('');
@@ -342,6 +382,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
 
     const isNonEmpty = (v: string) => v.trim().length > 0;
 
+    
     useEffect(() => {
       let cancelled = false;
 
@@ -423,10 +464,11 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
 
       if (resourceType === 'Clothes') {
         return (
-          isNonEmpty(clothingType) &&
-          isNonEmpty(condition) &&
-          isNonEmpty(season) &&
-          isNonEmpty(numberOfItems)
+          isNonEmpty(clothingTargetAgeGroup) &&
+          clothingCategories.length > 0 &&
+          isNonEmpty(clothingCondition) &&
+          isNonEmpty(clothingNumberOfItems) &&
+          clothingWashedPacked
         );
       }
 
@@ -440,12 +482,20 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
       }
 
       if (resourceType === 'Medical Supplies') {
-        return (
-          isNonEmpty(medicalItemType) &&
-          isNonEmpty(sealedPack) &&
-          isNonEmpty(medicalExpiryDate) &&
-          isNonEmpty(medicalQuantity)
-        );
+        if (!isNonEmpty(medicalCategory)) return false;
+        if (!isNonEmpty(medicalQuantity)) return false;
+
+        if (medicalCategory === 'Medicines') {
+          return (
+            isNonEmpty(medicineName) &&
+            isNonEmpty(medicineType) &&
+            isNonEmpty(prescriptionRequired) &&
+            isNonEmpty(medicalExpiryDate) &&
+            sealedUnused === 'Yes'
+          );
+        }
+
+        return true;
       }
 
       return isNonEmpty(essentialItemName) && isNonEmpty(essentialCategory) && isNonEmpty(essentialQuantity) && isNonEmpty(essentialDescription);
@@ -510,19 +560,29 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
       setPreparedHoursAgo('');
       setExpiryTime('');
 
-      setClothingType('');
-      setCondition('');
-      setSeason('');
-      setNumberOfItems('');
+      setClothingTargetAgeGroup('');
+      setClothingGenderUsage('');
+      setClothingCategories([]);
+      setClothingSeason('');
+      setClothingCondition('');
+      setClothingNumberOfItems('');
+      setClothingWashedPacked(false);
 
       setBookType('');
       setEducationLevel('');
       setLanguage('');
       setNumberOfBooks('');
 
-      setMedicalItemType('');
-      setSealedPack('');
+      setMedicalCategory('');
+      setMedicineType('');
+      setMedicineName('');
+      setMedicineBrand('');
+      setMedicineDosage('');
+      setMedicineBatchNumber('');
+      setPrescriptionRequired('');
       setMedicalExpiryDate('');
+      setSealedUnused('');
+      setStorageCondition('');
       setMedicalQuantity('');
 
       setEssentialItemName('');
@@ -535,6 +595,11 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
       e.preventDefault();
       if (images.length === 0) {
         setImageError('Please upload a clear image of the resource');
+        return;
+      }
+
+      if (resourceType === 'Medical Supplies' && medicalCategory === 'Medicines' && sealedUnused === 'No') {
+        setSubmitError('Only sealed & unused medicines are allowed.');
         return;
       }
 
@@ -553,19 +618,31 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
           details.preparedHoursAgo = preparedHoursAgo;
           details.expiryTime = expiryTime;
         } else if (resourceType === 'Clothes') {
-          details.clothingType = clothingType;
-          details.condition = condition;
-          details.season = season;
-          details.numberOfItems = numberOfItems;
+          details.targetAgeGroup = clothingTargetAgeGroup;
+          details.genderUsage = clothingGenderUsage;
+          details.clothingCategories = clothingCategories;
+          details.season = clothingSeason;
+          details.condition = clothingCondition;
+          details.numberOfItems = clothingNumberOfItems;
+          details.washedPacked = clothingWashedPacked;
         } else if (resourceType === 'Books') {
           details.bookType = bookType;
           details.educationLevel = educationLevel;
           details.language = language;
           details.numberOfBooks = numberOfBooks;
         } else if (resourceType === 'Medical Supplies') {
-          details.medicalItemType = medicalItemType;
-          details.sealedPack = sealedPack;
-          details.medicalExpiryDate = medicalExpiryDate;
+          details.medicalCategory = medicalCategory;
+          if (medicalCategory === 'Medicines') {
+            details.medicineType = medicineType;
+            details.medicineName = medicineName;
+            details.medicineBrand = medicineBrand;
+            details.medicineDosage = medicineDosage;
+            details.medicineBatchNumber = medicineBatchNumber;
+            details.prescriptionRequired = prescriptionRequired;
+            details.medicalExpiryDate = medicalExpiryDate;
+            details.sealedUnused = sealedUnused;
+            details.storageCondition = storageCondition;
+          }
           details.medicalQuantity = medicalQuantity;
         } else if (resourceType === 'Other Essentials') {
           details.essentialItemName = essentialItemName;
@@ -591,6 +668,8 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
         setSubmitSuccess('Thank you! Your donation has been submitted successfully.');
         await loadDashboardRef.current();
         await loadMyDonations();
+        // Redirect to dashboard after successful submission
+        setActiveItem('dashboard');
       } catch (err: any) {
         setSubmitError(err?.response?.data?.message || err?.message || 'Failed to submit donation');
       } finally {
@@ -703,34 +782,84 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
-              <FieldLabel>Clothing Type *</FieldLabel>
-              <Select value={clothingType} onChange={(v) => setClothingType(v as any)}>
+              <FieldLabel>Target Age Group *</FieldLabel>
+              <Select value={clothingTargetAgeGroup} onChange={(v) => setClothingTargetAgeGroup(v as any)}>
+                <option value="">Select</option>
+                <option value="Infant (0–2)">Infant (0–2)</option>
+                <option value="Kids (3–12)">Kids (3–12)</option>
+                <option value="Teen (13–18)">Teen (13–18)</option>
+                <option value="Adult">Adult</option>
+                <option value="Senior Citizen">Senior Citizen</option>
+              </Select>
+            </div>
+            <div>
+              <FieldLabel>Gender / Usage</FieldLabel>
+              <Select value={clothingGenderUsage} onChange={(v) => setClothingGenderUsage(v as any)}>
                 <option value="">Select</option>
                 <option value="Men">Men</option>
                 <option value="Women">Women</option>
-                <option value="Kids">Kids</option>
+                <option value="Unisex">Unisex</option>
               </Select>
             </div>
             <div>
               <FieldLabel>Condition *</FieldLabel>
-              <Select value={condition} onChange={(v) => setCondition(v as any)}>
+              <Select value={clothingCondition} onChange={(v) => setClothingCondition(v as any)}>
                 <option value="">Select</option>
                 <option value="New">New</option>
                 <option value="Gently Used">Gently Used</option>
               </Select>
             </div>
+            <div className="lg:col-span-2">
+              <FieldLabel>Clothing Category *</FieldLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[
+                  'Shirts / T-Shirts',
+                  'Pants / Jeans',
+                  'Jackets/Sweaters',
+                  'Traditional Wear',
+                ].map((c) => {
+                  const checked = clothingCategories.includes(c);
+                  return (
+                    <label key={c} className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const next = e.target.checked;
+                          setClothingCategories((prev) => (next ? [...prev, c] : prev.filter((x) => x !== c)));
+                        }}
+                        className="h-4 w-4"
+                      />
+                      <span>{c}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
             <div>
-              <FieldLabel>Season *</FieldLabel>
-              <Select value={season} onChange={(v) => setSeason(v as any)}>
+              <FieldLabel>Season</FieldLabel>
+              <Select value={clothingSeason} onChange={(v) => setClothingSeason(v as any)}>
                 <option value="">Select</option>
                 <option value="Summer">Summer</option>
                 <option value="Winter">Winter</option>
-                <option value="All-season">All-season</option>
+                <option value="All-Season">All-Season</option>
               </Select>
             </div>
             <div>
               <FieldLabel>Number of Items *</FieldLabel>
-              <NumericInput value={numberOfItems} onChange={setNumberOfItems} placeholder="e.g. 6" />
+              <NumericInput value={clothingNumberOfItems} onChange={setClothingNumberOfItems} placeholder="e.g. 6" />
+            </div>
+            <div className="lg:col-span-2">
+              <FieldLabel>Packing Status *</FieldLabel>
+              <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800">
+                <input
+                  type="checkbox"
+                  checked={clothingWashedPacked}
+                  onChange={(e) => setClothingWashedPacked(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span>Washed & Packed</span>
+              </label>
             </div>
           </div>
         );
@@ -774,30 +903,84 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
-              <FieldLabel>Item Type *</FieldLabel>
-              <Select value={medicalItemType} onChange={(v) => setMedicalItemType(v as any)}>
+              <FieldLabel>Medical Category *</FieldLabel>
+              <Select value={medicalCategory} onChange={(v) => setMedicalCategory(v as any)}>
                 <option value="">Select</option>
                 <option value="Medicines">Medicines</option>
-                <option value="Masks">Masks</option>
-                <option value="Equipment">Equipment</option>
+                <option value="Masks / Gloves">Masks / Gloves</option>
+                <option value="First Aid Kits">First Aid Kits</option>
+                <option value="Medical Equipment">Medical Equipment</option>
+                <option value="Hygiene Products">Hygiene Products</option>
               </Select>
-            </div>
-            <div>
-              <FieldLabel>Sealed Pack? *</FieldLabel>
-              <Select value={sealedPack} onChange={(v) => setSealedPack(v as any)}>
-                <option value="">Select</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </Select>
-            </div>
-            <div>
-              <FieldLabel>Expiry Date *</FieldLabel>
-              <TextInput value={medicalExpiryDate} onChange={setMedicalExpiryDate} type="date" />
             </div>
             <div>
               <FieldLabel>Quantity *</FieldLabel>
               <NumericInput value={medicalQuantity} onChange={setMedicalQuantity} placeholder="e.g. 20" />
             </div>
+
+            {medicalCategory === 'Medicines' ? (
+              <>
+                <div className="lg:col-span-2">
+                  <FieldLabel>Medicine Name *</FieldLabel>
+                  <TextInput value={medicineName} onChange={setMedicineName} placeholder="e.g. Paracetamol" />
+                </div>
+                <div>
+                  <FieldLabel>Brand (Optional)</FieldLabel>
+                  <TextInput value={medicineBrand} onChange={setMedicineBrand} placeholder="e.g. Crocin" />
+                </div>
+                <div>
+                  <FieldLabel>Dosage / Strength (Optional)</FieldLabel>
+                  <TextInput value={medicineDosage} onChange={setMedicineDosage} placeholder="e.g. 500mg" />
+                </div>
+                <div>
+                  <FieldLabel>Medicine Type</FieldLabel>
+                  <Select value={medicineType} onChange={(v) => setMedicineType(v as any)}>
+                    <option value="">Select</option>
+                    <option value="Tablets">Tablets</option>
+                    <option value="Syrups">Syrups</option>
+                    <option value="Ointments">Ointments</option>
+                  </Select>
+                </div>
+                <div>
+                  <FieldLabel>Prescription Required?</FieldLabel>
+                  <Select value={prescriptionRequired} onChange={(v) => setPrescriptionRequired(v as any)}>
+                    <option value="">Select</option>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                  </Select>
+                </div>
+                <div>
+                  <FieldLabel>Batch No. (Optional)</FieldLabel>
+                  <TextInput value={medicineBatchNumber} onChange={setMedicineBatchNumber} placeholder="Batch number" />
+                </div>
+                <div>
+                  <FieldLabel>Expiry Date *</FieldLabel>
+                  <TextInput value={medicalExpiryDate} onChange={setMedicalExpiryDate} type="date" />
+                </div>
+                <div>
+                  <FieldLabel>Sealed & Unused *</FieldLabel>
+                  <Select value={sealedUnused} onChange={(v) => setSealedUnused(v as any)}>
+                    <option value="">Select</option>
+                    <option value="Yes">Yes (Allowed)</option>
+                    <option value="No">No</option>
+                  </Select>
+                </div>
+                <div className="lg:col-span-2">
+                  <FieldLabel>Storage Condition</FieldLabel>
+                  <Select value={storageCondition} onChange={(v) => setStorageCondition(v as any)}>
+                    <option value="">Select</option>
+                    <option value="Normal">Normal</option>
+                    <option value="Refrigerated">Refrigerated</option>
+                  </Select>
+
+                  {sealedUnused === 'No' ? (
+                    <div className="mt-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-900">
+                      Unsealed/used medicines are not allowed.
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
           </div>
         );
       }
@@ -955,7 +1138,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
               </div>
             </div>
 
-            <div className="transition-all duration-300 ease-out" key={resourceType}>
+            <div className="transition-all duration-300 ease-out">
               <DynamicFields />
             </div>
 
@@ -965,7 +1148,12 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                 <div className="lg:col-span-2">
                   <FieldLabel>Address Line *</FieldLabel>
                   <div className="relative">
-                    <TextInput value={addressLine} onChange={setAddressLine} placeholder="House no., street, landmark" />
+                    <input
+                      value={addressLine}
+                      onChange={(e) => setAddressLine(e.target.value)}
+                      placeholder="House no., street, landmark"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                    />
 
                     {addressLookupError ? (
                       <div className="mt-2 text-xs text-red-600">{addressLookupError}</div>
@@ -1014,15 +1202,34 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                 </div>
                 <div>
                   <FieldLabel>City *</FieldLabel>
-                  <TextInput value={city} onChange={setCity} placeholder="City" />
+                  <input
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="City"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                  />
                 </div>
                 <div>
                   <FieldLabel>State *</FieldLabel>
-                  <TextInput value={state} onChange={setState} placeholder="State" />
+                  <input
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    placeholder="State"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                  />
                 </div>
                 <div>
                   <FieldLabel>Pincode *</FieldLabel>
-                  <NumericInput value={pincode} onChange={setPincode} placeholder="Pincode" />
+                  <input
+                    value={pincode}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      if (/^\d*$/.test(next)) setPincode(next);
+                    }}
+                    placeholder="Pincode"
+                    inputMode="numeric"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                  />
                 </div>
               </div>
             </div>
@@ -1265,7 +1472,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                     <tbody className="text-gray-700">
                       {(() => {
                         const actives = (dashboardData?.recentDonations || []).filter((d: any) =>
-                          ['pending', 'assigned', 'picked'].includes(String(d.status))
+                          ['assigned'].includes(String(d.status))
                         );
 
                         if (actives.length === 0) {
@@ -1287,11 +1494,16 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
 
                         return actives.map((d: any) => (
                           <tr key={d._id} className="border-t border-gray-100">
-                            <td className="py-3 pr-4">--</td>
+                            <td className="py-3 pr-4">
+                              {d.assignedNGO?.ngoName || '--'}
+                            </td>
                             <td className="py-3 pr-4">
                               {d.pickup?.pickupDate ? new Date(d.pickup.pickupDate).toLocaleDateString() : '--'} {d.pickup?.timeSlot ? `(${d.pickup.timeSlot})` : ''}
                             </td>
-                            <td className="py-3 pr-4">--</td>
+                            <td className="py-3 pr-4">
+                              {/* Volunteer assigned field - placeholder for now */}
+                              {d.status === 'assigned' ? 'Pending' : '--'}
+                            </td>
                             <td className="py-3 pr-4">
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                                 <FiTag className="h-3.5 w-3.5" />
@@ -1309,6 +1521,44 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
           )}
 
           {activeItem === 'donate-now' && <DonateNowForm />}
+
+          {activeItem === 'impact' && (
+            <div className="space-y-6">
+              <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center gap-2">
+                  <FiUsers className="h-5 w-5 text-emerald-700" />
+                  <h2 className="text-base font-semibold text-gray-900">Impact Summary</h2>
+                </div>
+
+                <div className="mt-4 grid gap-4 grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-2xl border border-gray-100 bg-white p-4">
+                    <div className="text-xs font-semibold tracking-wide text-gray-600">People Helped</div>
+                    <div className="mt-2 text-2xl font-semibold text-gray-900">
+                      {dashboardLoading ? '--' : dashboardData?.impact?.peopleHelped ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 bg-white p-4">
+                    <div className="text-xs font-semibold tracking-wide text-gray-600">NGOs Connected</div>
+                    <div className="mt-2 text-2xl font-semibold text-gray-900">
+                      {dashboardLoading ? '--' : dashboardData?.impact?.ngosConnected ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 bg-white p-4">
+                    <div className="text-xs font-semibold tracking-wide text-gray-600">Resources Donated</div>
+                    <div className="mt-2 text-2xl font-semibold text-gray-900">
+                      {dashboardLoading ? '--' : dashboardData?.impact?.resourcesDonated ?? 0}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 bg-white p-4">
+                    <div className="text-xs font-semibold tracking-wide text-gray-600">Food Saved (kg)</div>
+                    <div className="mt-2 text-2xl font-semibold text-gray-900">
+                      {dashboardLoading ? '--' : Math.round((dashboardData?.impact?.foodSavedKg ?? 0) * 10) / 10}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
 
           {activeItem === 'my-donations' && (
             <div className="space-y-4">
@@ -1386,7 +1636,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
             </div>
           )}
 
-          {activeItem !== 'dashboard' && activeItem !== 'donate-now' && activeItem !== 'my-donations' && (
+          {activeItem !== 'dashboard' && activeItem !== 'donate-now' && activeItem !== 'my-donations' && activeItem !== 'impact' && (
             <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-700">

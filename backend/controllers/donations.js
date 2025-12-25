@@ -57,8 +57,28 @@ exports.getDonorDashboard = asyncHandler(async (req, res) => {
   });
   const activePickups = await Donation.countDocuments({
     donorFirebaseUid,
-    status: { $in: ['pending', 'assigned', 'picked'] }
+    status: { $in: ['assigned'] }
   });
+
+  const ngosConnectedList = await Donation.distinct('assignedNGO.ngoFirebaseUid', {
+    donorFirebaseUid,
+    'assignedNGO.ngoFirebaseUid': { $ne: null }
+  });
+
+  const resourcesAgg = await Donation.aggregate([
+    { $match: { donorFirebaseUid } },
+    { $group: { _id: null, totalQuantity: { $sum: '$quantity' } } }
+  ]);
+  const resourcesDonated = Number(resourcesAgg?.[0]?.totalQuantity || 0);
+
+  const foodDonations = await Donation.find({ donorFirebaseUid, resourceType: 'Food' })
+    .select('details')
+    .lean();
+  const foodSavedKg = foodDonations.reduce((acc, d) => {
+    const v = d?.details?.approxWeight;
+    const n = typeof v === 'number' ? v : Number(v);
+    return acc + (Number.isFinite(n) ? n : 0);
+  }, 0);
 
   const recentDonations = await Donation.find({ donorFirebaseUid })
     .sort({ createdAt: -1 })
@@ -96,6 +116,12 @@ exports.getDonorDashboard = asyncHandler(async (req, res) => {
         totalDonations,
         activePickups,
         completedDonations
+      },
+      impact: {
+        peopleHelped: completedDonations,
+        ngosConnected: Array.isArray(ngosConnectedList) ? ngosConnectedList.length : 0,
+        resourcesDonated,
+        foodSavedKg
       },
       activity,
       recentDonations
