@@ -10,6 +10,8 @@ const getAuthToken = async (): Promise<string> => {
   return await user.getIdToken();
 };
 
+export type RequestStatus = 'pending' | 'in_progress' | 'completed' | 'rejected' | 'cancelled';
+
 export interface CreateNgoRequestData {
   requestTitle: string;
   category: 'food' | 'clothing' | 'medical' | 'education' | 'other';
@@ -18,6 +20,7 @@ export interface CreateNgoRequestData {
   description: string;
   neededBy?: string;
   images?: string[];
+  status?: RequestStatus;
 }
 
 // Create NGO request
@@ -57,6 +60,20 @@ export const getMyRequests = async (status?: string) => {
   }
 };
 
+// Get all NGO requests (admin only)
+export const getAllNgoRequests = async () => {
+  try {
+    const token = await getAuthToken();
+    const response = await axios.get(`${API_URL}/ngo-requests/admin/all`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching all NGO requests:', error);
+    throw error;
+  }
+};
+
 // Get NGO dashboard summary
 export const getNgoDashboard = async () => {
   try {
@@ -86,7 +103,7 @@ export const getRequest = async (id: string) => {
 };
 
 // Update request
-export const updateRequest = async (id: string, requestData: Partial<CreateNgoRequestData>) => {
+export const updateRequest = async (id: string, requestData: Partial<CreateNgoRequestData> & { status?: RequestStatus | string }) => {
   try {
     const token = await getAuthToken();
     const response = await axios.put(
