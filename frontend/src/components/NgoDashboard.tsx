@@ -591,27 +591,378 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     </button>
                   </div>
                 </form>
+                </div>
+              </div>
+            </div>
+        )}
+
+        {activeTab === 'feedback' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 bg-emerald-50">
+                <h2 className="text-lg font-medium text-emerald-800 flex items-center">
+                  <svg className="w-5 h-5 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                  Share Your Feedback
+                </h2>
+              </div>
+              <div className="p-6">
+                <form className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Subject <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                      placeholder="Briefly describe your feedback"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Feedback Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      required
+                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm rounded-md"
+                    >
+                      <option value="">Select feedback type</option>
+                      <option value="suggestion">Suggestion</option>
+                      <option value="bug">Bug Report</option>
+                      <option value="feature">Feature Request</option>
+                      <option value="complaint">Complaint</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Description <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      rows={5}
+                      required
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                      placeholder="Please provide detailed feedback..."
+                    ></textarea>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Rating
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          className="text-2xl focus:outline-none"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            // Handle star rating selection
+                          }}
+                        >
+                          ★
+                        </button>
+                      ))}
+                      <span className="text-sm text-gray-500 ml-2">(Optional)</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Upload Screenshot (Optional)
+                    </label>
+                    <div className="mt-1 flex items-center">
+                      <label className="cursor-pointer bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                        <span>Choose File</span>
+                        <input type="file" className="sr-only" accept="image/*" />
+                      </label>
+                      <span className="ml-2 text-sm text-gray-500">Max 5MB</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <div className="flex items-start">
+                      <div className="flex items-center h-5">
+                        <input
+                          id="contact-permission"
+                          name="contact-permission"
+                          type="checkbox"
+                          className="focus:ring-emerald-500 h-4 w-4 text-emerald-600 border-gray-300 rounded"
+                        />
+                      </div>
+                      <div className="ml-3 text-sm">
+                        <label htmlFor="contact-permission" className="font-medium text-gray-700">
+                          You may contact me regarding this feedback
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex justify-end space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('overview')}
+                      className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                    >
+                      Submit Feedback
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           </div>
         )}
 
-        {activeTab === 'impact' && (
+        {activeTab === 'help-support' && (
           <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-medium text-gray-900">Impact Reports</h2>
+            {/* Help Header with Search */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-8 text-white">
+                <h1 className="text-2xl font-bold mb-2">How can we help you today?</h1>
+                <p className="text-blue-100 mb-4">Search our help center or browse our resources</p>
+                <div className="relative max-w-2xl">
+                  <input
+                    type="text"
+                    placeholder="Search help articles..."
+                    className="w-full px-4 py-3 pr-10 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <svg
+                    className="w-5 h-5 text-gray-400 absolute right-3 top-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Links */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                {
+                  title: 'Getting Started',
+                  icon: (
+                    <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                  ),
+                  description: 'Learn how to make the most of our platform',
+                },
+                {
+                  title: 'FAQs',
+                  icon: (
+                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ),
+                  description: 'Find answers to common questions',
+                },
+                {
+                  title: 'Video Tutorials',
+                  icon: (
+                    <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  ),
+                  description: 'Watch step-by-step guides',
+                },
+                {
+                  title: 'Contact Support',
+                  icon: (
+                    <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  ),
+                  description: 'Get in touch with our team',
+                },
+              ].map((item, index) => (
+                <div
+                  key={index}
+                  className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow cursor-pointer border border-gray-100 hover:border-blue-100"
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className="p-2 bg-blue-50 rounded-full">
+                      {item.icon}
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900">{item.title}</h3>
+                      <p className="text-sm text-gray-500">{item.description}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* FAQ Section */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h2 className="text-lg font-medium text-gray-900">Frequently Asked Questions</h2>
+              </div>
+              <div className="divide-y divide-gray-200">
+                {[
+                  {
+                    question: 'How do I create a new donation request?',
+                    answer: 'To create a new donation request, navigate to the "Create Request" tab and fill out the required information including item details, quantity needed, and preferred delivery method.'
+                  },
+                  {
+                    question: 'How can I track my donation requests?',
+                    answer: 'You can track all your donation requests in the "My Requests" tab where you can see the status of each request and any updates from donors.'
+                  },
+                  {
+                    question: 'What payment methods do you accept?',
+                    answer: 'We accept various payment methods including credit/debit cards, UPI, and net banking. All transactions are secure and encrypted.'
+                  },
+                  {
+                    question: 'How do I update my organization information?',
+                    answer: 'You can update your organization details in the "Profile" section. All changes will be reviewed by our team before being applied.'
+                  },
+                ].map((faq, index) => (
+                  <div key={index} className="p-6">
+                    <button
+                      className="w-full flex justify-between items-center text-left"
+                      onClick={(e) => {
+                        const content = e.currentTarget.nextElementSibling as HTMLElement | null;
+                        if (content) {
+                          content.style.maxHeight = content.style.maxHeight ? '' : content.scrollHeight + 'px';
+                        }
+                        const svg = e.currentTarget.querySelector('svg');
+                        if (svg) {
+                          svg.classList.toggle('rotate-180');
+                        }
+                      }}
+                    >
+                      <h3 className="font-medium text-gray-900">{faq.question}</h3>
+                      <svg
+                        className="w-5 h-5 text-gray-500 transition-transform duration-200"
+                        fill="none"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    <div
+                      className="mt-2 text-gray-600 overflow-hidden transition-all duration-300"
+                      style={{ maxHeight: '0' }}
+                    >
+                      <p className="pb-2">{faq.answer}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Contact Support */}
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h2 className="text-lg font-medium text-gray-900">Still need help?</h2>
+                <p className="text-sm text-gray-500 mt-1">Our support team is here to help you</p>
               </div>
               <div className="p-6">
-                <div className="text-center py-12">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No impact reports</h3>
-                  <p className="mt-1 text-sm text-gray-500">Start tracking your organization's impact here.</p>
-                  <button className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700">
-                    Create First Report
-                  </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Contact Information</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0 bg-blue-100 p-2 rounded-full">
+                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-900">Email us</p>
+                          <p className="text-sm text-blue-600">support@donationhub.com</p>
+                          <p className="text-xs text-gray-500 mt-1">We'll respond within 24 hours</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0 bg-green-100 p-2 rounded-full">
+                          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-900">Call us</p>
+                          <p className="text-sm text-green-600">+1 (555) 123-4567</p>
+                          <p className="text-xs text-gray-500 mt-1">Mon-Fri, 9am-6pm IST</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0 bg-purple-100 p-2 rounded-full">
+                          <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-gray-900">Live chat</p>
+                          <p className="text-sm text-purple-600">Start a conversation</p>
+                          <p className="text-xs text-gray-500 mt-1">Available 24/7</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Send us a message</h3>
+                    <form className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Your name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input
+                          type="email"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="your@email.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="How can we help you?"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                        <textarea
+                          rows={4}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Tell us more about your issue..."
+                        ></textarea>
+                      </div>
+                      <div>
+                        <button
+                          type="submit"
+                          className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          Send Message
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               </div>
             </div>
