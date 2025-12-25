@@ -1,13 +1,21 @@
 const express = require('express');
 
-const { firebaseProtect } = require('../middleware/firebaseAuth');
+const { firebaseProtect, adminProtect } = require('../middleware/firebaseAuth');
 const {
   createDonation,
   getDonorDashboard,
-  listMyDonations
+  listMyDonations,
+  getAllDonations,
+  getAllNGOs,
+  updateDonation
 } = require('../controllers/donations');
 
 const router = express.Router();
+
+// Admin routes (must be before firebaseProtect middleware)
+router.route('/admin/all').get(adminProtect, getAllDonations);
+router.route('/admin/ngos').get(adminProtect, getAllNGOs);
+router.route('/admin/:id').put(adminProtect, updateDonation);
 
 // Firebase protected routes (donor identity from Firebase token)
 router.use(firebaseProtect);
