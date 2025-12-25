@@ -52,6 +52,12 @@ export interface DonorDashboardResponse {
     activePickups: number;
     completedDonations: number;
   };
+  impact?: {
+    peopleHelped: number;
+    ngosConnected: number;
+    resourcesDonated: number;
+    foodSavedKg?: number;
+  };
   activity: { label: string; count: number }[];
   recentDonations: DonationItem[];
 }

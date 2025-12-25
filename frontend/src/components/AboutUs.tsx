@@ -11,7 +11,7 @@ interface AboutUsProps {
   } | null;
 }
 
-const AboutUs = ({ onBack, authUser, userMeta }: AboutUsProps) => {
+const AboutUs = ({ authUser, userMeta }: AboutUsProps) => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);

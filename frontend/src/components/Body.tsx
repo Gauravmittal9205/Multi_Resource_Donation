@@ -23,7 +23,6 @@ interface BodyProps {
 
 export default function Body({ activeLink, user, setActiveLink, userMeta }: BodyProps) {
   // Check user type
-  const isDonor = userMeta?.userType === 'donor';
   const isNgo = userMeta?.userType === 'ngo';
   
   // Public pages that don't require authentication

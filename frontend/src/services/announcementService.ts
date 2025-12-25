@@ -1,5 +1,3 @@
-const API_BASE_URL = 'https://www.volunteerconnector.org/api/search/';
-
 export interface Announcement {
   id: string;
   title: string;
@@ -104,10 +102,10 @@ const MOCK_ANNOUNCEMENTS: Announcement[] = [
 ];
 
 
-export const fetchAnnouncements = async (keyword: string = 'donation'): Promise<Announcement[]> => {
+export const fetchAnnouncements = async (_keyword: string = 'donation'): Promise<Announcement[]> => {
   try {
     // Uncomment to test with actual API
-    // const response = await fetch(`${API_BASE_URL}?keyword=${encodeURIComponent(keyword)}`);
+    // const response = await fetch(`${API_BASE_URL}?keyword=${encodeURIComponent(_keyword)}`);
     // if (response.ok) {
     //   const data = await response.json();
     //   return data.results?.map((item: any, index: number) => ({
