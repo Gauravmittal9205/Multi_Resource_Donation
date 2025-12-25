@@ -157,11 +157,6 @@ const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) 
     } 
     
      else if (step === 4) {
-       // NGO Registration Number
-       if (!formData.registrationNumber?.trim()) {
-         newErrors.registrationNumber = 'Registration number is required';
-       }
-
        // NGO Certificate Upload
        if (!formData.ngoCertificate) {
          newErrors.ngoCertificate = 'Please upload NGO certificate';
@@ -246,7 +241,6 @@ const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) 
               ? formData.alternateIdType as 'PAN' | 'Voter ID' | 'Passport' 
               : '' as '',
             alternateIdFile: alternateIdFileBase64,
-            registrationNumber: formData.registrationNumber,
             ngoCertificate: ngoCertificateBase64,
             addressProof: addressProofBase64,
             declarationAccepted: formData.declarationAccepted as boolean,
@@ -661,25 +655,7 @@ const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) 
               title="Organization Proof" 
               description="Organization real hai ya nahi — ye verify hota hai" 
             />
-            <div>
-              <label className="block text-base font-medium text-gray-800 mb-1">
-                NGO Registration Number <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="registrationNumber"
-                value={formData.registrationNumber || ''}
-                onChange={handleChange}
-                required
-                placeholder="e.g., 1234/5678/90 or ABC-1234-XY"
-                className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
-                  errors.registrationNumber ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
-                } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
-              />
-              {renderError('registrationNumber')}
-            </div>
-
-            <div>
+<div>
               <label className="block text-base font-medium text-gray-800 mb-1">
                 Upload NGO Certificate <span className="text-red-500">*</span>
               </label>
