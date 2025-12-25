@@ -1,4 +1,6 @@
 const Donation = require('../models/Donation');
+const User = require('../models/User');
+const Profile = require('../models/Profile');
 const asyncHandler = require('../middleware/async');
 
 const toStartOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
@@ -117,5 +119,133 @@ exports.listMyDonations = asyncHandler(async (req, res) => {
     success: true,
     count: donations.length,
     data: donations
+  });
+});
+
+// @desc    Get all NGOs for admin
+// @route   GET /api/v1/donations/admin/ngos
+// @access  Private (Admin)
+exports.getAllNGOs = asyncHandler(async (req, res) => {
+  const ngos = await User.find({ userType: 'ngo', isVerified: true })
+    .select('_id name email organizationName firebaseUid')
+    .lean();
+
+  res.status(200).json({
+    success: true,
+    count: ngos.length,
+    data: ngos
+  });
+});
+
+// @desc    Update donation (assign NGO and change status)
+// @route   PUT /api/v1/donations/admin/:id
+// @access  Private (Admin)
+exports.updateDonation = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { ngoFirebaseUid, status } = req.body;
+  const adminFirebaseUid = req.firebaseUid;
+
+  const donation = await Donation.findById(id);
+  if (!donation) {
+    return res.status(404).json({
+      success: false,
+      error: 'Donation not found'
+    });
+  }
+
+  // Update status if provided
+  if (status) {
+    donation.status = status;
+  }
+
+  // Assign NGO if provided
+  if (ngoFirebaseUid) {
+    const ngo = await User.findOne({ firebaseUid: ngoFirebaseUid, userType: 'ngo' });
+    if (!ngo) {
+      return res.status(400).json({
+        success: false,
+        error: 'NGO not found'
+      });
+    }
+
+    donation.assignedNGO = {
+      ngoFirebaseUid: ngoFirebaseUid,
+      ngoName: ngo.organizationName || ngo.name,
+      assignedAt: new Date(),
+      assignedBy: adminFirebaseUid
+    };
+
+    // If status is not explicitly set and NGO is assigned, set status to 'assigned'
+    if (!status) {
+      donation.status = 'assigned';
+    }
+  }
+
+  await donation.save();
+
+  res.status(200).json({
+    success: true,
+    data: donation
+  });
+});
+
+// @desc    Get all donations for admin
+// @route   GET /api/v1/donations/admin/all
+// @access  Private (Admin)
+exports.getAllDonations = asyncHandler(async (req, res) => {
+  const { status, resourceType, city, startDate, endDate } = req.query;
+
+  // Build query
+  const query = {};
+  if (status) query.status = status;
+  if (resourceType) query.resourceType = resourceType;
+  if (city) query['address.city'] = new RegExp(city, 'i');
+  if (startDate || endDate) {
+    query.createdAt = {};
+    if (startDate) query.createdAt.$gte = new Date(startDate);
+    if (endDate) query.createdAt.$lte = new Date(endDate);
+  }
+
+  // Fetch donations with donor information
+  const donations = await Donation.find(query)
+    .sort({ createdAt: -1 })
+    .lean();
+
+  // Get donor information for each donation
+  const donationsWithDonorInfo = await Promise.all(
+    donations.map(async (donation) => {
+      // Try to get donor name from User model
+      let donorName = 'Unknown Donor';
+      let donorEmail = '';
+      let donorPhone = '';
+
+      const user = await User.findOne({ firebaseUid: donation.donorFirebaseUid });
+      if (user) {
+        donorName = user.name;
+        donorEmail = user.email;
+        donorPhone = user.phone || '';
+      } else {
+        // Try Profile model
+        const profile = await Profile.findOne({ firebaseUid: donation.donorFirebaseUid });
+        if (profile && profile.basic) {
+          donorName = profile.basic.name || donorName;
+          donorEmail = profile.basic.email || donorEmail;
+          donorPhone = profile.basic.phone || donorPhone;
+        }
+      }
+
+      return {
+        ...donation,
+        donorName,
+        donorEmail,
+        donorPhone
+      };
+    })
+  );
+
+  res.status(200).json({
+    success: true,
+    count: donationsWithDonorInfo.length,
+    data: donationsWithDonorInfo
   });
 });

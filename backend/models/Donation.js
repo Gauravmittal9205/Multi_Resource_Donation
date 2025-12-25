@@ -52,6 +52,24 @@ const DonationSchema = new mongoose.Schema(
       enum: ['pending', 'assigned', 'picked', 'completed', 'cancelled'],
       default: 'pending',
       index: true
+    },
+    assignedNGO: {
+      ngoFirebaseUid: {
+        type: String,
+        default: null
+      },
+      ngoName: {
+        type: String,
+        default: null
+      },
+      assignedAt: {
+        type: Date,
+        default: null
+      },
+      assignedBy: {
+        type: String, // Admin Firebase UID
+        default: null
+      }
     }
   },
   { timestamps: true }

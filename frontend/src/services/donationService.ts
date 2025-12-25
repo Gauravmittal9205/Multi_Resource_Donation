@@ -114,3 +114,72 @@ export const fetchDonorProfileByUid = async (firebaseUid: string) => {
   const response = await axios.get(`http://localhost:5000/api/v1/profile/${encodeURIComponent(firebaseUid)}`);
   return response.data as { success: boolean; data: DonorProfile };
 };
+
+// Admin function to fetch all donations
+export interface AdminDonationItem extends DonationItem {
+  donorName: string;
+  donorEmail: string;
+  donorPhone: string;
+}
+
+export interface AdminDonationsResponse {
+  success: boolean;
+  count: number;
+  data: AdminDonationItem[];
+}
+
+export const fetchAllDonations = async (filters?: {
+  status?: DonationStatus;
+  resourceType?: string;
+  city?: string;
+  startDate?: string;
+  endDate?: string;
+}) => {
+  const token = await getAuthToken();
+  const response = await axios.get(`${API_URL}/admin/all`, {
+    params: filters,
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return response.data as AdminDonationsResponse;
+};
+
+export interface NGO {
+  _id: string;
+  name: string;
+  email: string;
+  organizationName: string;
+  firebaseUid: string;
+}
+
+export interface NGOsResponse {
+  success: boolean;
+  count: number;
+  data: NGO[];
+}
+
+export const fetchAllNGOs = async () => {
+  const token = await getAuthToken();
+  const response = await axios.get(`${API_URL}/admin/ngos`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return response.data as NGOsResponse;
+};
+
+export interface UpdateDonationPayload {
+  ngoFirebaseUid?: string;
+  status?: DonationStatus;
+}
+
+export const updateDonation = async (donationId: string, payload: UpdateDonationPayload) => {
+  const token = await getAuthToken();
+  const response = await axios.put(`${API_URL}/admin/${donationId}`, payload, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return response.data as { success: boolean; data: AdminDonationItem };
+};

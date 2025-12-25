@@ -803,25 +803,160 @@ function NGOVerificationPanel() {
 
 // Donation Monitoring Component
 function DonationMonitoring() {
+  const [donations, setDonations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    status: '',
+    resourceType: '',
+    city: '',
+    startDate: '',
+    endDate: ''
+  });
+  const [lastDonationCount, setLastDonationCount] = useState(0);
+  const [showNotification, setShowNotification] = useState(false);
+  const [newDonation, setNewDonation] = useState<any>(null);
+  const [selectedDonation, setSelectedDonation] = useState<any>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [ngos, setNgos] = useState<any[]>([]);
+  const [loadingNGOs, setLoadingNGOs] = useState(false);
+  const [assigningNGO, setAssigningNGO] = useState(false);
+  const [formData, setFormData] = useState({
+    selectedNGO: '',
+    status: ''
+  });
 
-  const mockDonations = [
-    {
-      id: 'DON001',
-      donorName: 'John Doe',
-      type: 'Food',
-      quantity: '50 kg',
-      location: 'Mumbai',
-      status: 'Open',
-      assignedNGO: 'Feed India',
-      date: '2024-01-20'
+  const fetchDonations = async () => {
+    try {
+      const donationService = await import('../services/donationService');
+      type DonationStatus = 'pending' | 'assigned' | 'picked' | 'completed' | 'cancelled';
+      const response = await donationService.fetchAllDonations({
+        status: filters.status ? (filters.status as DonationStatus) : undefined,
+        resourceType: filters.resourceType || undefined,
+        city: filters.city || undefined,
+        startDate: filters.startDate || undefined,
+        endDate: filters.endDate || undefined
+      });
+
+      if (response.success) {
+        // Check for new donations
+        if (lastDonationCount > 0 && response.data.length > lastDonationCount) {
+          const newDonations = response.data.slice(0, response.data.length - lastDonationCount);
+          if (newDonations.length > 0) {
+            setNewDonation(newDonations[0]);
+            setShowNotification(true);
+            // Auto-hide notification after 5 seconds
+            setTimeout(() => {
+              setShowNotification(false);
+            }, 5000);
+          }
+        }
+        
+        setDonations(response.data);
+        setLastDonationCount(response.data.length);
+      }
+    } catch (error) {
+      console.error('Error fetching donations:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const fetchNGOs = async () => {
+    try {
+      setLoadingNGOs(true);
+      const donationService = await import('../services/donationService');
+      const response = await donationService.fetchAllNGOs();
+      if (response.success) {
+        setNgos(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching NGOs:', error);
+    } finally {
+      setLoadingNGOs(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDonations();
+    fetchNGOs();
+    // Poll for new donations every 10 seconds
+    const interval = setInterval(fetchDonations, 10000);
+    return () => clearInterval(interval);
+  }, [filters]);
+
+  useEffect(() => {
+    // Reset form when modal opens
+    if (showDetailsModal && selectedDonation) {
+      setFormData({
+        selectedNGO: selectedDonation.assignedNGO?.ngoFirebaseUid || '',
+        status: selectedDonation.status || ''
+      });
+    }
+  }, [showDetailsModal, selectedDonation]);
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'assigned':
+        return 'bg-blue-100 text-blue-800';
+      case 'picked':
+        return 'bg-purple-100 text-purple-800';
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
 
   return (
     <div className="space-y-6">
+      {/* New Donation Notification Popup */}
+      {showNotification && newDonation && (
+        <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
+          <div className="bg-green-500 text-white rounded-lg shadow-2xl p-6 max-w-md border-l-4 border-green-600">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start space-x-3">
+                <Package className="w-6 h-6 mt-1 flex-shrink-0" />
+                <div>
+                  <h3 className="font-bold text-lg mb-1">New Donation Received! 🎉</h3>
+                  <p className="text-sm opacity-90">
+                    <span className="font-semibold">{newDonation.donorName}</span> donated{' '}
+                    <span className="font-semibold">{newDonation.quantity} {newDonation.unit}</span> of{' '}
+                    <span className="font-semibold">{newDonation.resourceType}</span>
+                  </p>
+                  <p className="text-xs opacity-75 mt-1">
+                    Location: {newDonation.address?.city || 'N/A'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowNotification(false)}
+                className="text-white hover:text-gray-200 transition-colors ml-4"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Donation Monitoring</h2>
-        <p className="text-gray-600">Track and manage all donations</p>
+        <p className="text-gray-600">Track and manage all donations in real-time</p>
       </div>
 
       {/* Filters */}
@@ -829,76 +964,441 @@ function DonationMonitoring() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            <select
+              value={filters.resourceType}
+              onChange={(e) => setFilters({ ...filters, resourceType: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            >
               <option value="">All Categories</option>
-              <option value="food">Food</option>
-              <option value="clothes">Clothes</option>
-              <option value="books">Books</option>
+              <option value="Food">Food</option>
+              <option value="Clothes">Clothes</option>
+              <option value="Books">Books</option>
+              <option value="Medical Supplies">Medical Supplies</option>
+              <option value="Other Essentials">Other Essentials</option>
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
-            <input type="text" placeholder="Filter by city" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+            <input
+              type="text"
+              placeholder="Filter by city"
+              value={filters.city}
+              onChange={(e) => setFilters({ ...filters, city: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            >
               <option value="">All Status</option>
-              <option value="open">Open</option>
+              <option value="pending">Pending</option>
+              <option value="assigned">Assigned</option>
               <option value="picked">Picked</option>
-              <option value="delivered">Delivered</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-            <input type="date" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+            <input
+              type="date"
+              value={filters.startDate}
+              onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
           </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => setFilters({ status: '', resourceType: '', city: '', startDate: '', endDate: '' })}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+          >
+            Clear Filters
+          </button>
         </div>
       </div>
 
       {/* Donations Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Donation ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Donor</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned NGO</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {mockDonations.map((donation) => (
-                <tr key={donation.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{donation.id}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{donation.donorName}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{donation.type}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{donation.quantity}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{donation.location}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      donation.status === 'Open' ? 'bg-yellow-100 text-yellow-800' :
-                      donation.status === 'Picked' ? 'bg-blue-100 text-blue-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      {donation.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{donation.assignedNGO || 'Unassigned'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900">View</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {loading ? (
+          <div className="p-8 text-center">
+            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading donations...</p>
+          </div>
+        ) : donations.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">
+            <Package className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+            <p>No donations found</p>
+          </div>
+        ) : (
+          <>
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Total Donations: {donations.length}
+              </h3>
+              <button
+                onClick={fetchDonations}
+                className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Refresh</span>
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Donation ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Donor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {donations.map((donation) => (
+                    <tr key={donation._id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {donation._id.substring(0, 8).toUpperCase()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{donation.donorName || 'Unknown'}</div>
+                        <div className="text-sm text-gray-500">{donation.donorEmail || ''}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{donation.resourceType}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {donation.quantity} {donation.unit}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {donation.address?.city || 'N/A'}, {donation.address?.state || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(donation.status)}`}>
+                          {donation.status.charAt(0).toUpperCase() + donation.status.slice(1)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(donation.createdAt)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button 
+                          onClick={() => {
+                            setSelectedDonation(donation);
+                            setShowDetailsModal(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span>View</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
+
+      {/* Donation Details Modal */}
+      {showDetailsModal && selectedDonation && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={() => setShowDetailsModal(false)}></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="w-full">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-2xl leading-6 font-bold text-gray-900">Donation Details</h3>
+                      <button
+                        onClick={() => setShowDetailsModal(false)}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+                    
+                    {/* Basic Information */}
+                    <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-3">Basic Information</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Donation ID</p>
+                          <p className="text-sm text-gray-900">{selectedDonation._id?.substring(0, 8).toUpperCase() || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Status</p>
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(selectedDonation.status)}`}>
+                            {selectedDonation.status?.charAt(0).toUpperCase() + selectedDonation.status?.slice(1) || 'N/A'}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Resource Type</p>
+                          <p className="text-sm text-gray-900">{selectedDonation.resourceType || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Quantity</p>
+                          <p className="text-sm text-gray-900">{selectedDonation.quantity} {selectedDonation.unit || ''}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Created Date</p>
+                          <p className="text-sm text-gray-900">{formatDate(selectedDonation.createdAt)}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Urgency</p>
+                          <p className="text-sm text-gray-900">{selectedDonation.urgency || 'Normal'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Donor Information */}
+                    <div className="bg-blue-50 rounded-lg p-4 mb-4">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-3">Donor Information</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Name</p>
+                          <p className="text-sm text-gray-900">{selectedDonation.donorName || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Email</p>
+                          <p className="text-sm text-gray-900">{selectedDonation.donorEmail || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Phone</p>
+                          <p className="text-sm text-gray-900">{selectedDonation.donorPhone || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">User ID</p>
+                          <p className="text-sm text-gray-900">{selectedDonation.donorFirebaseUid?.substring(0, 8).toUpperCase() || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pickup Address */}
+                    <div className="bg-green-50 rounded-lg p-4 mb-4">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-3">Pickup Address</h4>
+                      <div className="grid grid-cols-1 gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Address Line</p>
+                          <p className="text-sm text-gray-900">{selectedDonation.address?.addressLine || 'N/A'}</p>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">City</p>
+                            <p className="text-sm text-gray-900">{selectedDonation.address?.city || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">State</p>
+                            <p className="text-sm text-gray-900">{selectedDonation.address?.state || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Pincode</p>
+                            <p className="text-sm text-gray-900">{selectedDonation.address?.pincode || 'N/A'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Additional Details */}
+                    {(selectedDonation.notes || selectedDonation.pickup?.preferredTime || selectedDonation.pickup?.instructions) && (
+                      <div className="bg-yellow-50 rounded-lg p-4 mb-4">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-3">Additional Details</h4>
+                        {selectedDonation.notes && (
+                          <div className="mb-3">
+                            <p className="text-sm font-medium text-gray-500">Notes</p>
+                            <p className="text-sm text-gray-900">{selectedDonation.notes}</p>
+                          </div>
+                        )}
+                        {selectedDonation.pickup?.preferredTime && (
+                          <div className="mb-3">
+                            <p className="text-sm font-medium text-gray-500">Preferred Pickup Time</p>
+                            <p className="text-sm text-gray-900">{selectedDonation.pickup.preferredTime}</p>
+                          </div>
+                        )}
+                        {selectedDonation.pickup?.instructions && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Pickup Instructions</p>
+                            <p className="text-sm text-gray-900">{selectedDonation.pickup.instructions}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* NGO Assignment Display */}
+                    {selectedDonation.assignedNGO?.ngoName && (
+                      <div className="bg-purple-50 rounded-lg p-4 mb-4">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-3">NGO Assignment</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Assigned NGO</p>
+                            <p className="text-sm text-gray-900">{selectedDonation.assignedNGO.ngoName}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Assigned At</p>
+                            <p className="text-sm text-gray-900">{selectedDonation.assignedNGO.assignedAt ? formatDate(selectedDonation.assignedNGO.assignedAt) : 'N/A'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* NGO Assignment & Status Update Form */}
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-4 border-2 border-blue-200">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <Package className="w-5 h-5 mr-2 text-blue-600" />
+                        Assign NGO & Update Status
+                      </h4>
+                      
+                      <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!formData.selectedNGO && !formData.status) {
+                          alert('Please select an NGO or update status');
+                          return;
+                        }
+
+                        setAssigningNGO(true);
+                        try {
+                          const donationService = await import('../services/donationService');
+                          type DonationStatus = 'pending' | 'assigned' | 'picked' | 'completed' | 'cancelled';
+                          await donationService.updateDonation(selectedDonation._id, {
+                            ngoFirebaseUid: formData.selectedNGO || undefined,
+                            status: formData.status ? (formData.status as DonationStatus) : undefined
+                          });
+                          
+                          // Refresh donations
+                          await fetchDonations();
+                          setShowDetailsModal(false);
+                          setFormData({ selectedNGO: '', status: '' });
+                          alert('Donation updated successfully!');
+                        } catch (error: any) {
+                          console.error('Error updating donation:', error);
+                          alert(error.response?.data?.error || 'Failed to update donation');
+                        } finally {
+                          setAssigningNGO(false);
+                        }
+                      }}>
+                        <div className="space-y-4">
+                          {/* NGO Selection */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Select NGO
+                            </label>
+                            <select
+                              value={formData.selectedNGO}
+                              onChange={(e) => setFormData({ ...formData, selectedNGO: e.target.value })}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              disabled={assigningNGO}
+                            >
+                              <option value="">-- Select NGO --</option>
+                              {ngos.map((ngo) => (
+                                <option key={ngo._id} value={ngo.firebaseUid}>
+                                  {ngo.organizationName || ngo.name} ({ngo.email})
+                                </option>
+                              ))}
+                            </select>
+                            {loadingNGOs && (
+                              <p className="text-xs text-gray-500 mt-1">Loading NGOs...</p>
+                            )}
+                          </div>
+
+                          {/* Status Selection */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Update Status
+                            </label>
+                            <select
+                              value={formData.status}
+                              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              disabled={assigningNGO}
+                            >
+                              <option value="">-- Select Status --</option>
+                              <option value="pending">Pending</option>
+                              <option value="assigned">Assigned</option>
+                              <option value="picked">Picked</option>
+                              <option value="completed">Completed</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                          </div>
+
+                          {/* Submit Button */}
+                          <div className="flex space-x-3">
+                            <button
+                              type="submit"
+                              disabled={assigningNGO || (!formData.selectedNGO && !formData.status)}
+                              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                            >
+                              {assigningNGO ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                  <span>Updating...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="w-4 h-4" />
+                                  <span>Approve & Assign</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData({ selectedNGO: '', status: '' });
+                              }}
+                              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                              disabled={assigningNGO}
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={() => setShowDetailsModal(false)}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes slide-in-right {
+            from {
+              opacity: 0;
+              transform: translateX(100%);
+            }
+            to {
+              opacity: 1;
+              transform: translateX(0);
+            }
+          }
+          .animate-slide-in-right {
+            animation: slide-in-right 0.3s ease-out;
+          }
+        `
+      }} />
     </div>
   );
 }
