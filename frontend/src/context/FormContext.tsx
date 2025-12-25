@@ -2,28 +2,48 @@ import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 
 interface FormData {
-  // Step 1: Basic Information
+  // Step 1: Basic Identity
+  organizationType: string;
   ngoName: string;
-  registrationNumber: string;
-  registrationDate: string;
-  
-  // Step 2: Contact Information
   contactPerson: string;
   phone: string;
-  email: string;
-  website: string;
-  address: string;
   
-  // Step 3: Organization Details
-  description: string;
-  establishmentYear: number;
+  // Step 2: Location Details
+  city: string;
+  state: string;
+  pincode: string;
+  pickupDeliveryPreference: string;
   
-  // Step 4: Documents
+  // Step 3: Identity Proof
+  aadhaarNumber: string;
   aadhaarCard: File | null;
   aadhaarCardName: string;
   aadhaarCardPreview: string;
+  alternateIdType: string;
+  alternateIdFile: File | null;
+  alternateIdFileName: string;
+  alternateIdFilePreview: string;
   
-  // Step 5: Review & Submit
+  // Step 4: Organization Documents
+  registrationNumber: string;
+  ngoCertificate: File | null;
+  ngoCertificateName: string;
+  ngoCertificatePreview: string;
+  addressProof: File | null;
+  addressProofName: string;
+  addressProofPreview: string;
+  
+  // Step 5: Verification
+  declarationAccepted: boolean;
+  verificationConsent: boolean;
+  
+  // Legacy fields (keeping for backward compatibility)
+  registrationDate: string;
+  email: string;
+  website: string;
+  address: string;
+  description: string;
+  establishmentYear: number;
   termsAccepted: boolean;
 }
 
@@ -36,28 +56,48 @@ interface FormContextType {
 }
 
 const defaultFormData: FormData = {
-  // Step 1: Basic Information
+  // Step 1: Basic Identity
+  organizationType: '',
   ngoName: '',
-  registrationNumber: '',
-  registrationDate: '',
-  
-  // Step 2: Contact Information
   contactPerson: '',
   phone: '',
-  email: '',
-  website: '',
-  address: '',
   
-  // Step 3: Organization Details
-  description: '',
-  establishmentYear: new Date().getFullYear(),
+  // Step 2: Location Details
+  city: '',
+  state: '',
+  pincode: '',
+  pickupDeliveryPreference: '',
   
-  // Step 4: Documents
+  // Step 3: Identity Proof
+  aadhaarNumber: '',
   aadhaarCard: null,
   aadhaarCardName: '',
   aadhaarCardPreview: '',
+  alternateIdType: '',
+  alternateIdFile: null,
+  alternateIdFileName: '',
+  alternateIdFilePreview: '',
   
-  // Step 5: Review & Submit
+  // Step 4: Organization Documents
+  registrationNumber: '',
+  ngoCertificate: null,
+  ngoCertificateName: '',
+  ngoCertificatePreview: '',
+  addressProof: null,
+  addressProofName: '',
+  addressProofPreview: '',
+  
+  // Step 5: Verification
+  declarationAccepted: false,
+  verificationConsent: false,
+  
+  // Legacy fields
+  registrationDate: '',
+  email: '',
+  website: '',
+  address: '',
+  description: '',
+  establishmentYear: new Date().getFullYear(),
   termsAccepted: false
 };
 

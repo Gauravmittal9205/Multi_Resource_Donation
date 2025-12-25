@@ -14,7 +14,27 @@ exports.createNgoRequest = asyncHandler(async (req, res) => {
     urgencyLevel,
     description,
     neededBy,
-    images
+    images,
+    // Food category fields
+    foodType,
+    foodCategory,
+    approxWeight,
+    expiryTime,
+    // Clothing category fields
+    clothingType,
+    condition,
+    season,
+    // Medical category fields
+    medicalType,
+    expiryDate,
+    storageRequirements,
+    // Education category fields
+    bookType,
+    subject,
+    ageGroup,
+    // Other category fields
+    itemType,
+    specifications
   } = req.body;
 
   const ngoRequest = await NgoRequest.create({
@@ -26,7 +46,27 @@ exports.createNgoRequest = asyncHandler(async (req, res) => {
     description,
     neededBy: neededBy ? new Date(neededBy) : null,
     images: Array.isArray(images) ? images : [],
-    status: 'pending'
+    status: 'pending',
+    // Food category fields
+    foodType: foodType || '',
+    foodCategory: foodCategory || '',
+    approxWeight: approxWeight ? Number(approxWeight) : null,
+    expiryTime: expiryTime ? new Date(expiryTime) : null,
+    // Clothing category fields
+    clothingType: clothingType || '',
+    condition: condition || '',
+    season: season || '',
+    // Medical category fields
+    medicalType: medicalType || '',
+    expiryDate: expiryDate ? new Date(expiryDate) : null,
+    storageRequirements: storageRequirements || '',
+    // Education category fields
+    bookType: bookType || '',
+    subject: subject || '',
+    ageGroup: ageGroup || '',
+    // Other category fields
+    itemType: itemType || '',
+    specifications: specifications || ''
   });
 
   res.status(201).json({

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useForm } from '../context/FormContext';
+import { createNgoRegistration } from '../services/ngoRegistrationService';
 
 interface NgoRegistrationProps {
   onBack: () => void;
@@ -8,16 +9,19 @@ interface NgoRegistrationProps {
 
 const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) => {
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string>('');
   const { formData, currentStep, updateFormData, setCurrentStep, clearForm } = useForm();
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const steps = [
-    { id: 1, name: 'Basic Information' },
-    { id: 2, name: 'Contact Details' },
-    { id: 3, name: 'Organization Info' },
-    { id: 4, name: 'Aadhaar Upload' },
-    { id: 5, name: 'Review & Submit' },
+    { id: 1, name: 'Basic Identity', section: 'Basic Information' },
+    { id: 2, name: 'Location Details', section: 'Location' },
+    { id: 3, name: 'Identity Proof', section: 'Identity Proof' },
+    { id: 4, name: 'Organization Documents', section: 'Organization Proof' },
+    { id: 5, name: 'Verification', section: 'Verification' },
+    { id: 6, name: 'Review & Submit', section: 'Review & Submit' },
   ];
 
   const isFirstStep = currentStep === 1;
@@ -30,146 +34,158 @@ const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) 
     updateFormData({
       [name]: type === 'checkbox' ? checked : value
     });
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: '' });
+    }
   };
 
-  const handleAadhaarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (fieldName: string, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const reader = new FileReader();
       
-      if (file.type.startsWith('image/')) {
+      if (file.type.startsWith('image/') || file.type === 'application/pdf') {
         reader.onloadend = () => {
           updateFormData({
-            aadhaarCard: file,
-            aadhaarCardName: file.name,
-            aadhaarCardPreview: reader.result as string
+            [fieldName]: file,
+            [`${fieldName}Name`]: file.name,
+            [`${fieldName}Preview`]: reader.result as string
           });
         };
         reader.readAsDataURL(file);
       } else {
         updateFormData({
-          aadhaarCard: file,
-          aadhaarCardName: file.name,
-          aadhaarCardPreview: ''
+          [fieldName]: file,
+          [`${fieldName}Name`]: file.name,
+          [`${fieldName}Preview`]: ''
         });
       }
     }
   };
 
+  const maskAadhaar = (aadhaar: string) => {
+    if (!aadhaar || aadhaar.length !== 12) return aadhaar;
+    return `**** **** ${aadhaar.slice(-4)}`;
+  };
+
   const validateStep = (step: number): boolean => {
     const newErrors: Record<string, string> = {};
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^[6-9]\d{9}$/;
-    const nameRegex = /^[a-zA-Z\s]{3,50}$/;
-    const currentYear = new Date().getFullYear();
+    const aadhaarRegex = /^\d{12}$/;
+    const pincodeRegex = /^\d{6}$/;
+    const nameRegex = /^[a-zA-Z\s]{2,50}$/;
 
     if (step === 1) {
-      // NGO Name validation
-      if (!formData.ngoName.trim()) {
-        newErrors.ngoName = 'NGO name is required';
+      // Organization Type
+      if (!formData.organizationType) {
+        newErrors.organizationType = 'Please select organization type';
+      }
+
+      // Organization/NGO Name
+      if (!formData.ngoName?.trim()) {
+        newErrors.ngoName = 'Organization/NGO name is required';
       } else if (formData.ngoName.trim().length < 3) {
-        newErrors.ngoName = 'NGO name must be at least 3 characters';
+        newErrors.ngoName = 'Name must be at least 3 characters';
       } else if (formData.ngoName.trim().length > 100) {
-        newErrors.ngoName = 'NGO name cannot exceed 100 characters';
+        newErrors.ngoName = 'Name cannot exceed 100 characters';
       }
 
-      // Registration Number validation (only check if not empty)
-      if (!formData.registrationNumber.trim()) {
-        newErrors.registrationNumber = 'Registration number is required';
+      // Contact Person Name
+      if (!formData.contactPerson?.trim()) {
+        newErrors.contactPerson = 'Contact person name is required';
+      } else if (!nameRegex.test(formData.contactPerson.trim())) {
+        newErrors.contactPerson = 'Please enter a valid name (only letters and spaces, 2-50 characters)';
       }
 
-      // Registration Date validation
-      if (!formData.registrationDate) {
-        newErrors.registrationDate = 'Registration date is required';
-      } else {
-        const selectedDate = new Date(formData.registrationDate);
-        const minDate = new Date('1900-01-01');
-        const maxDate = new Date();
-        
-        if (selectedDate < minDate) {
-          newErrors.registrationDate = 'Registration date is too far in the past';
-        } else if (selectedDate > maxDate) {
-          newErrors.registrationDate = 'Registration date cannot be in the future';
-        }
+      // Mobile Number (read-only, but validate if exists)
+      if (formData.phone && !phoneRegex.test(formData.phone.trim())) {
+        newErrors.phone = 'Please enter a valid 10-digit phone number';
       }
     } 
     
     else if (step === 2) {
-      // Contact Person validation
-      if (!formData.contactPerson.trim()) {
-        newErrors.contactPerson = 'Contact person is required';
-      } else if (!nameRegex.test(formData.contactPerson.trim())) {
-        newErrors.contactPerson = 'Please enter a valid name (only letters and spaces, 3-50 characters)';
+      // City
+      if (!formData.city?.trim()) {
+        newErrors.city = 'City is required';
+      } else if (formData.city.trim().length < 2) {
+        newErrors.city = 'City must be at least 2 characters';
       }
 
-      // Phone validation
-      if (!formData.phone.trim()) {
-        newErrors.phone = 'Phone number is required';
-      } else if (!phoneRegex.test(formData.phone.trim())) {
-        newErrors.phone = 'Please enter a valid 10-digit phone number';
+      // State
+      if (!formData.state?.trim()) {
+        newErrors.state = 'State is required';
       }
 
-      // Email validation
-      if (!formData.email.trim()) {
-        newErrors.email = 'Email is required';
-      } else if (!emailRegex.test(formData.email.trim())) {
-        newErrors.email = 'Please enter a valid email address';
-      } else if (formData.email.length > 100) {
-        newErrors.email = 'Email cannot exceed 100 characters';
+      // Pincode
+      if (!formData.pincode?.trim()) {
+        newErrors.pincode = 'Pincode is required';
+      } else if (!pincodeRegex.test(formData.pincode.trim())) {
+        newErrors.pincode = 'Please enter a valid 6-digit pincode';
       }
 
-      // Website validation (optional but must be valid if provided)
-      if (formData.website && formData.website.trim() !== '') {
-        try {
-          new URL(formData.website.startsWith('http') ? formData.website : `https://${formData.website}`);
-        } catch (e) {
-          newErrors.website = 'Please enter a valid website URL';
-        }
-      }
-
-      // Address validation
-      if (!formData.address.trim()) {
-        newErrors.address = 'Address is required';
-      } else if (formData.address.trim().length < 10) {
-        newErrors.address = 'Address must be at least 10 characters';
-      } else if (formData.address.trim().length > 200) {
-        newErrors.address = 'Address cannot exceed 200 characters';
+      // Pickup/Delivery Preference
+      if (!formData.pickupDeliveryPreference) {
+        newErrors.pickupDeliveryPreference = 'Please select pickup/delivery preference';
       }
     } 
     
     else if (step === 3) {
-      // Description validation
-      if (!formData.description.trim()) {
-        newErrors.description = 'Organization description is required';
-      } else if (formData.description.trim().length < 50) {
-        newErrors.description = 'Description must be at least 50 characters';
-      } else if (formData.description.trim().length > 1000) {
-        newErrors.description = 'Description cannot exceed 1000 characters';
+      // Aadhaar Number
+      if (!formData.aadhaarNumber?.trim()) {
+        newErrors.aadhaarNumber = 'Aadhaar number is required';
+      } else if (!aadhaarRegex.test(formData.aadhaarNumber.trim())) {
+        newErrors.aadhaarNumber = 'Aadhaar number must be exactly 12 digits';
       }
 
-      // Establishment Year validation
-      if (!formData.establishmentYear) {
-        newErrors.establishmentYear = 'Establishment year is required';
-      } else if (formData.establishmentYear < 1800 || formData.establishmentYear > currentYear) {
-        newErrors.establishmentYear = `Please enter a valid year between 1800 and ${currentYear}`;
+      // Aadhaar Card Upload
+      if (!formData.aadhaarCard) {
+        // Check if alternate ID is provided
+        if (!formData.alternateIdType || !formData.alternateIdFile) {
+          newErrors.aadhaarCard = 'Please upload Aadhaar card or provide alternate ID';
+        }
+      } else if (formData.aadhaarCard.size > 5 * 1024 * 1024) {
+        newErrors.aadhaarCard = 'File size should not exceed 5MB';
+      }
+
+      // Alternate ID validation (if Aadhaar not provided)
+      if (!formData.aadhaarCard) {
+        if (formData.alternateIdType && !formData.alternateIdFile) {
+          newErrors.alternateIdFile = 'Please upload alternate ID document';
+        }
       }
     } 
     
-    else if (step === 4) {
-      // Aadhaar Card validation
-      if (!formData.aadhaarCard) {
-        newErrors.aadhaarCard = 'Aadhaar card is required';
-      } else if (formData.aadhaarCard.size > 5 * 1024 * 1024) { // 5MB limit
-        newErrors.aadhaarCard = 'File size should not exceed 5MB';
-      } else if (!['image/jpeg', 'image/png', 'image/jpg'].includes(formData.aadhaarCard.type)) {
-        newErrors.aadhaarCard = 'Only JPG, JPEG, and PNG files are allowed';
-      }
-    } 
+     else if (step === 4) {
+       // NGO Registration Number
+       if (!formData.registrationNumber?.trim()) {
+         newErrors.registrationNumber = 'Registration number is required';
+       }
+
+       // NGO Certificate Upload
+       if (!formData.ngoCertificate) {
+         newErrors.ngoCertificate = 'Please upload NGO certificate';
+       } else if (formData.ngoCertificate.size > 10 * 1024 * 1024) {
+         newErrors.ngoCertificate = 'File size should not exceed 10MB';
+       }
+
+       // Address Proof
+       if (!formData.addressProof) {
+         newErrors.addressProof = 'Please upload address proof document';
+       } else if (formData.addressProof.size > 10 * 1024 * 1024) {
+         newErrors.addressProof = 'File size should not exceed 10MB';
+       }
+     }
     
     else if (step === 5) {
-      // Terms and Conditions validation
-      if (!formData.termsAccepted) {
-        newErrors.termsAccepted = 'You must accept the terms and conditions to proceed';
+      // Declaration
+      if (!formData.declarationAccepted) {
+        newErrors.declarationAccepted = 'You must accept the declaration to proceed';
+      }
+
+      // Consent for Verification
+      if (!formData.verificationConsent) {
+        newErrors.verificationConsent = 'You must provide consent for verification';
       }
     }
     
@@ -181,10 +197,8 @@ const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) 
     if (validateStep(currentStep)) {
       setCurrentStep(currentStep + 1);
       setErrors({});
-      // Scroll to top when moving to next step
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      // Scroll to the first error if validation fails
       const firstError = Object.keys(errors)[0];
       if (firstError) {
         const element = document.querySelector(`[name="${firstError}"]`);
@@ -198,22 +212,64 @@ const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) 
   const prevStep = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
-    } else {
-      onBack();
+      setErrors({});
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLastStep) {
       if (validateStep(currentStep)) {
-        console.log('Form submitted:', formData);
-        setIsSubmitted(true);
-        // Clear form and reset after showing success message
-        setTimeout(() => {
-          clearForm();
-          onSuccess();
-        }, 3000);
+        setIsSubmitting(true);
+        setSubmitError('');
+
+        try {
+          // Convert file objects to base64 strings for now
+          // In production, you would upload files to cloud storage first
+          const aadhaarCardBase64 = formData.aadhaarCardPreview || '';
+          const alternateIdFileBase64 = formData.alternateIdFilePreview || '';
+          const ngoCertificateBase64 = formData.ngoCertificatePreview || '';
+          const addressProofBase64 = formData.addressProofPreview || '';
+
+          const registrationData = {
+            organizationType: formData.organizationType as 'NGO' | 'Trust',
+            ngoName: formData.ngoName,
+            contactPerson: formData.contactPerson,
+            phone: formData.phone,
+            city: formData.city,
+            state: formData.state,
+            pincode: formData.pincode,
+            pickupDeliveryPreference: formData.pickupDeliveryPreference as 'Pickup' | 'Delivery' | 'Both',
+            aadhaarNumber: formData.aadhaarNumber,
+            aadhaarCard: aadhaarCardBase64,
+            alternateIdType: (formData.alternateIdType === 'PAN' || formData.alternateIdType === 'Voter ID' || formData.alternateIdType === 'Passport') 
+              ? formData.alternateIdType as 'PAN' | 'Voter ID' | 'Passport' 
+              : '' as '',
+            alternateIdFile: alternateIdFileBase64,
+            registrationNumber: formData.registrationNumber,
+            ngoCertificate: ngoCertificateBase64,
+            addressProof: addressProofBase64,
+            declarationAccepted: formData.declarationAccepted as boolean,
+            verificationConsent: formData.verificationConsent as boolean
+          };
+
+          await createNgoRegistration(registrationData);
+          setIsSubmitted(true);
+          
+          setTimeout(() => {
+            clearForm();
+            onSuccess();
+          }, 3000);
+        } catch (error: any) {
+          console.error('Registration submission error:', error);
+          setSubmitError(
+            error.response?.data?.error || 
+            error.message || 
+            'Failed to submit registration. Please try again.'
+          );
+        } finally {
+          setIsSubmitting(false);
+        }
       }
     } else {
       nextStep();
@@ -242,270 +298,274 @@ const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) 
     return (
       <div className="text-center py-16">
         <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100">
-          <svg
-            className="h-10 w-10 text-green-600"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M5 13l4 4L19 7"
-            />
+          <svg className="h-10 w-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
         <h3 className="mt-4 text-2xl font-medium text-gray-900">Registration Successful!</h3>
-        <p className="mt-2 text-gray-600">Thank you for registering your NGO with us.</p>
-        <p className="mt-1 text-gray-500">You will be redirected to the home page shortly...</p>
+        <p className="mt-2 text-gray-600">Your registration is under verification.</p>
+        <p className="mt-1 text-gray-500">You will be redirected to the dashboard shortly...</p>
       </div>
     );
   }
 
   const renderStep = () => {
     switch (currentStep) {
-      case 1:
+      case 1: // Basic Identity
         return (
           <div className="space-y-6">
             <StepHeader 
               title="Basic Information" 
-              description="Tell us about your organization" 
+              description="Aap kaun ho? Clearly define karna" 
             />
             <div>
-              <label className="block text-base font-medium text-gray-800 mb-1">NGO Name *</label>
+              <label className="block text-base font-medium text-gray-800 mb-1">
+                Organization Type <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="organizationType"
+                value={formData.organizationType || ''}
+                onChange={handleChange}
+                required
+                className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
+                  errors.organizationType ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
+                } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
+              >
+                <option value="">Select organization type</option>
+                <option value="NGO">NGO</option>
+                <option value="Trust">Trust</option>
+              </select>
+              {renderError('organizationType')}
+              <p className="mt-1 text-sm text-gray-500">Verification rules depend karte hain</p>
+            </div>
+
+            <div>
+              <label className="block text-base font-medium text-gray-800 mb-1">
+                Organization / NGO Name <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 name="ngoName"
-                value={formData.ngoName}
+                value={formData.ngoName || ''}
                 onChange={handleChange}
                 required
+                placeholder="e.g., Helping Hands Foundation"
                 className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
                   errors.ngoName ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
                 } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
               />
               {renderError('ngoName')}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-base font-medium text-gray-800 mb-1">Registration Number *</label>
-                <input
-                  type="text"
-                  name="registrationNumber"
-                  value={formData.registrationNumber}
-                  onChange={handleChange}
-                  required
-                  placeholder="e.g., 1234/5678/90 or ABC-1234-XY"
-                  className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
-                    errors.registrationNumber ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
-                  } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
-                />
-                <p className="mt-1 text-sm text-gray-500">
-                  Enter your organization's registration number
-                </p>
-                {renderError('registrationNumber')}
-              </div>
-              <div>
-                <label className="block text-base font-medium text-gray-800 mb-1">Registration Date *</label>
-                <input
-                  type="date"
-                  name="registrationDate"
-                  value={formData.registrationDate}
-                  onChange={handleChange}
-                  required
-                  className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
-                    errors.registrationDate ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
-                  } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
-                />
-                {renderError('registrationDate')}
-              </div>
-            </div>
-          </div>
-        );
-      case 2:
-        return (
-          <div className="space-y-6">
-            <StepHeader 
-              title="Contact Information" 
-              description="How can we reach you?" 
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-base font-medium text-gray-800 mb-1">Contact Person *</label>
-                <input
-                  type="text"
-                  name="contactPerson"
-                  value={formData.contactPerson}
-                  onChange={handleChange}
-                  required
-                  className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
-                    errors.contactPerson ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
-                  } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
-                />
-                {renderError('contactPerson')}
-              </div>
-              <div>
-                <label className="block text-base font-medium text-gray-800 mb-1">Phone Number *</label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  required
-                  className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
-                    errors.phone ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
-                  } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
-                />
-                {renderError('phone')}
-              </div>
-            </div>
+
             <div>
-              <label className="block text-base font-medium text-gray-800 mb-1">Email *</label>
+              <label className="block text-base font-medium text-gray-800 mb-1">
+                Contact Person Name <span className="text-red-500">*</span>
+              </label>
               <input
-                type="email"
-                name="email"
-                value={formData.email}
+                type="text"
+                name="contactPerson"
+                value={formData.contactPerson || ''}
                 onChange={handleChange}
                 required
+                placeholder="e.g., Rahul Sharma"
                 className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
-                  errors.email ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
+                  errors.contactPerson ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
                 } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
               />
-              {renderError('email')}
+              {renderError('contactPerson')}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+
+            <div>
+              <label className="block text-base font-medium text-gray-800 mb-1">
+                Mobile Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone || ''}
+                onChange={handleChange}
+                required
+                maxLength={10}
+                pattern="[6-9][0-9]{9}"
+                placeholder="Enter 10-digit mobile number"
+                className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
+                  errors.phone ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
+                } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
+              />
+              {renderError('phone')}
+            </div>
+          </div>
+        );
+
+      case 2: // Location Details
+        return (
+          <div className="space-y-6">
+            <StepHeader 
+              title="Location" 
+              description="Logistics & regional validation" 
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-base font-medium text-gray-800 mb-1">Website</label>
+                <label className="block text-base font-medium text-gray-800 mb-1">
+                  City <span className="text-red-500">*</span>
+                </label>
                 <input
-                  type="url"
-                  name="website"
-                  value={formData.website}
+                  type="text"
+                  name="city"
+                  value={formData.city || ''}
                   onChange={handleChange}
-                  placeholder="https://example.com"
-                  className="mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 border-gray-200 hover:border-gray-300 shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150"
+                  required
+                  className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
+                    errors.city ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
+                  } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
                 />
+                {renderError('city')}
               </div>
+
               <div>
-                <label className="block text-base font-medium text-gray-800 mb-1">Year of Establishment</label>
-                <select
-                  name="establishmentYear"
-                  value={formData.establishmentYear}
+                <label className="block text-base font-medium text-gray-800 mb-1">
+                  State <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="state"
+                  value={formData.state || ''}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 border-gray-200 hover:border-gray-300 shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150"
-                >
-                  {Array.from({length: 50}, (_, i) => new Date().getFullYear() - i).map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
+                  required
+                  className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
+                    errors.state ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
+                  } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
+                />
+                {renderError('state')}
               </div>
             </div>
+
             <div>
-              <label className="block text-base font-medium text-gray-800 mb-1">Address *</label>
-              <textarea
-                name="address"
-                value={formData.address}
+              <label className="block text-base font-medium text-gray-800 mb-1">
+                Pincode <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="pincode"
+                value={formData.pincode || ''}
                 onChange={handleChange}
                 required
-                rows={3}
+                maxLength={6}
+                pattern="[0-9]{6}"
                 className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
-                  errors.address ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
+                  errors.pincode ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
                 } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
               />
-              {renderError('address')}
+              {renderError('pincode')}
+            </div>
+
+            <div>
+              <label className="block text-base font-medium text-gray-800 mb-1">
+                Pickup / Delivery Preference <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="pickupDeliveryPreference"
+                value={formData.pickupDeliveryPreference || ''}
+                onChange={handleChange}
+                required
+                className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
+                  errors.pickupDeliveryPreference ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
+                } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
+              >
+                <option value="">Select preference</option>
+                <option value="Pickup">Pickup</option>
+                <option value="Delivery">Delivery</option>
+                <option value="Both">Both</option>
+              </select>
+              {renderError('pickupDeliveryPreference')}
             </div>
           </div>
         );
-      case 3:
+
+      case 3: // Identity Proof
         return (
           <div className="space-y-6">
             <StepHeader 
-              title="Organization Details" 
-              description="Tell us more about your work" 
+              title="Identity Proof" 
+              description="Individual / authorized person ki identity confirm karna" 
             />
             <div>
-              <label className="block text-base font-medium text-gray-800 mb-1">About Your Organization *</label>
-              <textarea
-                name="description"
-                value={formData.description}
+              <label className="block text-base font-medium text-gray-800 mb-1">
+                Aadhaar Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="aadhaarNumber"
+                value={formData.aadhaarNumber || ''}
                 onChange={handleChange}
                 required
-                rows={6}
-                placeholder="Tell us about your organization's mission, vision, and activities..."
+                maxLength={12}
+                pattern="[0-9]{12}"
+                placeholder="Enter 12-digit Aadhaar number"
                 className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
-                  errors.description ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
+                  errors.aadhaarNumber ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
                 } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
               />
-              {renderError('description')}
+              {formData.aadhaarNumber && formData.aadhaarNumber.length === 12 && (
+                <p className="mt-2 text-sm font-medium text-gray-700">
+                  Display: {maskAadhaar(formData.aadhaarNumber)}
+                </p>
+              )}
+              {renderError('aadhaarNumber')}
             </div>
-          </div>
-        );
-      case 4:
-        return (
-          <div className="space-y-6">
-            <StepHeader 
-              title="Aadhaar Card Upload" 
-              description="Please upload a clear photo of your Aadhaar Card (Front Side)" 
-            />
-            <div className={`border-2 ${
-              errors['aadhaarCard'] ? 'border-red-300 bg-red-50' : 'border-dashed border-gray-300 hover:border-emerald-400'
-            } rounded-xl p-8 text-center transition-all duration-200`}>
-              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                <div className="space-y-1 text-center">
-                  <svg
-                    className="mx-auto h-12 w-12 text-gray-400"
-                    stroke="currentColor"
-                    fill="none"
-                    viewBox="0 0 48 48"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <div className="flex text-sm text-gray-600 justify-center">
-                    <label
-                      htmlFor="aadhaarCard"
-                      className="relative cursor-pointer bg-white rounded-md font-medium text-emerald-600 hover:text-emerald-500 focus-within:outline-none"
-                    >
-                      <span>Upload Aadhaar Card</span>
+
+            <div>
+              <label className="block text-base font-medium text-gray-800 mb-1">
+                Upload Aadhaar Card (Front side) <span className="text-red-500">*</span>
+              </label>
+              {!formData.aadhaarCardPreview ? (
+                <div className={`mt-1 border-2 ${
+                  errors.aadhaarCard ? 'border-red-300 bg-red-50' : 'border-dashed border-gray-300 hover:border-emerald-400'
+                } rounded-xl p-8 text-center transition-all duration-200`}>
+                  <div className="space-y-1 text-center">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <div className="flex text-sm text-gray-600 justify-center">
+                      <label htmlFor="aadhaarCard" className="relative cursor-pointer bg-white rounded-md font-medium text-emerald-600 hover:text-emerald-500">
+                        <span>Upload Aadhaar Card</span>
+                        <input
+                          id="aadhaarCard"
+                          name="aadhaarCard"
+                          type="file"
+                          className="sr-only"
+                          onChange={(e) => handleFileUpload('aadhaarCard', e)}
+                          accept="image/*"
+                        />
+                      </label>
+                      <p className="pl-1">(Front side only)</p>
+                    </div>
+                    <p className="text-sm text-gray-500">JPG, JPEG, or PNG up to 5MB</p>
+                  </div>
+                </div>
+              ) : null}
+              {formData.aadhaarCardPreview && (
+                <div className="mt-4 p-4 border border-green-200 bg-green-50 rounded-lg">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center space-x-4">
+                      <img src={formData.aadhaarCardPreview} alt="Aadhaar Preview" className="h-32 w-auto object-contain rounded-md" />
+                      <div>
+                        <p className="text-sm font-medium text-green-800">{formData.aadhaarCardName}</p>
+                        <p className="text-xs text-gray-500 mt-1">Aadhaar Card uploaded</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <label className="cursor-pointer px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors">
+                      <span>Edit</span>
                       <input
-                        id="aadhaarCard"
-                        name="aadhaarCard"
+                        key={formData.aadhaarCardName}
                         type="file"
                         className="sr-only"
-                        onChange={handleAadhaarUpload}
+                        onChange={(e) => handleFileUpload('aadhaarCard', e)}
                         accept="image/*"
-                        required
                       />
                     </label>
-                    <p className="pl-1">(Front side only)</p>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-2">JPG, JPEG, or PNG up to 5MB</p>
-                  {errors['aadhaarCard'] && (
-                    <p className="mt-2 text-sm text-red-600">{errors['aadhaarCard']}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            {formData.aadhaarCardPreview && formData.aadhaarCard && (
-              <div className="mt-6 p-4 border border-green-200 bg-green-50 rounded-lg">
-                <div className="flex items-center space-x-4">
-                  <img 
-                    src={formData.aadhaarCardPreview} 
-                    alt="Aadhaar Card Preview" 
-                    className="h-32 w-auto object-contain rounded-md border border-gray-200"
-                  />
-                  <div className="text-left">
-                    <p className="text-sm font-medium text-green-800">Aadhaar Card (Front)</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formData.aadhaarCard.type || 'Image'} • 
-                      {`Size: ${Math.round(formData.aadhaarCard.size / 1024)} KB`}
-                    </p>
                     <button
                       type="button"
                       onClick={() => {
@@ -515,121 +575,403 @@ const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) 
                           aadhaarCardPreview: ''
                         });
                       }}
-                      className="mt-2 text-xs text-red-600 hover:text-red-800"
+                      className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
                     >
-                      Remove and upload again
+                      Discard
                     </button>
                   </div>
                 </div>
+              )}
+              {renderError('aadhaarCard')}
+            </div>
+
+            <div className="border-t pt-6">
+              <p className="text-sm font-medium text-gray-700 mb-4">Alternate ID (Optional - if Aadhaar not available)</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-base font-medium text-gray-800 mb-1">Alternate ID Type</label>
+                  <select
+                    name="alternateIdType"
+                    value={formData.alternateIdType || ''}
+                    onChange={handleChange}
+                    className="mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 border-gray-200 hover:border-gray-300 shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  >
+                    <option value="">Select ID type</option>
+                    <option value="PAN">PAN</option>
+                    <option value="Voter ID">Voter ID</option>
+                    <option value="Passport">Passport</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-base font-medium text-gray-800 mb-1">Upload Alternate ID</label>
+                  {!formData.alternateIdFilePreview ? (
+                    <input
+                      type="file"
+                      name="alternateIdFile"
+                      onChange={(e) => handleFileUpload('alternateIdFile', e)}
+                      accept="image/*,application/pdf"
+                      className="mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 border-gray-200 hover:border-gray-300 shadow-sm"
+                    />
+                  ) : (
+                    <div className="mt-1 p-4 border border-green-200 bg-green-50 rounded-lg">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="text-sm font-medium text-green-800">{formData.alternateIdFileName}</p>
+                          <p className="text-xs text-gray-500 mt-1">Alternate ID uploaded</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <label className="cursor-pointer px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors">
+                          <span>Edit</span>
+                          <input
+                            key={formData.alternateIdFileName}
+                            type="file"
+                            className="sr-only"
+                            onChange={(e) => handleFileUpload('alternateIdFile', e)}
+                            accept="image/*,application/pdf"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateFormData({
+                              alternateIdFile: null,
+                              alternateIdFileName: '',
+                              alternateIdFilePreview: ''
+                            });
+                          }}
+                          className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+                        >
+                          Discard
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {renderError('alternateIdFile')}
+                </div>
               </div>
-            )}
-            
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="text-sm font-medium text-blue-800 mb-2">Note:</h4>
-              <ul className="text-sm text-blue-700 space-y-1 list-disc pl-5">
-                <li>Upload a clear photo of the front side of your Aadhaar Card</li>
-                <li>Make sure all details are clearly visible</li>
-                <li>File should be in JPG, JPEG, or PNG format</li>
-                <li>Maximum file size: 5MB</li>
-              </ul>
             </div>
           </div>
         );
-      case 5:
+
+      case 4: // Organization Documents
+        return (
+          <div className="space-y-6">
+            <StepHeader 
+              title="Organization Proof" 
+              description="Organization real hai ya nahi — ye verify hota hai" 
+            />
+            <div>
+              <label className="block text-base font-medium text-gray-800 mb-1">
+                NGO Registration Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="registrationNumber"
+                value={formData.registrationNumber || ''}
+                onChange={handleChange}
+                required
+                placeholder="e.g., 1234/5678/90 or ABC-1234-XY"
+                className={`mt-1 block w-full rounded-xl text-base px-4 py-3 border-2 ${
+                  errors.registrationNumber ? 'border-red-300' : 'border-gray-200 hover:border-gray-300'
+                } shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150`}
+              />
+              {renderError('registrationNumber')}
+            </div>
+
+            <div>
+              <label className="block text-base font-medium text-gray-800 mb-1">
+                Upload NGO Certificate <span className="text-red-500">*</span>
+              </label>
+              {!formData.ngoCertificatePreview ? (
+                <div className={`mt-1 border-2 ${
+                  errors.ngoCertificate ? 'border-red-300 bg-red-50' : 'border-dashed border-gray-300 hover:border-emerald-400'
+                } rounded-xl p-8 text-center transition-all duration-200`}>
+                  <div className="space-y-1 text-center">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <label htmlFor="ngoCertificate" className="relative cursor-pointer bg-white rounded-md font-medium text-emerald-600 hover:text-emerald-500">
+                      <span>Upload NGO Certificate</span>
+                      <input
+                        id="ngoCertificate"
+                        name="ngoCertificate"
+                        type="file"
+                        className="sr-only"
+                        onChange={(e) => handleFileUpload('ngoCertificate', e)}
+                        accept="image/*,application/pdf"
+                        required
+                      />
+                    </label>
+                    <p className="text-sm text-gray-500">PDF or Image up to 10MB</p>
+                  </div>
+                </div>
+              ) : null}
+              {formData.ngoCertificatePreview && (
+                <div className="mt-4 p-4 border border-green-200 bg-green-50 rounded-lg">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm font-medium text-green-800">{formData.ngoCertificateName}</p>
+                      <p className="text-xs text-gray-500 mt-1">NGO Certificate uploaded</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <label className="cursor-pointer px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors">
+                      <span>Edit</span>
+                      <input
+                        key={formData.ngoCertificateName}
+                        type="file"
+                        className="sr-only"
+                        onChange={(e) => handleFileUpload('ngoCertificate', e)}
+                        accept="image/*,application/pdf"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateFormData({
+                          ngoCertificate: null,
+                          ngoCertificateName: '',
+                          ngoCertificatePreview: ''
+                        });
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              )}
+              {renderError('ngoCertificate')}
+            </div>
+
+            <div>
+              <label className="block text-base font-medium text-gray-800 mb-1">
+                Address Proof <span className="text-red-500">*</span>
+              </label>
+              <p className="text-sm text-gray-600 mb-2">Upload one document (Electricity bill / Rent agreement / Govt letter)</p>
+              {!formData.addressProofPreview ? (
+                <div className={`mt-1 border-2 ${
+                  errors.addressProof ? 'border-red-300 bg-red-50' : 'border-dashed border-gray-300 hover:border-emerald-400'
+                } rounded-xl p-8 text-center transition-all duration-200`}>
+                  <div className="space-y-1 text-center">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <label htmlFor="addressProof" className="relative cursor-pointer bg-white rounded-md font-medium text-emerald-600 hover:text-emerald-500">
+                      <span>Upload Address Proof</span>
+                      <input
+                        id="addressProof"
+                        name="addressProof"
+                        type="file"
+                        className="sr-only"
+                        onChange={(e) => handleFileUpload('addressProof', e)}
+                        accept="image/*,application/pdf"
+                        required
+                      />
+                    </label>
+                    <p className="text-sm text-gray-500">PDF or Image up to 10MB</p>
+                  </div>
+                </div>
+              ) : null}
+              {formData.addressProofPreview && (
+                <div className="mt-4 p-4 border border-green-200 bg-green-50 rounded-lg">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm font-medium text-green-800">{formData.addressProofName}</p>
+                      <p className="text-xs text-gray-500 mt-1">Address Proof uploaded</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <label className="cursor-pointer px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors">
+                      <span>Edit</span>
+                      <input
+                        key={formData.addressProofName}
+                        type="file"
+                        className="sr-only"
+                        onChange={(e) => handleFileUpload('addressProof', e)}
+                        accept="image/*,application/pdf"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateFormData({
+                          addressProof: null,
+                          addressProofName: '',
+                          addressProofPreview: ''
+                        });
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              )}
+              {renderError('addressProof')}
+            </div>
+          </div>
+        );
+
+      case 5: // Verification & Declaration
+        return (
+          <div className="space-y-6">
+            <StepHeader 
+              title="Verification" 
+              description="System Action: Status set to Verification Pending, Admin notified for review" 
+            />
+            <div className="space-y-6">
+              <div className="flex items-start">
+                <div className="flex items-center h-6">
+                  <input
+                    id="declaration"
+                    name="declarationAccepted"
+                    type="checkbox"
+                    checked={formData.declarationAccepted as boolean || false}
+                    onChange={handleChange}
+                    className={`focus:ring-emerald-500 h-5 w-5 border-2 ${
+                      errors.declarationAccepted 
+                        ? 'border-red-300 text-red-600' 
+                        : 'border-gray-300 text-emerald-600 hover:border-emerald-400'
+                    } rounded`}
+                    required
+                  />
+                </div>
+                <div className="ml-3 text-base">
+                  <label htmlFor="declaration" className={`font-medium ${
+                    errors.declarationAccepted ? 'text-red-600' : 'text-gray-800'
+                  }`}>
+                    I confirm that all the information and documents provided are true.
+                  </label>
+                  {renderError('declarationAccepted')}
+                </div>
+              </div>
+
+              <div className="flex items-start">
+                <div className="flex items-center h-6">
+                  <input
+                    id="verificationConsent"
+                    name="verificationConsent"
+                    type="checkbox"
+                    checked={formData.verificationConsent as boolean || false}
+                    onChange={handleChange}
+                    className={`focus:ring-emerald-500 h-5 w-5 border-2 ${
+                      errors.verificationConsent 
+                        ? 'border-red-300 text-red-600' 
+                        : 'border-gray-300 text-emerald-600 hover:border-emerald-400'
+                    } rounded`}
+                    required
+                  />
+                </div>
+                <div className="ml-3 text-base">
+                  <label htmlFor="verificationConsent" className={`font-medium ${
+                    errors.verificationConsent ? 'text-red-600' : 'text-gray-800'
+                  }`}>
+                    I allow the platform to verify my details.
+                  </label>
+                  {renderError('verificationConsent')}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 6: // Review & Submit
         return (
           <div className="space-y-8">
             <StepHeader 
-              title="Review Your Information" 
-              description="Please verify all details before submitting" 
+              title="Review & Submit" 
+              description="Please review all information before submitting" 
             />
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-100">Basic Information</h4>
-              <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <dt className="text-sm font-medium text-gray-500">NGO Name</dt>
-                  <dd className="mt-1 text-base text-gray-900 font-medium">{formData.ngoName}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Registration Number</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{formData.registrationNumber}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Registration Date</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{formData.registrationDate}</dd>
-                </div>
-              </dl>
-
-              <h4 className="text-xl font-semibold text-gray-900 mt-8 mb-4 pb-2 border-b border-gray-100">Contact Information</h4>
-              <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Contact Person</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{formData.contactPerson}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Phone</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{formData.phone}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Email</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{formData.email}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm font-medium text-gray-500">Website</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{formData.website || 'Not provided'}</dd>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <dt className="text-sm font-medium text-gray-500">Address</dt>
-                  <dd className="mt-2 text-base text-gray-900 whitespace-pre-line">{formData.address}</dd>
-                </div>
-              </dl>
-
-              <h4 className="text-xl font-semibold text-gray-900 mt-8 mb-4 pb-2 border-b border-gray-100">Organization Details</h4>
+            <div className="bg-gray-50 p-6 rounded-lg space-y-6">
               <div>
-                <dt className="text-sm font-medium text-gray-500">About</dt>
-                <dd className="mt-1 text-sm text-gray-900 whitespace-pre-line">{formData.description}</dd>
-              </div>
-              <div className="mt-4">
-                <dt className="text-sm font-medium text-gray-500">Year of Establishment</dt>
-                <dd className="mt-1 text-sm text-gray-900">{formData.establishmentYear}</dd>
+                <h4 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Basic Information</h4>
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Organization Type</dt>
+                    <dd className="mt-1 text-base text-gray-900 font-medium">{formData.organizationType}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Organization/NGO Name</dt>
+                    <dd className="mt-1 text-base text-gray-900 font-medium">{formData.ngoName}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Contact Person</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{formData.contactPerson}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Mobile Number</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{formData.phone}</dd>
+                  </div>
+                </dl>
               </div>
 
-              <div className="mt-10 pt-6 border-t border-gray-200">
-                <div className="flex items-start">
-                  <div className="flex items-center h-6">
-                    <input
-                      id="terms"
-                      name="termsAccepted"
-                      type="checkbox"
-                      checked={formData.termsAccepted as boolean}
-                      onChange={handleChange}
-                      className={`focus:ring-emerald-500 h-5 w-5 border-2 ${
-                        errors.termsAccepted 
-                          ? 'border-red-300 text-red-600' 
-                          : 'border-gray-300 text-emerald-600 hover:border-emerald-400'
-                      } rounded`}
-                      required
-                    />
+              <div>
+                <h4 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Location</h4>
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">City</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{formData.city}</dd>
                   </div>
-                  <div className="ml-3 text-base">
-                    <label htmlFor="terms" className={`font-medium ${
-                      errors.termsAccepted ? 'text-red-600' : 'text-gray-800'
-                    }`}>
-                      I certify that all the information provided is accurate and complete to the best of my knowledge.
-                      {errors.termsAccepted && (
-                        <p className="text-red-600 text-sm font-normal mt-1 flex items-center">
-                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                          {errors.termsAccepted}
-                        </p>
-                      )}
-                    </label>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">State</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{formData.state}</dd>
                   </div>
-                </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Pincode</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{formData.pincode}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Pickup/Delivery Preference</dt>
+                    <dd className="mt-1 text-sm text-gray-900">{formData.pickupDeliveryPreference}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div>
+                <h4 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Identity Proof</h4>
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-3">
+                  <div>
+                    <dt className="text-sm font-medium text-gray-500">Aadhaar Number</dt>
+                    <dd className="mt-1 text-sm text-gray-900 font-mono">
+                      {formData.aadhaarNumber ? maskAadhaar(formData.aadhaarNumber) : 'Not provided'}
+                    </dd>
+                  </div>
+                  {formData.alternateIdType && (
+                    <div>
+                      <dt className="text-sm font-medium text-gray-500">Alternate ID</dt>
+                      <dd className="mt-1 text-sm text-gray-900">{formData.alternateIdType}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+
+              <div>
+                <h4 className="text-xl font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Organization Documents</h4>
+                <dl className="grid grid-cols-1 gap-x-4 gap-y-3">
+                  {formData.registrationNumber && (
+                    <div>
+                      <dt className="text-sm font-medium text-gray-500">Registration Number</dt>
+                      <dd className="mt-1 text-sm text-gray-900">{formData.registrationNumber}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+
+              <div className="pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(1)}
+                  className="text-emerald-600 hover:text-emerald-700 font-medium"
+                >
+                  Edit any step →
+                </button>
               </div>
             </div>
           </div>
         );
+
       default:
         return null;
     }
@@ -659,7 +1001,10 @@ const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) 
                   }`}>
                     {currentStep > step.id ? '✓' : step.id}
                   </span>
-                  <span className="text-lg">{step.name}</span>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{step.name}</div>
+                    <div className="text-xs opacity-80">{step.section}</div>
+                  </div>
                 </div>
               ))}
             </nav>
@@ -668,6 +1013,16 @@ const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) 
           {/* Main Content */}
           <div className="md:w-3/4 p-10 overflow-y-auto max-h-[600px]">
             <form onSubmit={handleSubmit} className="space-y-8">
+              {submitError && (
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-600 flex items-start">
+                    <svg className="w-5 h-5 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    {submitError}
+                  </p>
+                </div>
+              )}
               {renderStep()}
 
               <div className="flex flex-col sm:flex-row justify-between pt-8 mt-8 border-t border-gray-200">
@@ -693,9 +1048,22 @@ const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) 
                   </button>
                   <button
                     type="submit"
-                    className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white text-lg font-semibold rounded-xl hover:from-emerald-700 hover:to-emerald-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-lg shadow-emerald-100 hover:shadow-emerald-200 transition-all"
+                    disabled={isSubmitting}
+                    className={`px-8 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white text-lg font-semibold rounded-xl hover:from-emerald-700 hover:to-emerald-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-lg shadow-emerald-100 hover:shadow-emerald-200 transition-all ${
+                      isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   >
-                    {isLastStep ? 'Submit Application' : 'Continue →'}
+                    {isSubmitting ? (
+                      <span className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Submitting...
+                      </span>
+                    ) : (
+                      isLastStep ? 'Submit Registration' : 'Continue →'
+                    )}
                   </button>
                 </div>
               </div>
@@ -708,3 +1076,4 @@ const NgoRegistration: React.FC<NgoRegistrationProps> = ({ onBack, onSuccess }) 
 };
 
 export default NgoRegistration;
+
