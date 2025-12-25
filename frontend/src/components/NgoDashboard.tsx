@@ -1,5 +1,8 @@
 import type { User } from 'firebase/auth';
 import { useState, useEffect } from 'react';
+import { createNgoRequest } from '../services/ngoRequestService';
+import { createFeedback } from '../services/feedbackService';
+import { createContact } from '../services/contactService';
 
 interface NgoDashboardProps {
   user: User | null;
@@ -9,6 +12,50 @@ interface NgoDashboardProps {
 export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
+  
+  // Form state for create request
+  const [formData, setFormData] = useState({
+    requestTitle: '',
+    category: '',
+    quantity: '',
+    urgencyLevel: '',
+    description: '',
+    neededBy: '',
+    images: [] as File[]
+  });
+  const [formLoading, setFormLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [formFieldErrors, setFormFieldErrors] = useState<Record<string, string>>({});
+
+  // Form state for feedback
+  const [feedbackData, setFeedbackData] = useState({
+    subject: '',
+    feedbackType: '',
+    description: '',
+    rating: 0,
+    screenshot: null as File | null,
+    contactPermission: false
+  });
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
+  const [feedbackFieldErrors, setFeedbackFieldErrors] = useState<Record<string, string>>({});
+
+  // State for FAQ dropdowns
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
+
+  // Form state for contact form
+  const [contactData, setContactData] = useState({
+    name: '',
+    email: '',
+    subject: '',
+    message: ''
+  });
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
+  const [contactSuccess, setContactSuccess] = useState<string | null>(null);
+  const [contactFieldErrors, setContactFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -52,17 +99,23 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
       {/* Creative Header */}
       <div className="bg-gradient-to-r from-emerald-600 to-teal-500 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            {/* Left Section with Title */}
-            <div className="flex items-center">
-              <div className="text-center md:text-left">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center py-6">
+            {/* Left Section with Title - Hidden on mobile, shown on md+ */}
+            <div className="hidden md:flex items-center">
+              <div className="text-left">
                 <h1 className="text-3xl md:text-4xl font-bold text-white drop-shadow-md">NGO Dashboard</h1>
                 <p className="text-sm md:text-base text-white/90 font-medium mt-1">Making a difference, one donation at a time</p>
               </div>
             </div>
 
+            {/* Mobile Title - Only shown on mobile */}
+            <div className="md:hidden mb-4">
+              <h1 className="text-2xl font-bold text-white drop-shadow-md">NGO Dashboard</h1>
+              <p className="text-sm text-white/90 mt-1">Making a difference, one donation at a time</p>
+            </div>
+
             {/* Right Section with User Info */}
-            <div className="flex items-center space-x-3 group cursor-pointer">
+            <div className="flex items-center justify-end space-x-3 group cursor-pointer">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-semibold text-white drop-shadow">{user?.displayName || 'NGO User'}</p>
                 <p className="text-xs text-white/80">{user?.email}</p>
@@ -85,16 +138,10 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                   </div>
                 )}
               </div>
-              <svg className="w-5 h-5 text-white/80 transform transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-white/80 transform transition-transform group-hover:translate-x-1 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </div>
-          </div>
-          
-          {/* Mobile Title */}
-          <div className="md:hidden pb-4 px-2">
-            <h1 className="text-xl font-bold text-white drop-shadow-md">NGO Dashboard</h1>
-            <p className="text-xs text-white/90">Making a difference, one donation at a time</p>
           </div>
         </div>
       </div>
@@ -477,7 +524,125 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                 <h2 className="text-lg font-medium text-gray-900">Create New Donation Request</h2>
               </div>
               <div className="p-6">
-                <form className="space-y-6">
+                {formSuccess && (
+                  <div className="mb-4 p-4 bg-green-50 border-2 border-green-400 rounded-lg shadow-sm">
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-sm font-semibold text-green-800">{formSuccess}</p>
+                    </div>
+                  </div>
+                )}
+                {formError && (
+                  <div className="mb-4 p-4 bg-red-50 border-2 border-red-400 rounded-lg shadow-sm">
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-sm font-semibold text-red-800">{formError}</p>
+                    </div>
+                  </div>
+                )}
+                <form 
+                  className="space-y-6"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setFormError(null);
+                    setFormSuccess(null);
+                    setFormFieldErrors({});
+
+                    // Validation
+                    const errors: Record<string, string> = {};
+                    
+                    if (!formData.requestTitle.trim()) {
+                      errors.requestTitle = 'Request title is required';
+                    } else if (formData.requestTitle.trim().length < 5) {
+                      errors.requestTitle = 'Request title must be at least 5 characters';
+                    } else if (formData.requestTitle.trim().length > 100) {
+                      errors.requestTitle = 'Request title must be less than 100 characters';
+                    }
+
+                    if (!formData.category) {
+                      errors.category = 'Please select a category';
+                    }
+
+                    if (!formData.quantity) {
+                      errors.quantity = 'Quantity is required';
+                    } else {
+                      const qty = Number(formData.quantity);
+                      if (isNaN(qty) || qty < 1) {
+                        errors.quantity = 'Quantity must be at least 1';
+                      } else if (qty > 1000000) {
+                        errors.quantity = 'Quantity is too large';
+                      }
+                    }
+
+                    if (!formData.urgencyLevel) {
+                      errors.urgencyLevel = 'Please select urgency level';
+                    }
+
+                    if (!formData.description.trim()) {
+                      errors.description = 'Description is required';
+                    } else if (formData.description.trim().length < 20) {
+                      errors.description = 'Description must be at least 20 characters';
+                    } else if (formData.description.trim().length > 1000) {
+                      errors.description = 'Description must be less than 1000 characters';
+                    }
+
+                    if (formData.neededBy) {
+                      const selectedDate = new Date(formData.neededBy);
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      if (selectedDate < today) {
+                        errors.neededBy = 'Date cannot be in the past';
+                      }
+                    }
+
+                    if (Object.keys(errors).length > 0) {
+                      setFormFieldErrors(errors);
+                      return;
+                    }
+
+                    setFormLoading(true);
+
+                    try {
+                      const requestData = {
+                        requestTitle: formData.requestTitle.trim(),
+                        category: formData.category as 'food' | 'clothing' | 'medical' | 'education' | 'other',
+                        quantity: Number(formData.quantity),
+                        urgencyLevel: formData.urgencyLevel as 'low' | 'medium' | 'high',
+                        description: formData.description.trim(),
+                        neededBy: formData.neededBy || undefined,
+                        images: [] // TODO: Handle image uploads
+                      };
+
+                      await createNgoRequest(requestData);
+                      setFormSuccess('Request is created successfully!');
+                      
+                      // Reset form
+                      setFormData({
+                        requestTitle: '',
+                        category: '',
+                        quantity: '',
+                        urgencyLevel: '',
+                        description: '',
+                        neededBy: '',
+                        images: []
+                      });
+
+                      // Switch to my-requests tab after 3 seconds
+                      setTimeout(() => {
+                        setActiveTab('my-requests');
+                        setFormSuccess(null);
+                      }, 3000);
+                    } catch (error: any) {
+                      setFormError(error.response?.data?.message || 'Failed to create request. Please try again.');
+                    } finally {
+                      setFormLoading(false);
+                    }
+                  }}
+                >
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
                       Request Title <span className="text-red-500">*</span>
@@ -485,9 +650,22 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     <input
                       type="text"
                       required
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                      value={formData.requestTitle}
+                      onChange={(e) => {
+                        setFormData({ ...formData, requestTitle: e.target.value });
+                        if (formFieldErrors.requestTitle) {
+                          setFormFieldErrors({ ...formFieldErrors, requestTitle: '' });
+                        }
+                      }}
+                      className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 ${
+                        formFieldErrors.requestTitle ? 'border-red-500' : 'border-gray-300'
+                      }`}
                       placeholder="e.g., Urgent Need: Winter Blankets for Homeless Shelter"
+                      maxLength={100}
                     />
+                    {formFieldErrors.requestTitle && (
+                      <p className="mt-1 text-sm text-red-600">{formFieldErrors.requestTitle}</p>
+                    )}
                   </div>
 
                   <div>
@@ -496,7 +674,16 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     </label>
                     <select
                       required
-                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm rounded-md"
+                      value={formData.category}
+                      onChange={(e) => {
+                        setFormData({ ...formData, category: e.target.value });
+                        if (formFieldErrors.category) {
+                          setFormFieldErrors({ ...formFieldErrors, category: '' });
+                        }
+                      }}
+                      className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm rounded-md ${
+                        formFieldErrors.category ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     >
                       <option value="">Select a category</option>
                       <option value="food">Food & Groceries</option>
@@ -505,6 +692,9 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                       <option value="education">Educational Materials</option>
                       <option value="other">Other</option>
                     </select>
+                    {formFieldErrors.category && (
+                      <p className="mt-1 text-sm text-red-600">{formFieldErrors.category}</p>
+                    )}
                   </div>
 
                   <div>
@@ -514,10 +704,23 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     <input
                       type="number"
                       min="1"
+                      max="1000000"
                       required
-                      className="mt-1 block w-32 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                      value={formData.quantity}
+                      onChange={(e) => {
+                        setFormData({ ...formData, quantity: e.target.value });
+                        if (formFieldErrors.quantity) {
+                          setFormFieldErrors({ ...formFieldErrors, quantity: '' });
+                        }
+                      }}
+                      className={`mt-1 block w-32 border rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 ${
+                        formFieldErrors.quantity ? 'border-red-500' : 'border-gray-300'
+                      }`}
                       placeholder="e.g., 50"
                     />
+                    {formFieldErrors.quantity && (
+                      <p className="mt-1 text-sm text-red-600">{formFieldErrors.quantity}</p>
+                    )}
                   </div>
 
                   <div>
@@ -526,18 +729,57 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     </label>
                     <div className="mt-2 space-x-4">
                       <label className="inline-flex items-center">
-                        <input type="radio" name="urgency" value="low" className="h-4 w-4 text-emerald-600 focus:ring-emerald-500" />
+                        <input 
+                          type="radio" 
+                          name="urgency" 
+                          value="low" 
+                          checked={formData.urgencyLevel === 'low'}
+                          onChange={(e) => {
+                            setFormData({ ...formData, urgencyLevel: e.target.value });
+                            if (formFieldErrors.urgencyLevel) {
+                              setFormFieldErrors({ ...formFieldErrors, urgencyLevel: '' });
+                            }
+                          }}
+                          className="h-4 w-4 text-emerald-600 focus:ring-emerald-500" 
+                        />
                         <span className="ml-2 text-sm text-gray-700">Low</span>
                       </label>
                       <label className="inline-flex items-center">
-                        <input type="radio" name="urgency" value="medium" className="h-4 w-4 text-yellow-500 focus:ring-yellow-500" />
+                        <input 
+                          type="radio" 
+                          name="urgency" 
+                          value="medium" 
+                          checked={formData.urgencyLevel === 'medium'}
+                          onChange={(e) => {
+                            setFormData({ ...formData, urgencyLevel: e.target.value });
+                            if (formFieldErrors.urgencyLevel) {
+                              setFormFieldErrors({ ...formFieldErrors, urgencyLevel: '' });
+                            }
+                          }}
+                          className="h-4 w-4 text-yellow-500 focus:ring-yellow-500" 
+                        />
                         <span className="ml-2 text-sm text-gray-700">Medium</span>
                       </label>
                       <label className="inline-flex items-center">
-                        <input type="radio" name="urgency" value="high" className="h-4 w-4 text-red-600 focus:ring-red-500" />
+                        <input 
+                          type="radio" 
+                          name="urgency" 
+                          value="high" 
+                          checked={formData.urgencyLevel === 'high'}
+                          onChange={(e) => {
+                            setFormData({ ...formData, urgencyLevel: e.target.value });
+                            if (formFieldErrors.urgencyLevel) {
+                              setFormFieldErrors({ ...formFieldErrors, urgencyLevel: '' });
+                            }
+                          }}
+                          className="h-4 w-4 text-red-600 focus:ring-red-500" 
+                        />
                         <span className="ml-2 text-sm text-gray-700">High</span>
                       </label>
                     </div>
+                    {formFieldErrors.urgencyLevel && (
+                      <p className="mt-1 text-sm text-red-600">{formFieldErrors.urgencyLevel}</p>
+                    )}
                   </div>
 
                   <div>
@@ -547,9 +789,27 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     <textarea
                       rows={4}
                       required
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                      value={formData.description}
+                      onChange={(e) => {
+                        setFormData({ ...formData, description: e.target.value });
+                        if (formFieldErrors.description) {
+                          setFormFieldErrors({ ...formFieldErrors, description: '' });
+                        }
+                      }}
+                      className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 ${
+                        formFieldErrors.description ? 'border-red-500' : 'border-gray-300'
+                      }`}
                       placeholder="Please provide details about the items needed and how they will be used..."
-                    ></textarea>
+                      maxLength={1000}
+                    />
+                    <div className="mt-1 flex justify-between">
+                      {formFieldErrors.description ? (
+                        <p className="text-sm text-red-600">{formFieldErrors.description}</p>
+                      ) : (
+                        <span></span>
+                      )}
+                      <p className="text-xs text-gray-500">{formData.description.length}/1000</p>
+                    </div>
                   </div>
 
                   <div>
@@ -558,8 +818,21 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     </label>
                     <input
                       type="date"
-                      className="mt-1 block w-64 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                      value={formData.neededBy}
+                      onChange={(e) => {
+                        setFormData({ ...formData, neededBy: e.target.value });
+                        if (formFieldErrors.neededBy) {
+                          setFormFieldErrors({ ...formFieldErrors, neededBy: '' });
+                        }
+                      }}
+                      min={new Date().toISOString().split('T')[0]}
+                      className={`mt-1 block w-64 border rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 ${
+                        formFieldErrors.neededBy ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     />
+                    {formFieldErrors.neededBy && (
+                      <p className="mt-1 text-sm text-red-600">{formFieldErrors.neededBy}</p>
+                    )}
                   </div>
 
                   <div>
@@ -569,25 +842,56 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     <div className="mt-2 flex items-center">
                       <label className="cursor-pointer bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
                         <span>Choose Files</span>
-                        <input type="file" className="sr-only" multiple accept="image/*" />
+                        <input 
+                          type="file" 
+                          className="sr-only" 
+                          multiple 
+                          accept="image/*"
+                          onChange={(e) => {
+                            if (e.target.files) {
+                              const files = Array.from(e.target.files).slice(0, 5);
+                              setFormData({ ...formData, images: files });
+                            }
+                          }}
+                        />
                       </label>
-                      <span className="ml-2 text-sm text-gray-500">Up to 5 images</span>
+                      <span className="ml-2 text-sm text-gray-500">
+                        {formData.images.length > 0 ? `${formData.images.length} file(s) selected` : 'Up to 5 images'}
+                      </span>
                     </div>
                   </div>
 
                   <div className="pt-4 flex justify-end space-x-3">
                     <button
                       type="button"
-                      onClick={() => setActiveTab('overview')}
-                      className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                      onClick={() => {
+                        // Reset form fields
+                        setFormData({
+                          requestTitle: '',
+                          category: '',
+                          quantity: '',
+                          urgencyLevel: '',
+                          description: '',
+                          neededBy: '',
+                          images: []
+                        });
+                        // Clear messages and errors
+                        setFormError(null);
+                        setFormSuccess(null);
+                        setFormFieldErrors({});
+                        // Stay on same page (don't navigate)
+                      }}
+                      disabled={formLoading}
+                      className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                      disabled={formLoading}
+                      className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50"
                     >
-                      Submit Request
+                      {formLoading ? 'Submitting...' : 'Submit Request'}
                     </button>
                   </div>
                 </form>
@@ -608,7 +912,98 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                 </h2>
               </div>
               <div className="p-6">
-                <form className="space-y-6">
+                {feedbackSuccess && (
+                  <div className="mb-4 p-4 bg-green-50 border-2 border-green-400 rounded-lg shadow-sm">
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-sm font-semibold text-green-800">{feedbackSuccess}</p>
+                    </div>
+                  </div>
+                )}
+                {feedbackError && (
+                  <div className="mb-4 p-4 bg-red-50 border-2 border-red-400 rounded-lg shadow-sm">
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-sm font-semibold text-red-800">{feedbackError}</p>
+                    </div>
+                  </div>
+                )}
+                <form 
+                  className="space-y-6"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setFeedbackError(null);
+                    setFeedbackSuccess(null);
+                    setFeedbackFieldErrors({});
+
+                    // Validation
+                    const errors: Record<string, string> = {};
+                    
+                    if (!feedbackData.subject.trim()) {
+                      errors.subject = 'Subject is required';
+                    } else if (feedbackData.subject.trim().length < 3) {
+                      errors.subject = 'Subject must be at least 3 characters';
+                    } else if (feedbackData.subject.trim().length > 100) {
+                      errors.subject = 'Subject must be less than 100 characters';
+                    }
+
+                    if (!feedbackData.feedbackType) {
+                      errors.feedbackType = 'Please select feedback type';
+                    }
+
+                    if (!feedbackData.description.trim()) {
+                      errors.description = 'Description is required';
+                    } else if (feedbackData.description.trim().length < 10) {
+                      errors.description = 'Description must be at least 10 characters';
+                    } else if (feedbackData.description.trim().length > 2000) {
+                      errors.description = 'Description must be less than 2000 characters';
+                    }
+
+                    if (Object.keys(errors).length > 0) {
+                      setFeedbackFieldErrors(errors);
+                      return;
+                    }
+
+                    setFeedbackLoading(true);
+
+                    try {
+                      const feedbackPayload = {
+                        subject: feedbackData.subject.trim(),
+                        feedbackType: feedbackData.feedbackType as 'suggestion' | 'bug' | 'feature' | 'complaint' | 'other',
+                        description: feedbackData.description.trim(),
+                        rating: feedbackData.rating > 0 ? feedbackData.rating : undefined,
+                        screenshot: undefined, // TODO: Handle screenshot upload
+                        contactPermission: feedbackData.contactPermission
+                      };
+
+                      await createFeedback(feedbackPayload);
+                      setFeedbackSuccess('Feedback submitted successfully!');
+                      
+                      // Reset form
+                      setFeedbackData({
+                        subject: '',
+                        feedbackType: '',
+                        description: '',
+                        rating: 0,
+                        screenshot: null,
+                        contactPermission: false
+                      });
+
+                      // Clear success message after 3 seconds
+                      setTimeout(() => {
+                        setFeedbackSuccess(null);
+                      }, 3000);
+                    } catch (error: any) {
+                      setFeedbackError(error.response?.data?.message || 'Failed to submit feedback. Please try again.');
+                    } finally {
+                      setFeedbackLoading(false);
+                    }
+                  }}
+                >
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Subject <span className="text-red-500">*</span>
@@ -616,9 +1011,22 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     <input
                       type="text"
                       required
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                      value={feedbackData.subject}
+                      onChange={(e) => {
+                        setFeedbackData({ ...feedbackData, subject: e.target.value });
+                        if (feedbackFieldErrors.subject) {
+                          setFeedbackFieldErrors({ ...feedbackFieldErrors, subject: '' });
+                        }
+                      }}
+                      className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 ${
+                        feedbackFieldErrors.subject ? 'border-red-500' : 'border-gray-300'
+                      }`}
                       placeholder="Briefly describe your feedback"
+                      maxLength={100}
                     />
+                    {feedbackFieldErrors.subject && (
+                      <p className="mt-1 text-sm text-red-600">{feedbackFieldErrors.subject}</p>
+                    )}
                   </div>
 
                   <div>
@@ -627,7 +1035,16 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     </label>
                     <select
                       required
-                      className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm rounded-md"
+                      value={feedbackData.feedbackType}
+                      onChange={(e) => {
+                        setFeedbackData({ ...feedbackData, feedbackType: e.target.value });
+                        if (feedbackFieldErrors.feedbackType) {
+                          setFeedbackFieldErrors({ ...feedbackFieldErrors, feedbackType: '' });
+                        }
+                      }}
+                      className={`mt-1 block w-full pl-3 pr-10 py-2 text-base border focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm rounded-md ${
+                        feedbackFieldErrors.feedbackType ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     >
                       <option value="">Select feedback type</option>
                       <option value="suggestion">Suggestion</option>
@@ -636,6 +1053,9 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                       <option value="complaint">Complaint</option>
                       <option value="other">Other</option>
                     </select>
+                    {feedbackFieldErrors.feedbackType && (
+                      <p className="mt-1 text-sm text-red-600">{feedbackFieldErrors.feedbackType}</p>
+                    )}
                   </div>
 
                   <div>
@@ -645,9 +1065,27 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     <textarea
                       rows={5}
                       required
-                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
+                      value={feedbackData.description}
+                      onChange={(e) => {
+                        setFeedbackData({ ...feedbackData, description: e.target.value });
+                        if (feedbackFieldErrors.description) {
+                          setFeedbackFieldErrors({ ...feedbackFieldErrors, description: '' });
+                        }
+                      }}
+                      className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 ${
+                        feedbackFieldErrors.description ? 'border-red-500' : 'border-gray-300'
+                      }`}
                       placeholder="Please provide detailed feedback..."
+                      maxLength={2000}
                     ></textarea>
+                    <div className="mt-1 flex justify-between">
+                      {feedbackFieldErrors.description ? (
+                        <p className="text-sm text-red-600">{feedbackFieldErrors.description}</p>
+                      ) : (
+                        <span></span>
+                      )}
+                      <p className="text-xs text-gray-500">{feedbackData.description.length}/2000</p>
+                    </div>
                   </div>
 
                   <div>
@@ -659,10 +1097,12 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                         <button
                           key={star}
                           type="button"
-                          className="text-2xl focus:outline-none"
+                          className={`text-2xl focus:outline-none transition-colors ${
+                            star <= feedbackData.rating ? 'text-yellow-400' : 'text-gray-300'
+                          }`}
                           onClick={(e) => {
                             e.preventDefault();
-                            // Handle star rating selection
+                            setFeedbackData({ ...feedbackData, rating: star });
                           }}
                         >
                           ★
@@ -679,9 +1119,20 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     <div className="mt-1 flex items-center">
                       <label className="cursor-pointer bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
                         <span>Choose File</span>
-                        <input type="file" className="sr-only" accept="image/*" />
+                        <input 
+                          type="file" 
+                          className="sr-only" 
+                          accept="image/*"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setFeedbackData({ ...feedbackData, screenshot: e.target.files[0] });
+                            }
+                          }}
+                        />
                       </label>
-                      <span className="ml-2 text-sm text-gray-500">Max 5MB</span>
+                      <span className="ml-2 text-sm text-gray-500">
+                        {feedbackData.screenshot ? feedbackData.screenshot.name : 'Max 5MB'}
+                      </span>
                     </div>
                   </div>
 
@@ -692,6 +1143,8 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                           id="contact-permission"
                           name="contact-permission"
                           type="checkbox"
+                          checked={feedbackData.contactPermission}
+                          onChange={(e) => setFeedbackData({ ...feedbackData, contactPermission: e.target.checked })}
                           className="focus:ring-emerald-500 h-4 w-4 text-emerald-600 border-gray-300 rounded"
                         />
                       </div>
@@ -706,16 +1159,33 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                   <div className="pt-4 flex justify-end space-x-3">
                     <button
                       type="button"
-                      onClick={() => setActiveTab('overview')}
-                      className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                      onClick={() => {
+                        // Reset form fields
+                        setFeedbackData({
+                          subject: '',
+                          feedbackType: '',
+                          description: '',
+                          rating: 0,
+                          screenshot: null,
+                          contactPermission: false
+                        });
+                        // Clear messages and errors
+                        setFeedbackError(null);
+                        setFeedbackSuccess(null);
+                        setFeedbackFieldErrors({});
+                        // Stay on same page
+                      }}
+                      disabled={feedbackLoading}
+                      className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                      disabled={feedbackLoading}
+                      className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50"
                     >
-                      Submit Feedback
+                      {feedbackLoading ? 'Submitting...' : 'Submit Feedback'}
                     </button>
                   </div>
                 </form>
@@ -726,31 +1196,11 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
 
         {activeTab === 'help-support' && (
           <div className="space-y-6">
-            {/* Help Header with Search */}
+            {/* Help Header */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="bg-gradient-to-r from-blue-600 to-cyan-500 px-6 py-8 text-white">
                 <h1 className="text-2xl font-bold mb-2">How can we help you today?</h1>
-                <p className="text-blue-100 mb-4">Search our help center or browse our resources</p>
-                <div className="relative max-w-2xl">
-                  <input
-                    type="text"
-                    placeholder="Search help articles..."
-                    className="w-full px-4 py-3 pr-10 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <svg
-                    className="w-5 h-5 text-gray-400 absolute right-3 top-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
-                </div>
+                <p className="text-blue-100">Browse our resources and find answers to your questions</p>
               </div>
             </div>
 
@@ -834,38 +1284,38 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     question: 'How do I update my organization information?',
                     answer: 'You can update your organization details in the "Profile" section. All changes will be reviewed by our team before being applied.'
                   },
-                ].map((faq, index) => (
-                  <div key={index} className="p-6">
-                    <button
-                      className="w-full flex justify-between items-center text-left"
-                      onClick={(e) => {
-                        const content = e.currentTarget.nextElementSibling as HTMLElement | null;
-                        if (content) {
-                          content.style.maxHeight = content.style.maxHeight ? '' : content.scrollHeight + 'px';
-                        }
-                        const svg = e.currentTarget.querySelector('svg');
-                        if (svg) {
-                          svg.classList.toggle('rotate-180');
-                        }
-                      }}
-                    >
-                      <h3 className="font-medium text-gray-900">{faq.question}</h3>
-                      <svg
-                        className="w-5 h-5 text-gray-500 transition-transform duration-200"
-                        fill="none"
-                        stroke="currentColor"
+                ].map((faq, index) => {
+                  const isOpen = openFaqIndex === index;
+                  return (
+                    <div key={index} className="p-6">
+                      <button
+                        className="w-full flex justify-between items-center text-left"
+                        onClick={() => {
+                          setOpenFaqIndex(isOpen ? null : index);
+                        }}
                       >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    <div
-                      className="mt-2 text-gray-600 overflow-hidden transition-all duration-300"
-                      style={{ maxHeight: '0' }}
-                    >
-                      <p className="pb-2">{faq.answer}</p>
+                        <h3 className="font-medium text-gray-900">{faq.question}</h3>
+                        <svg
+                          className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
+                            isOpen ? 'rotate-180' : ''
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      <div
+                        className={`mt-2 text-gray-600 overflow-hidden transition-all duration-300 ${
+                          isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                        }`}
+                      >
+                        <p className="pb-2">{faq.answer}</p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -920,45 +1370,203 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                   </div>
                   <div>
                     <h3 className="text-lg font-medium text-gray-900 mb-4">Send us a message</h3>
-                    <form className="space-y-4">
+                    {contactSuccess && (
+                      <div className="mb-4 p-4 bg-green-50 border-2 border-green-400 rounded-lg shadow-sm">
+                        <div className="flex items-center">
+                          <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-sm font-semibold text-green-800">{contactSuccess}</p>
+                        </div>
+                      </div>
+                    )}
+                    {contactError && (
+                      <div className="mb-4 p-4 bg-red-50 border-2 border-red-400 rounded-lg shadow-sm">
+                        <div className="flex items-center">
+                          <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-sm font-semibold text-red-800">{contactError}</p>
+                        </div>
+                      </div>
+                    )}
+                    <form 
+                      className="space-y-4"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        setContactError(null);
+                        setContactSuccess(null);
+                        setContactFieldErrors({});
+
+                        // Validation
+                        const errors: Record<string, string> = {};
+                        
+                        if (!contactData.name.trim()) {
+                          errors.name = 'Name is required';
+                        } else if (contactData.name.trim().length < 2) {
+                          errors.name = 'Name must be at least 2 characters';
+                        } else if (contactData.name.trim().length > 50) {
+                          errors.name = 'Name must be less than 50 characters';
+                        }
+
+                        if (!contactData.email.trim()) {
+                          errors.email = 'Email is required';
+                        } else {
+                          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                          if (!emailRegex.test(contactData.email.trim())) {
+                            errors.email = 'Please enter a valid email address';
+                          }
+                        }
+
+                        if (contactData.subject.trim().length > 200) {
+                          errors.subject = 'Subject must be less than 200 characters';
+                        }
+
+                        if (!contactData.message.trim()) {
+                          errors.message = 'Message is required';
+                        } else if (contactData.message.trim().length < 10) {
+                          errors.message = 'Message must be at least 10 characters';
+                        } else if (contactData.message.trim().length > 2000) {
+                          errors.message = 'Message must be less than 2000 characters';
+                        }
+
+                        if (Object.keys(errors).length > 0) {
+                          setContactFieldErrors(errors);
+                          return;
+                        }
+
+                        setContactLoading(true);
+
+                        try {
+                          const contactPayload = {
+                            firebaseUid: user?.uid,
+                            userType: 'ngo' as const,
+                            name: contactData.name.trim(),
+                            email: contactData.email.trim(),
+                            queryType: contactData.subject.trim() || undefined,
+                            message: contactData.message.trim()
+                          };
+
+                          await createContact(contactPayload);
+                          setContactSuccess('Message sent successfully! We will get back to you soon.');
+                          
+                          // Reset form
+                          setContactData({
+                            name: '',
+                            email: '',
+                            subject: '',
+                            message: ''
+                          });
+
+                          // Clear success message after 5 seconds
+                          setTimeout(() => {
+                            setContactSuccess(null);
+                          }, 5000);
+                        } catch (error: any) {
+                          setContactError(error.response?.data?.error || 'Failed to send message. Please try again.');
+                        } finally {
+                          setContactLoading(false);
+                        }
+                      }}
+                    >
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
                         <input
                           type="text"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          required
+                          value={contactData.name}
+                          onChange={(e) => {
+                            setContactData({ ...contactData, name: e.target.value });
+                            if (contactFieldErrors.name) {
+                              setContactFieldErrors({ ...contactFieldErrors, name: '' });
+                            }
+                          }}
+                          className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                            contactFieldErrors.name ? 'border-red-500' : 'border-gray-300'
+                          }`}
                           placeholder="Your name"
+                          maxLength={50}
                         />
+                        {contactFieldErrors.name && (
+                          <p className="mt-1 text-sm text-red-600">{contactFieldErrors.name}</p>
+                        )}
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
                         <input
                           type="email"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          required
+                          value={contactData.email}
+                          onChange={(e) => {
+                            setContactData({ ...contactData, email: e.target.value });
+                            if (contactFieldErrors.email) {
+                              setContactFieldErrors({ ...contactFieldErrors, email: '' });
+                            }
+                          }}
+                          className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                            contactFieldErrors.email ? 'border-red-500' : 'border-gray-300'
+                          }`}
                           placeholder="your@email.com"
                         />
+                        {contactFieldErrors.email && (
+                          <p className="mt-1 text-sm text-red-600">{contactFieldErrors.email}</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
                         <input
                           type="text"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          value={contactData.subject}
+                          onChange={(e) => {
+                            setContactData({ ...contactData, subject: e.target.value });
+                            if (contactFieldErrors.subject) {
+                              setContactFieldErrors({ ...contactFieldErrors, subject: '' });
+                            }
+                          }}
+                          className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                            contactFieldErrors.subject ? 'border-red-500' : 'border-gray-300'
+                          }`}
                           placeholder="How can we help you?"
+                          maxLength={200}
                         />
+                        {contactFieldErrors.subject && (
+                          <p className="mt-1 text-sm text-red-600">{contactFieldErrors.subject}</p>
+                        )}
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Message <span className="text-red-500">*</span></label>
                         <textarea
                           rows={4}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          required
+                          value={contactData.message}
+                          onChange={(e) => {
+                            setContactData({ ...contactData, message: e.target.value });
+                            if (contactFieldErrors.message) {
+                              setContactFieldErrors({ ...contactFieldErrors, message: '' });
+                            }
+                          }}
+                          className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                            contactFieldErrors.message ? 'border-red-500' : 'border-gray-300'
+                          }`}
                           placeholder="Tell us more about your issue..."
+                          maxLength={2000}
                         ></textarea>
+                        <div className="mt-1 flex justify-between">
+                          {contactFieldErrors.message ? (
+                            <p className="text-sm text-red-600">{contactFieldErrors.message}</p>
+                          ) : (
+                            <span></span>
+                          )}
+                          <p className="text-xs text-gray-500">{contactData.message.length}/2000</p>
+                        </div>
                       </div>
                       <div>
                         <button
                           type="submit"
-                          className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          disabled={contactLoading}
+                          className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                         >
-                          Send Message
+                          {contactLoading ? 'Sending...' : 'Send Message'}
                         </button>
                       </div>
                     </form>

@@ -16,6 +16,8 @@ const geoRoutes = require('./routes/geo');
 const eventRegistrationsRoutes = require('./routes/eventRegistrations');
 // const ngoRoutes = require('./routes/ngos');
 const donationsRoutes = require('./routes/donations');
+const ngoRequestsRoutes = require('./routes/ngoRequests');
+const feedbackRoutes = require('./routes/feedback');
 
 
 // Create Express app
@@ -46,6 +48,8 @@ app.use('/api/v1/faqs', faqsRoutes);
 app.use('/api/v1/event-registrations', eventRegistrationsRoutes);
 // app.use('/api/v1/ngos', ngoRoutes);
 app.use('/api/v1/donations', donationsRoutes);
+app.use('/api/v1/ngo-requests', ngoRequestsRoutes);
+app.use('/api/v1/feedback', feedbackRoutes);
 
 // Set static folder
 app.use(express.static(path.join(__dirname, 'public')));
