@@ -137,3 +137,25 @@ export const deleteRequest = async (id: string) => {
   }
 };
 
+// Update request status (Admin only)
+export const updateNgoRequestStatus = async (id: string, status: string) => {
+  try {
+    const token = await getAuthToken();
+    const response = await axios.put(
+      `${API_URL}/ngo-requests/admin/${id}`,
+      { status },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error updating request status:', error);
+    throw error;
+  }
+};
+
+

@@ -22,3 +22,4 @@ router.route('/').post(createNgoRegistration).get(getMyRegistration);
 
 module.exports = router;
 
+
