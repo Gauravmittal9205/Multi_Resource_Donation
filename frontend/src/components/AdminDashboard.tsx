@@ -610,7 +610,7 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
     { id: 'ngos' as TabKey, label: 'NGOs', icon: Building2 },
     { id: 'donations' as TabKey, label: 'Donations', icon: Package },
     { id: 'pickups' as TabKey, label: 'Pickups', icon: Truck },
-    { id: 'reports' as TabKey, label: 'Reports', icon: AlertTriangle },
+    { id: 'reports' as TabKey, label: 'Reports & Support', icon: AlertTriangle },
     { id: 'analytics' as TabKey, label: 'Analytics', icon: BarChart3 },
     { id: 'announcements' as TabKey, label: 'Announcements', icon: Megaphone },
     { id: 'users' as TabKey, label: 'Users', icon: Users },
@@ -3167,17 +3167,440 @@ function PickupTracking() {
   );
 }
 
-// Reports Management Component
+// Reports and Support Management Component
 function ReportsManagement() {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    status: '' as 'new' | 'read' | 'closed' | '',
+    userType: '' as 'donor' | 'ngo' | '',
+    queryType: ''
+  });
+  const [selectedMessage, setSelectedMessage] = useState<any>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+
+  useEffect(() => {
+    fetchHelpMessages();
+  }, [filters]);
+
+  const fetchHelpMessages = async () => {
+    try {
+      setLoading(true);
+      const contactService = await import('../services/contactService');
+      const response = await contactService.getAllHelpMessages({
+        status: filters.status || undefined,
+        userType: filters.userType || undefined,
+        queryType: filters.queryType || undefined
+      });
+
+      if (response.success) {
+        setMessages(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching help messages:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateMessageStatus = async (messageId: string, status: 'new' | 'read' | 'closed') => {
+    try {
+      const contactService = await import('../services/contactService');
+      await contactService.updateHelpMessageStatus(messageId, status);
+      await fetchHelpMessages();
+      if (selectedMessage?._id === messageId) {
+        setSelectedMessage({ ...selectedMessage, status });
+      }
+    } catch (error: any) {
+      console.error('Error updating message status:', error);
+      alert(error.response?.data?.error || 'Failed to update status');
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'new':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'read':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'closed':
+        return 'bg-green-100 text-green-800 border-green-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getUserTypeColor = (userType: string) => {
+    switch (userType) {
+      case 'donor':
+        return 'bg-blue-100 text-blue-800';
+      case 'ngo':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getQueryTypeColor = (queryType: string) => {
+    const type = queryType?.toLowerCase() || '';
+    if (type.includes('complaint') || type.includes('issue') || type.includes('problem')) {
+      return 'bg-red-100 text-red-800';
+    } else if (type.includes('question') || type.includes('query') || type.includes('help')) {
+      return 'bg-blue-100 text-blue-800';
+    } else if (type.includes('suggestion') || type.includes('feedback')) {
+      return 'bg-green-100 text-green-800';
+    } else {
+      return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const filteredMessages = messages.filter(msg => {
+    if (filters.status && msg.status !== filters.status) return false;
+    if (filters.userType && msg.userType !== filters.userType) return false;
+    if (filters.queryType && !msg.queryType?.toLowerCase().includes(filters.queryType.toLowerCase())) return false;
+    return true;
+  });
+
+  const stats = {
+    new: messages.filter(m => m.status === 'new').length,
+    read: messages.filter(m => m.status === 'read').length,
+    closed: messages.filter(m => m.status === 'closed').length,
+    total: messages.length
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Reports & Support</h2>
+          <p className="text-gray-600">Manage help messages and support requests</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Reports & Complaints</h2>
-        <p className="text-gray-600">Manage user reports and complaints</p>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Reports & Support</h2>
+        <p className="text-gray-600">Manage help messages and support requests from users</p>
       </div>
-      <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-500 text-center py-8">Reports will appear here</p>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">New Messages</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.new}</p>
+            </div>
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+              <AlertCircle className="w-6 h-6 text-red-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Read</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.read}</p>
+            </div>
+            <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+              <Eye className="w-6 h-6 text-yellow-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Closed</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.closed}</p>
+            </div>
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Total</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+              <MessageSquare className="w-6 h-6 text-blue-600" />
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value as any })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            >
+              <option value="">All Status</option>
+              <option value="new">New</option>
+              <option value="read">Read</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">User Type</label>
+            <select
+              value={filters.userType}
+              onChange={(e) => setFilters({ ...filters, userType: e.target.value as any })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            >
+              <option value="">All Users</option>
+              <option value="donor">Donor</option>
+              <option value="ngo">NGO</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Query Type</label>
+            <input
+              type="text"
+              placeholder="Search query type..."
+              value={filters.queryType}
+              onChange={(e) => setFilters({ ...filters, queryType: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => setFilters({ status: '', userType: '', queryType: '' })}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+          >
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
+      {/* Messages List */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <h3 className="text-lg font-medium text-gray-900">
+            Help Messages ({filteredMessages.length})
+          </h3>
+        </div>
+        {filteredMessages.length === 0 ? (
+          <div className="p-8 text-center">
+            <MessageSquare className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Messages Found</h3>
+            <p className="text-gray-500">No help messages match your filters.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-200">
+            {filteredMessages.map((message) => (
+              <div
+                key={message._id}
+                className={`p-6 hover:bg-gray-50 transition-colors cursor-pointer ${
+                  message.status === 'new' ? 'bg-red-50/30' : ''
+                }`}
+                onClick={() => {
+                  setSelectedMessage(message);
+                  setShowDetailsModal(true);
+                  if (message.status === 'new') {
+                    updateMessageStatus(message._id, 'read');
+                  }
+                }}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      {message.status === 'new' && (
+                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                      )}
+                      <h4 className="text-lg font-semibold text-gray-900">{message.name}</h4>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(message.status)}`}>
+                        {message.status.charAt(0).toUpperCase() + message.status.slice(1)}
+                      </span>
+                      {message.userType && (
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getUserTypeColor(message.userType)}`}>
+                          {message.userType.charAt(0).toUpperCase() + message.userType.slice(1)}
+                        </span>
+                      )}
+                      {message.queryType && (
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getQueryTypeColor(message.queryType)}`}>
+                          {message.queryType}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+                      <div>
+                        <p className="text-sm text-gray-500">Email</p>
+                        <p className="text-sm text-gray-900">{message.email}</p>
+                      </div>
+                      {message.phone && (
+                        <div>
+                          <p className="text-sm text-gray-500">Phone</p>
+                          <p className="text-sm text-gray-900">{message.phone}</p>
+                        </div>
+                      )}
+                      {message.organizationName && (
+                        <div>
+                          <p className="text-sm text-gray-500">Organization</p>
+                          <p className="text-sm text-gray-900">{message.organizationName}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm text-gray-500">Received</p>
+                        <p className="text-sm text-gray-900">{formatDate(message.createdAt)}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-700 line-clamp-2">{message.message}</p>
+                  </div>
+                  <div className="ml-4 flex-shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedMessage(message);
+                        setShowDetailsModal(true);
+                        if (message.status === 'new') {
+                          updateMessageStatus(message._id, 'read');
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                    >
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Message Details Modal */}
+      {showDetailsModal && selectedMessage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">{selectedMessage.name}</h3>
+                  <div className="flex items-center space-x-2 mt-2">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(selectedMessage.status)}`}>
+                      {selectedMessage.status.charAt(0).toUpperCase() + selectedMessage.status.slice(1)}
+                    </span>
+                    {selectedMessage.userType && (
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getUserTypeColor(selectedMessage.userType)}`}>
+                        {selectedMessage.userType.charAt(0).toUpperCase() + selectedMessage.userType.slice(1)}
+                      </span>
+                    )}
+                    {selectedMessage.queryType && (
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getQueryTypeColor(selectedMessage.queryType)}`}>
+                        {selectedMessage.queryType}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4 mt-6">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Contact Information</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Email</p>
+                      <a href={`mailto:${selectedMessage.email}`} className="text-sm text-blue-600 hover:underline">
+                        {selectedMessage.email}
+                      </a>
+                    </div>
+                    {selectedMessage.phone && (
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Phone</p>
+                        <a href={`tel:${selectedMessage.phone}`} className="text-sm text-blue-600 hover:underline">
+                          {selectedMessage.phone}
+                        </a>
+                      </div>
+                    )}
+                    {selectedMessage.organizationName && (
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Organization</p>
+                        <p className="text-sm text-gray-900">{selectedMessage.organizationName}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Received</p>
+                      <p className="text-sm text-gray-900">{formatDate(selectedMessage.createdAt)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Message</h4>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedMessage.message}</p>
+                </div>
+
+                <div className="flex space-x-3 pt-4 border-t border-gray-200">
+                  {selectedMessage.status !== 'read' && (
+                    <button
+                      onClick={() => updateMessageStatus(selectedMessage._id, 'read')}
+                      className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                    >
+                      Mark as Read
+                    </button>
+                  )}
+                  {selectedMessage.status !== 'closed' && (
+                    <button
+                      onClick={() => updateMessageStatus(selectedMessage._id, 'closed')}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Mark as Closed
+                    </button>
+                  )}
+                  {selectedMessage.status !== 'new' && (
+                    <button
+                      onClick={() => updateMessageStatus(selectedMessage._id, 'new')}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Mark as New
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowDetailsModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
