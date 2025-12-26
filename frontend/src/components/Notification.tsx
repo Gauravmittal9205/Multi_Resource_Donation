@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { getMyNotifications, markNotificationAsRead, markAllNotificationsAsRead, Notification as NotificationType } from '../services/notificationService';
+import { getMyNotifications, markNotificationAsRead, markAllNotificationsAsRead, type Notification as NotificationType } from '../services/notificationService';
 
 const Notification = () => {
   const [isOpen, setIsOpen] = useState(false);
