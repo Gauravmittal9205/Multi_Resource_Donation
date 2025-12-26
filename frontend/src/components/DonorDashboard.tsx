@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type * as React from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { createDonation, fetchDonorDashboard, fetchDonorProfileByUid, fetchMyDonations } from '../services/donationService';
+import { signOutUser } from '../firebase';
+import { createDonation, fetchDonorDashboard, fetchDonorProfileByUid, fetchMyDonations, fetchMyNotifications, markAllNotificationsRead, markNotificationRead } from '../services/donationService';
 import type { DonationItem } from '../services/donationService';
+import type { NotificationItem } from '../services/donationService';
 import {
   FiGrid,
   FiBox,
@@ -17,6 +20,20 @@ import {
   FiX,
   FiMenu,
   FiCamera,
+  FiChevronLeft,
+  FiChevronRight,
+  FiHelpCircle,
+  FiBell,
+  FiSettings,
+  FiLogOut,
+  FiMail,
+  FiPhone,
+  FiHeart,
+  FiPieChart,
+  FiArrowUpRight,
+  FiArrowDownRight,
+  FiMapPin,
+  FiRefreshCw,
 } from 'react-icons/fi';
 
 type DonorDashboardProps = {
@@ -24,7 +41,7 @@ type DonorDashboardProps = {
   onBack: () => void;
 };
 
-type MenuKey = 'dashboard' | 'my-donations' | 'donate-now' | 'active-pickups' | 'donation-history' | 'impact';
+type MenuKey = 'dashboard' | 'my-donations' | 'donate-now' | 'active-pickups' | 'donation-history' | 'impact' | 'help-support' | 'notifications' | 'settings';
 
 type ResourceType = '' | 'Food' | 'Clothes' | 'Books' | 'Medical Supplies' | 'Other Essentials';
 
@@ -49,8 +66,8 @@ const TextInput = ({
     value={value}
     onChange={(e) => onChange(e.target.value)}
     onKeyDown={(e) => {
-      // Prevent any global key handlers from triggering while user is typing
-      e.stopPropagation();
+      // Let Enter bubble so the form-level handler can prevent accidental submit.
+      if (e.key !== 'Enter') e.stopPropagation();
     }}
     placeholder={placeholder}
     type={type}
@@ -74,6 +91,8 @@ const NumericInput = ({
       if (/^\d*$/.test(next)) onChange(next);
     }}
     onKeyDown={(e) => {
+      // Let Enter bubble so the form-level handler can prevent accidental submit.
+      if (e.key === 'Enter') return;
       if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
         e.preventDefault();
         e.stopPropagation();
@@ -100,7 +119,7 @@ const Select = ({
     value={value}
     onChange={(e) => onChange(e.target.value)}
     onKeyDown={(e) => {
-      e.stopPropagation();
+      if (e.key !== 'Enter') e.stopPropagation();
     }}
     className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
   >
@@ -128,10 +147,16 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
 
   const [activeItem, setActiveItem] = useState<MenuKey>('dashboard');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [activityView, setActivityView] = useState<'monthly' | 'yearly'>('monthly');
 
-  const goToImpactPage = () => {
-    window.history.pushState({}, '', '/impact');
-    window.dispatchEvent(new PopStateEvent('popstate'));
+  const handleLogout = async () => {
+    try {
+      await signOutUser();
+      onBack();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const [dashboardLoading, setDashboardLoading] = useState(false);
@@ -146,6 +171,8 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
     | null
   >(null);
 
+  const [donorProfile, setDonorProfile] = useState<any>(null);
+
   const loadDashboard = async () => {
     try {
       setDashboardLoading(true);
@@ -159,9 +186,43 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
     }
   };
 
+  const loadDonorProfile = async () => {
+    if (!user?.uid) return;
+    try {
+      const res = await fetchDonorProfileByUid(user.uid);
+      setDonorProfile(res.data);
+    } catch (e: any) {
+      console.error('Failed to load donor profile:', e);
+    }
+  };
+
   useEffect(() => {
     loadDashboard();
+    loadDonorProfile();
   }, []);
+
+  const refreshProfile = () => {
+    loadDonorProfile();
+  };
+
+  // Listen for profile updates from other components
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      loadDonorProfile();
+    };
+
+    window.addEventListener('profileUpdated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('profileUpdated', handleProfileUpdate);
+    };
+  }, []);
+
+  // Reload profile when switching to settings
+  useEffect(() => {
+    if (activeItem === 'settings') {
+      loadDonorProfile();
+    }
+  }, [activeItem]);
 
   const userRef = useRef(user);
   useEffect(() => {
@@ -169,6 +230,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
   }, [user]);
 
   const loadDashboardRef = useRef(loadDashboard);
+  
   useEffect(() => {
     loadDashboardRef.current = loadDashboard;
   }, [loadDashboard]);
@@ -179,35 +241,111 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
     { key: 'donate-now' as const, label: 'Donate Now', icon: FiPlusCircle, primary: true },
     { key: 'active-pickups' as const, label: 'Active Pickups', icon: FiTruck },
     { key: 'donation-history' as const, label: 'Donation History', icon: FiClock },
+    { key: 'help-support' as const, label: 'Help & Support', icon: FiHelpCircle },
+    { key: 'notifications' as const, label: 'Notifications', icon: FiBell },
+    { key: 'settings' as const, label: 'Settings', icon: FiSettings },
   ];
 
   const Sidebar = ({ variant }: { variant: 'desktop' | 'mobile' }) => {
+    const profileName = donorProfile?.basic?.name || user.displayName || user.email?.split('@')[0] || 'Donor';
+    const profileEmail = donorProfile?.basic?.email || user.email || '';
+    const profilePhone = donorProfile?.basic?.phone || '';
+    const profilePhotoUrl = donorProfile?.basic?.photoUrl || user.photoURL || '';
+
+    const isCollapsed = variant === 'desktop' && isSidebarCollapsed;
+
     return (
       <aside
         className={
           variant === 'desktop'
-            ? 'hidden lg:flex lg:flex-col w-72 shrink-0 bg-white border-r border-gray-100'
+            ? `hidden lg:flex lg:flex-col bg-white border-r border-gray-100 lg:sticky lg:top-0 lg:h-screen transition-all duration-300 relative ${
+                isCollapsed ? 'w-16' : 'w-72'
+              }`
             : 'flex flex-col w-72 max-w-[85vw] bg-white h-full shadow-2xl'
         }
       >
-        <div className="p-5">
-          <div className="mb-1">
-            <div className="text-xs font-semibold tracking-wide text-gray-500 mb-1">Welcome back,</div>
-            <div className="font-medium text-gray-900 truncate">
-              {user.displayName || user.email?.split('@')[0] || 'Donor'}
+        {variant === 'desktop' && (
+          <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="absolute -right-3 top-8 z-10 h-6 w-6 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors"
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? (
+              <FiChevronRight className="h-4 w-4" />
+            ) : (
+              <FiChevronLeft className="h-4 w-4" />
+            )}
+          </button>
+        )}
+        
+        <div className="p-5 flex flex-col h-full">
+          {!isCollapsed && (
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="relative w-20 h-20 mb-3">
+                {profilePhotoUrl ? (
+                  <img 
+                    src={profilePhotoUrl} 
+                    alt={profileName}
+                    className="w-20 h-20 rounded-full object-cover shadow-lg border-2 border-emerald-100"
+                    onError={(e) => {
+                      // Hide image and show fallback
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      const fallback = parent?.querySelector('.avatar-fallback') as HTMLElement;
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div 
+                  className={`avatar-fallback w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg ${profilePhotoUrl ? 'hidden' : 'flex'}`}
+                >
+                  {profileName.charAt(0).toUpperCase()}
+                </div>
+              </div>
+              <div className="font-semibold text-gray-900 text-lg">{profileName}</div>
+              <div className="text-sm text-gray-600 mt-1">{profileEmail}</div>
+              <div className="text-sm text-gray-600 mt-1">{profilePhone || 'No phone number'}</div>
             </div>
-          </div>
-          <nav className="mt-6 space-y-2">
+          )}
+          
+          {isCollapsed && (
+            <div className="flex flex-col items-center justify-center py-4">
+              <div className="relative w-10 h-10">
+                {profilePhotoUrl ? (
+                  <img 
+                    src={profilePhotoUrl} 
+                    alt={profileName}
+                    className="w-10 h-10 rounded-full object-cover shadow-lg border-2 border-emerald-100"
+                    onError={(e) => {
+                      // Hide image and show fallback
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      const fallback = parent?.querySelector('.avatar-fallback') as HTMLElement;
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div 
+                  className={`avatar-fallback w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-lg font-bold shadow-lg ${profilePhotoUrl ? 'hidden' : 'flex'}`}
+                >
+                  {profileName.charAt(0).toUpperCase()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <nav className={`flex-1 overflow-y-auto scrollbar-hide ${isCollapsed ? 'flex flex-col items-center py-2' : 'space-y-2'}`}>
             {menu.map((item) => {
               const isActive = activeItem === item.key;
               const Icon = item.icon;
               const isPrimary = Boolean(item.primary);
 
               const base =
-                'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-colors';
+                'flex items-center rounded-xl text-sm transition-colors';
               const active = 'bg-emerald-50 text-emerald-800';
               const normal = 'text-gray-700 hover:bg-gray-50';
-              // Use same active style as other menu items for consistency
               const primary = active;
               const primaryInactive = normal;
 
@@ -220,10 +358,12 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                     : primaryInactive
                   : isActive
                     ? active
-                    : normal);
+                    : normal) +
+                ' ' +
+                (isCollapsed ? 'justify-center w-10 h-10 my-1' : 'gap-3 px-3.5 py-2.5 w-full');
 
               return (
-                <div key={item.key} className="space-y-2">
+                <div key={item.key} className={isCollapsed ? 'w-full flex justify-center' : 'space-y-2'}>
                   <button
                     type="button"
                     onClick={() => {
@@ -231,14 +371,17 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                       setMobileSidebarOpen(false);
                     }}
                     className={cls}
+                    title={isCollapsed ? item.label : ''}
                   >
-                    <Icon className={isPrimary && isActive ? 'h-5 w-5' : 'h-5 w-5'} />
-                    <span className={isPrimary && isActive ? 'font-semibold' : isActive ? 'font-semibold' : 'font-medium'}>
-                      {item.label}
-                    </span>
+                    <Icon className="h-5 w-5" />
+                    {!isCollapsed && (
+                      <span className={isPrimary && isActive ? 'font-semibold' : isActive ? 'font-semibold' : 'font-medium'}>
+                        {item.label}
+                      </span>
+                    )}
                   </button>
 
-                  {item.key === 'donate-now' ? (
+                  {item.key === 'donate-now' && !isCollapsed ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -260,6 +403,20 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
               );
             })}
           </nav>
+
+          {/* Logout Button */}
+          <div className="mt-auto pt-4 border-t border-gray-100">
+            <button
+              onClick={handleLogout}
+              className={`flex items-center rounded-xl text-sm transition-colors text-red-600 hover:bg-red-50 ${
+                isCollapsed ? 'justify-center w-10 h-10 my-1' : 'gap-3 px-3.5 py-2.5 w-full'
+              }`}
+              title={isCollapsed ? 'Logout' : ''}
+            >
+              <FiLogOut className="h-5 w-5" />
+              {!isCollapsed && <span className="font-medium">Logout</span>}
+            </button>
+          </div>
         </div>
       </aside>
     );
@@ -268,6 +425,31 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
   const [myDonationsLoading, setMyDonationsLoading] = useState(false);
   const [myDonationsError, setMyDonationsError] = useState<string | null>(null);
   const [myDonations, setMyDonations] = useState<DonationItem[]>([]);
+
+  // FAQ state
+  const [faqs, setFaqs] = useState<any[]>([]);
+  const [faqsLoading, setFaqsLoading] = useState(false);
+  const [faqsError, setFaqsError] = useState<string | null>(null);
+  const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
+
+  // Support Request Form state
+  const [showSupportForm, setShowSupportForm] = useState(false);
+  const [supportFormData, setSupportFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    queryType: '',
+    message: ''
+  });
+  const [supportFormLoading, setSupportFormLoading] = useState(false);
+  const [supportFormError, setSupportFormError] = useState<string | null>(null);
+  const [supportFormSuccess, setSupportFormSuccess] = useState(false);
+
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notificationFilter, setNotificationFilter] = useState<'all' | 'donations' | 'pickups' | 'system'>('all');
+  const [showReadNotifications, setShowReadNotifications] = useState(false);
 
   const loadMyDonations = async () => {
     try {
@@ -289,26 +471,193 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
     }
   }, [activeItem]);
 
+  const loadFaqs = async () => {
+    try {
+      setFaqsLoading(true);
+      setFaqsError(null);
+      // Try userType first, then fallback to role
+      const res = await fetch('http://localhost:5000/api/v1/faqs?userType=donor&isActive=true');
+      const data = await res.json();
+      if (data.success) {
+        let faqsData = data.data || [];
+        // If no FAQs found with userType, try with role
+        if (faqsData.length === 0) {
+          const res2 = await fetch('http://localhost:5000/api/v1/faqs?role=donors&isActive=true');
+          const data2 = await res2.json();
+          if (data2.success) {
+            faqsData = data2.data || [];
+          }
+        }
+        setFaqs(faqsData);
+      } else {
+        setFaqsError('Failed to load FAQs');
+      }
+    } catch (e: any) {
+      setFaqsError(e?.message || 'Failed to load FAQs');
+    } finally {
+      setFaqsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeItem === 'help-support') {
+      loadFaqs();
+    }
+  }, [activeItem]);
+
+  const loadNotifications = async (opts?: { filter?: 'all' | 'donations' | 'pickups' | 'system'; includeRead?: boolean }) => {
+    try {
+      setNotificationsLoading(true);
+      setNotificationsError(null);
+      const res = await fetchMyNotifications({
+        category: (opts?.filter || notificationFilter) === 'all' ? 'all' : (opts?.filter || notificationFilter),
+        includeRead: opts?.includeRead ?? showReadNotifications,
+        limit: 100,
+      });
+      setNotifications(res.data || []);
+    } catch (e: any) {
+      setNotificationsError(e?.response?.data?.message || e?.message || 'Failed to load notifications');
+      setNotifications([]);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeItem === 'notifications') {
+      loadNotifications();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeItem]);
+
+  useEffect(() => {
+    if (activeItem === 'notifications') {
+      loadNotifications();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notificationFilter, showReadNotifications]);
+
+  // Initialize support form with user data
+  useEffect(() => {
+    if (showSupportForm && user) {
+      const profileName = donorProfile?.basic?.name || user.displayName || '';
+      const profileEmail = donorProfile?.basic?.email || user.email || '';
+      const profilePhone = donorProfile?.basic?.phone || '';
+      
+      setSupportFormData({
+        name: profileName,
+        email: profileEmail,
+        phone: profilePhone,
+        queryType: '',
+        message: ''
+      });
+    }
+  }, [showSupportForm, user, donorProfile]);
+
+  const handleSupportFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSupportFormError(null);
+    setSupportFormSuccess(false);
+
+    if (!supportFormData.name || !supportFormData.email || !supportFormData.message) {
+      setSupportFormError('Please fill in all required fields.');
+      return;
+    }
+
+    setSupportFormLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/v1/contacts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firebaseUid: user?.uid || '',
+          userType: 'donor',
+          name: supportFormData.name,
+          email: supportFormData.email,
+          phone: supportFormData.phone,
+          queryType: supportFormData.queryType || 'General Inquiry',
+          message: supportFormData.message,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setSupportFormSuccess(true);
+        setSupportFormData({
+          name: '',
+          email: '',
+          phone: '',
+          queryType: '',
+          message: ''
+        });
+        setTimeout(() => {
+          setShowSupportForm(false);
+          setSupportFormSuccess(false);
+        }, 2000);
+      } else {
+        setSupportFormError(data.error || 'Failed to submit support request');
+      }
+    } catch (error: any) {
+      setSupportFormError(error?.message || 'Failed to submit support request');
+    } finally {
+      setSupportFormLoading(false);
+    }
+  };
+
   const SummaryCard = ({
     title,
     icon: Icon,
     value,
+    subtitle,
+    tone = 'emerald',
+    trend,
   }: {
     title: string;
     icon: React.ComponentType<{ className?: string }>;
     value: React.ReactNode;
+    subtitle?: string;
+    tone?: 'emerald' | 'blue' | 'violet' | 'amber' | 'slate';
+    trend?: { pct: number; direction: 'up' | 'down'; label?: string };
   }) => {
+    const toneMap: Record<string, { bg: string; fg: string; ring: string }> = {
+      emerald: { bg: 'bg-emerald-50', fg: 'text-emerald-700', ring: 'ring-emerald-100' },
+      blue: { bg: 'bg-blue-50', fg: 'text-blue-700', ring: 'ring-blue-100' },
+      violet: { bg: 'bg-violet-50', fg: 'text-violet-700', ring: 'ring-violet-100' },
+      amber: { bg: 'bg-amber-50', fg: 'text-amber-700', ring: 'ring-amber-100' },
+      slate: { bg: 'bg-slate-50', fg: 'text-slate-700', ring: 'ring-slate-100' },
+    };
+    const t = toneMap[tone];
+
     return (
       <div className="group rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5">
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
             <div className="text-sm font-medium text-gray-600">{title}</div>
             <div className="mt-2 text-3xl font-semibold text-gray-900">{value}</div>
+            {subtitle ? <div className="mt-1 text-xs text-gray-500">{subtitle}</div> : null}
           </div>
-          <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:scale-[1.03] transition-transform">
+          <div className={`h-11 w-11 rounded-2xl ${t.bg} ${t.fg} ring-1 ${t.ring} flex items-center justify-center group-hover:scale-[1.03] transition-transform`}>
             <Icon className="h-5 w-5" />
           </div>
         </div>
+        {trend ? (
+          <div className="mt-4 flex items-center gap-2">
+            <span
+              className={
+                'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold border ' +
+                (trend.direction === 'up'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                  : 'bg-red-50 text-red-700 border-red-100')
+              }
+            >
+              {trend.direction === 'up' ? <FiArrowUpRight className="h-3.5 w-3.5" /> : <FiArrowDownRight className="h-3.5 w-3.5" />}
+              {trend.pct}%
+            </span>
+            <span className="text-xs text-gray-500">{trend.label || 'vs last period'}</span>
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -714,25 +1063,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
       };
     }, [addressLine]);
 
-    const SectionCard = ({
-      title,
-      subtitle,
-      children,
-    }: {
-      title: string;
-      subtitle?: string;
-      children: React.ReactNode;
-    }) => (
-      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-5">
-          <div className="text-base font-semibold text-gray-900">{title}</div>
-          {subtitle ? <div className="mt-1 text-sm text-gray-600">{subtitle}</div> : null}
-        </div>
-        <div className="px-5 pb-5">{children}</div>
-      </div>
-    );
-
-    const DynamicFields = () => {
+    const renderDynamicFields = () => {
       if (!resourceType) {
         return (
           <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center">
@@ -1009,10 +1340,12 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
 
     return (
       <div className="space-y-6">
-        <SectionCard
-          title="Donate Now"
-          subtitle="Provide clear details so NGOs can verify and prepare for pickup."
-        >
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          <div className="p-5">
+            <div className="text-base font-semibold text-gray-900">Donate Now</div>
+            <div className="mt-1 text-sm text-gray-600">Provide clear details so NGOs can verify and prepare for pickup.</div>
+          </div>
+          <div className="px-5 pb-5">
           {submitSuccess ? (
             <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
               {submitSuccess}
@@ -1139,7 +1472,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
             </div>
 
             <div className="transition-all duration-300 ease-out">
-              <DynamicFields />
+              {renderDynamicFields()}
             </div>
 
             <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
@@ -1256,7 +1589,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 onKeyDown={(e) => {
-                  e.stopPropagation();
+                  if (e.key !== 'Enter') e.stopPropagation();
                 }}
                 placeholder="Anything NGOs should know before pickup"
                 className="w-full min-h-[110px] rounded-2xl border border-gray-200 bg-white px-3.5 py-3 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
@@ -1279,14 +1612,15 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
               {submitLoading ? 'Submitting...' : 'Donate Resource'}
             </button>
           </form>
-        </SectionCard>
+          </div>
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-gray-50 via-white to-emerald-50/30">
-      <div className="flex min-h-[calc(100vh-4rem)]">
+    <div className="h-screen bg-gradient-to-b from-gray-50 via-white to-emerald-50/30">
+      <div className="flex h-screen">
         <Sidebar variant="desktop" />
 
         {mobileSidebarOpen && (
@@ -1323,7 +1657,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
           <FiMenu className="h-5 w-5" />
         </button>
 
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
           {activeItem === 'dashboard' && (
             <div className="space-y-6">
               {dashboardError ? (
@@ -1331,26 +1665,107 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                   {dashboardError}
                 </div>
               ) : null}
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                <SummaryCard
-                  title="Total Donations"
-                  icon={FiPackage}
-                  value={dashboardLoading ? '--' : dashboardData?.summary?.totalDonations ?? 0}
-                />
-                <SummaryCard
-                  title="Active Pickups"
-                  icon={FiTruck}
-                  value={dashboardLoading ? '--' : dashboardData?.summary?.activePickups ?? 0}
-                />
-                <SummaryCard
-                  title="Completed Donations"
-                  icon={FiCheckCircle}
-                  value={dashboardLoading ? '--' : dashboardData?.summary?.completedDonations ?? 0}
-                />
+              
+              {/* Time-based Greeting */}
+              {(() => {
+                const hour = new Date().getHours();
+                const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
+                const profileName = donorProfile?.basic?.name || user.displayName || user.email?.split('@')[0] || 'Donor';
+                return (
+                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                        {greeting}, {profileName}!
+                      </h1>
+                      <p className="text-sm text-gray-600 mt-1">Here's your donation overview</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={loadDashboard}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        <FiRefreshCw className="h-4 w-4" />
+                        Refresh
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveItem('donate-now')}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
+                      >
+                        <FiPlusCircle className="h-4 w-4" />
+                        Donate Again
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+              
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                {(() => {
+                  const totalDonations = dashboardData?.summary?.totalDonations ?? 0;
+                  const activePickups = dashboardData?.summary?.activePickups ?? 0;
+                  const completedDonations = dashboardData?.summary?.completedDonations ?? 0;
+                  const recent = dashboardData?.recentDonations || [];
+                  const ngosSupported = new Set(
+                    recent
+                      .map((d: any) => d?.assignedNGO?.ngoFirebaseUid || d?.assignedNGO?.ngoName)
+                      .filter(Boolean)
+                  ).size;
+                  const livesImpacted = dashboardData?.impact?.peopleHelped ?? Math.round(totalDonations * 3);
+
+                  const activity = dashboardData?.activity || [];
+                  const last = Number(activity.length ? activity[activity.length - 1]?.count || 0 : 0);
+                  const prev = Number(activity.length > 1 ? activity[activity.length - 2]?.count || 0 : 0);
+                  const trendPct = prev > 0 ? Math.round(((last - prev) / prev) * 100) : last > 0 ? 100 : 0;
+                  const trendDirection: 'up' | 'down' = last >= prev ? 'up' : 'down';
+
+                  return (
+                    <>
+                      <SummaryCard
+                        title="Total Donations Made"
+                        icon={FiPackage}
+                        value={dashboardLoading ? '--' : totalDonations}
+                        subtitle="Till date"
+                        tone="emerald"
+                        trend={dashboardLoading ? undefined : { pct: trendPct, direction: trendDirection, label: 'vs last month' }}
+                      />
+                      <SummaryCard
+                        title="Active Pickups"
+                        icon={FiTruck}
+                        value={dashboardLoading ? '--' : activePickups}
+                        subtitle="In progress"
+                        tone="amber"
+                      />
+                      <SummaryCard
+                        title="Completed Donations"
+                        icon={FiCheckCircle}
+                        value={dashboardLoading ? '--' : completedDonations}
+                        subtitle="Successfully delivered"
+                        tone="blue"
+                      />
+                      <SummaryCard
+                        title="NGOs Supported"
+                        icon={FiUsers}
+                        value={dashboardLoading ? '--' : ngosSupported}
+                        subtitle="Unique partners"
+                        tone="violet"
+                      />
+                      <SummaryCard
+                        title="Estimated Lives Impacted"
+                        icon={FiHeart}
+                        value={dashboardLoading ? '--' : livesImpacted}
+                        subtitle="Families helped"
+                        tone="slate"
+                      />
+                    </>
+                  );
+                })()}
               </div>
 
               <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="flex items-center gap-2">
                     <FiBarChart2 className="h-5 w-5 text-emerald-700" />
                     <h2 className="text-base font-semibold text-gray-900">Donation Activity</h2>
@@ -1358,47 +1773,509 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      disabled
-                      className="px-3 py-1.5 text-xs font-medium rounded-full bg-gray-50 text-gray-400 border border-gray-100 cursor-not-allowed"
+                      onClick={() => setActivityView('monthly')}
+                      className={
+                        'px-3 py-1.5 text-xs font-medium rounded-full border ' +
+                        (activityView === 'monthly'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100')
+                      }
                     >
                       Monthly
                     </button>
                     <button
                       type="button"
-                      disabled
-                      className="px-3 py-1.5 text-xs font-medium rounded-full bg-gray-50 text-gray-400 border border-gray-100 cursor-not-allowed"
+                      onClick={() => setActivityView('yearly')}
+                      className={
+                        'px-3 py-1.5 text-xs font-medium rounded-full border ' +
+                        (activityView === 'yearly'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100')
+                      }
                     >
                       Yearly
                     </button>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-gradient-to-br from-gray-50 to-white p-5">
-                  <div className="h-40 w-full rounded-lg bg-white/70 border border-gray-100 flex items-end gap-2 p-4 overflow-hidden">
-                    {(dashboardData?.activity || Array.from({ length: 12 }).map(() => ({ label: '', count: 0 }))).map(
-                      (a: any, i: number) => {
-                        const max = Math.max(...(dashboardData?.activity || []).map((x: any) => x.count), 1);
-                        const pct = Math.round((Number(a.count || 0) / max) * 100);
-                        return (
-                          <div
-                            key={i}
-                            className="w-3 rounded-md bg-emerald-200/60"
-                            style={{ height: `${Math.max(10, pct)}%` }}
-                            title={a.label ? `${a.label}: ${a.count}` : undefined}
-                          />
-                        );
-                      }
-                    )}
+                <div className="mt-4 rounded-xl border border-gray-200 bg-white p-5">
+                  <div className="h-64 w-full p-4">
+                    {(() => {
+                      const monthlyFallback = Array.from({ length: 12 }).map((_, i) => {
+                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        const currentMonth = new Date().getMonth();
+                        const monthIndex = (currentMonth - 11 + i + 12) % 12;
+                        return { label: months[monthIndex], count: 0 };
+                      });
+
+                      const totalDonations = dashboardData?.summary?.totalDonations ?? 0;
+                      const series: Array<{ label: string; count: number }> =
+                        activityView === 'monthly'
+                          ? (dashboardData?.activity || monthlyFallback)
+                          : [
+                              { label: String(new Date().getFullYear() - 2), count: 0 },
+                              { label: String(new Date().getFullYear() - 1), count: Math.max(0, Math.floor(totalDonations * 0.35)) },
+                              { label: String(new Date().getFullYear()), count: totalDonations },
+                            ];
+
+                      const max = Math.max(...series.map((x) => Number(x.count || 0)), 1);
+
+                      const w = 1000;
+                      const h = 200;
+                      const padX = 30;
+                      const padY = 16;
+                      const n = Math.max(1, series.length);
+                      const step = n === 1 ? 0 : (w - padX * 2) / (n - 1);
+
+                      const points = series.map((a, i) => {
+                        const x = padX + i * step;
+                        const y = h - padY - (Number(a.count || 0) / max) * (h - padY * 2);
+                        return { x, y, label: a.label, count: Number(a.count || 0) };
+                      });
+
+                      const d = points
+                        .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+                        .join(' ');
+
+                      return (
+                        <div className="h-full w-full">
+                          <div className="h-[200px] w-full">
+                            <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-full">
+                              <path d={`M ${padX} ${h - padY} L ${w - padX} ${h - padY}`} stroke="#e5e7eb" strokeWidth="2" fill="none" />
+                              <path d={d} stroke="#10b981" strokeWidth="3" fill="none" strokeLinejoin="round" strokeLinecap="round" />
+                              {points.map((p, idx) => (
+                                <g key={idx}>
+                                  <title>{`${p.label}: ${p.count}`}</title>
+                                  <circle cx={p.x} cy={p.y} r={6} fill="#ffffff" stroke="#10b981" strokeWidth="3" />
+                                </g>
+                              ))}
+                            </svg>
+                          </div>
+
+                          <div className="mt-3 flex items-center justify-between text-xs text-gray-600">
+                            {series.map((s, idx) => (
+                              <span key={idx} className="font-medium">{s.label}</span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
-                  <div className="mt-4 text-sm text-gray-600">
-                    {dashboardLoading
-                      ? 'Loading...'
-                      : (dashboardData?.summary?.totalDonations ?? 0) > 0
-                        ? 'Last 12 months'
-                        : 'No data available yet'}
+                  <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      {dashboardLoading
+                        ? 'Loading...'
+                        : (dashboardData?.summary?.totalDonations ?? 0) > 0
+                          ? activityView === 'monthly'
+                            ? 'Last 12 months'
+                            : 'Yearly snapshot'
+                          : 'No data available yet'}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Y-axis: Number of Donations
+                    </div>
                   </div>
                 </div>
               </section>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+                  <div className="flex items-center gap-2">
+                    <FiPieChart className="h-5 w-5 text-emerald-700" />
+                    <div>
+                      <div className="text-base font-semibold text-gray-900">Resource Distribution</div>
+                      <div className="text-sm text-gray-600">Based on recent donations</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                    {(() => {
+                      const recent = dashboardData?.recentDonations || [];
+                      const counts = {
+                        Food: 0,
+                        Clothes: 0,
+                        'Medical Supplies': 0,
+                        'Other Essentials': 0,
+                      } as Record<string, number>;
+
+                      for (const d of recent) {
+                        const rt = String(d?.resourceType || '').trim();
+                        if (rt in counts) counts[rt] += 1;
+                        else if (rt) counts['Other Essentials'] += 1;
+                      }
+
+                      const data = [
+                        { label: 'Food', value: counts.Food, color: '#10b981' },
+                        { label: 'Clothes', value: counts.Clothes, color: '#3b82f6' },
+                        { label: 'Medical Supplies', value: counts['Medical Supplies'], color: '#f59e0b' },
+                        { label: 'Other Essentials', value: counts['Other Essentials'], color: '#8b5cf6' },
+                      ];
+
+                      const total = data.reduce((s, x) => s + x.value, 0);
+                      const radius = 38;
+                      const circumference = 2 * Math.PI * radius;
+                      let dashOffset = 0;
+
+                      return (
+                        <>
+                          <div className="flex items-center justify-center">
+                            <div className="relative w-44 h-44">
+                              <svg viewBox="0 0 100 100" className="w-full h-full">
+                                <g transform="rotate(-90 50 50)">
+                                  <circle cx="50" cy="50" r={radius} fill="transparent" stroke="#e5e7eb" strokeWidth="14" />
+                                  {(() => {
+                                    if (total <= 0) return null;
+
+                                    return data
+                                      .filter((x) => x.value > 0)
+                                      .map((seg, idx) => {
+                                        const fraction = seg.value / total;
+                                        const dash = Math.max(0.0001, fraction * circumference);
+                                        const gap = Math.max(0, circumference - dash);
+                                        const el = (
+                                          <circle
+                                            key={idx}
+                                            cx="50"
+                                            cy="50"
+                                            r={radius}
+                                            fill="transparent"
+                                            stroke={seg.color}
+                                            strokeWidth="14"
+                                            strokeDasharray={`${dash} ${gap}`}
+                                            strokeDashoffset={-dashOffset}
+                                            strokeLinecap="round"
+                                            className="hover:opacity-90 transition-opacity"
+                                          />
+                                        );
+                                        dashOffset += dash;
+                                        return (
+                                          <g key={idx}>
+                                            <title>{`${seg.label}: ${seg.value}`}</title>
+                                            {el}
+                                          </g>
+                                        );
+                                      });
+                                  })()}
+                                </g>
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="text-center">
+                                  <div className="text-2xl font-bold text-gray-900">{total}</div>
+                                  <div className="text-xs text-gray-600">Total</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            {data.map((row) => (
+                              <div key={row.label} className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.color }} />
+                                <div className="text-sm text-gray-700 flex-1">{row.label}</div>
+                                <div className="text-sm font-semibold text-gray-900">{row.value}</div>
+                              </div>
+                            ))}
+                            {total === 0 && !dashboardLoading ? (
+                              <div className="text-sm text-gray-500">No donations yet. Donate to see analytics.</div>
+                            ) : null}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </section>
+
+                <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+                  <div className="flex items-center gap-2">
+                    <FiTruck className="h-5 w-5 text-emerald-700" />
+                    <div>
+                      <div className="text-base font-semibold text-gray-900">Pickup Performance</div>
+                      <div className="text-sm text-gray-600">Scheduled vs completed vs cancelled</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 space-y-4">
+                    {(() => {
+                      const recent = dashboardData?.recentDonations || [];
+                      const scheduled = recent.filter((d: any) => ['pending', 'assigned'].includes(String(d?.status))).length;
+                      const completed = recent.filter((d: any) => ['completed'].includes(String(d?.status))).length;
+                      const cancelled = recent.filter((d: any) => ['cancelled', 'rejected'].includes(String(d?.status))).length;
+                      const max = Math.max(scheduled, completed, cancelled, 1);
+
+                      const rows = [
+                        { label: 'Scheduled', value: scheduled, color: 'bg-amber-500' },
+                        { label: 'Completed', value: completed, color: 'bg-emerald-600' },
+                        { label: 'Cancelled', value: cancelled, color: 'bg-red-500' },
+                      ];
+
+                      return rows.map((r) => {
+                        const pct = Math.round((r.value / max) * 100);
+                        return (
+                          <div key={r.label}>
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="text-gray-700 font-medium">{r.label}</div>
+                              <div className="text-gray-900 font-semibold">{r.value}</div>
+                            </div>
+                            <div className="mt-2 h-2.5 rounded-full bg-gray-100 overflow-hidden">
+                              <div className={`h-full ${r.color}`} style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </section>
+              </div>
+
+              <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center gap-2">
+                  <FiHeart className="h-5 w-5 text-emerald-700" />
+                  <div>
+                    <div className="text-base font-semibold text-gray-900">Impact Insights</div>
+                    <div className="text-sm text-gray-600">Estimated outcomes from your donations</div>
+                  </div>
+                </div>
+
+                {(() => {
+                  const totalDonations = dashboardData?.summary?.totalDonations ?? 0;
+                  const recent = dashboardData?.recentDonations || [];
+
+                  const foodSavedKg = Number(dashboardData?.impact?.foodSavedKg ?? 0);
+                  const mealsServed = foodSavedKg > 0 ? Math.round(foodSavedKg * 2.5) : 0;
+
+                  const clothesDistributed = recent.filter((d: any) => String(d?.resourceType) === 'Clothes').length;
+                  const medicinesDelivered = recent.filter((d: any) => String(d?.resourceType) === 'Medical Supplies').length;
+                  const booksDonated = recent.filter((d: any) => String(d?.resourceType) === 'Books').length;
+
+                  const wasteReduced = Math.round(foodSavedKg * 10) / 10;
+
+                  const items = [
+                    { label: 'Meals Served', value: mealsServed, tone: 'bg-emerald-50 border-emerald-100' },
+                    { label: 'Clothes Distributed', value: clothesDistributed, tone: 'bg-blue-50 border-blue-100' },
+                    { label: 'Medicines Delivered', value: medicinesDelivered, tone: 'bg-violet-50 border-violet-100' },
+                    { label: 'Books Donated', value: booksDonated, tone: 'bg-amber-50 border-amber-100' },
+                    { label: 'Food Waste Reduced (kg)', value: wasteReduced, tone: 'bg-orange-50 border-orange-100' },
+                  ];
+
+                  return (
+                    <>
+                      <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                        {items.map((it) => (
+                          <div key={it.label} className={`rounded-2xl border p-4 ${it.tone}`}>
+                            <div className="text-xs font-semibold tracking-wide text-gray-700">{it.label}</div>
+                            <div className="mt-2 text-2xl font-semibold text-gray-900">{dashboardLoading ? '--' : it.value}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-5 rounded-2xl border border-gray-200 bg-white p-5">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-semibold text-gray-900">Impact Histogram</div>
+                          <div className="text-xs text-gray-500">Relative scale</div>
+                        </div>
+
+                        <div className="mt-4 h-56 w-full flex items-end justify-between gap-3">
+                          {(() => {
+                            const values = items.map((x) => Number(x.value || 0));
+                            const max = Math.max(...values, 1);
+                            const colors = ['bg-emerald-600', 'bg-blue-600', 'bg-violet-600', 'bg-amber-500', 'bg-gray-600'];
+                            return items.map((it, idx) => {
+                              const v = Number(it.value || 0);
+                              const pct = Math.round((v / max) * 100);
+                              const height = Math.max(14, (pct / 100) * 180);
+                              return (
+                                <div key={it.label} className="flex-1 flex flex-col items-center gap-2 min-w-0">
+                                  <div className="w-full flex items-end" style={{ height: '180px' }}>
+                                    <div
+                                      className={`w-full rounded-t-xl ${colors[idx]} shadow-sm`}
+                                      style={{ height: `${height}px` }}
+                                      title={`${it.label}: ${v}`}
+                                    />
+                                  </div>
+                                  <div className="text-[11px] text-gray-600 font-medium text-center leading-tight line-clamp-2">
+                                    {it.label}
+                                  </div>
+                                  <div className="text-xs font-semibold text-gray-900">{dashboardLoading ? '--' : v}</div>
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </section>
+
+              <div className="grid gap-4 lg:grid-cols-3">
+                <section className="lg:col-span-2 rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <FiClock className="h-5 w-5 text-emerald-700" />
+                      <div>
+                        <div className="text-base font-semibold text-gray-900">Recent Activity</div>
+                        <div className="text-sm text-gray-600">Your donation journey on ShareCare</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 space-y-3">
+                    {(() => {
+                      const recent = dashboardData?.recentDonations || [];
+                      const events: Array<{ at: number; title: string; meta: string; type: 'created' | 'assigned' | 'picked' | 'completed' }> = [];
+
+                      for (const d of recent) {
+                        const rt = String(d?.resourceType || 'Donation');
+                        const ngoName = d?.assignedNGO?.ngoName ? String(d.assignedNGO.ngoName) : '';
+                        const createdAt = d?.createdAt ? new Date(d.createdAt).getTime() : 0;
+                        const updatedAt = d?.updatedAt ? new Date(d.updatedAt).getTime() : createdAt;
+                        const pickupAt = d?.pickup?.pickupDate ? new Date(d.pickup.pickupDate).getTime() : 0;
+
+                        if (createdAt) {
+                          events.push({
+                            at: createdAt,
+                            type: 'created',
+                            title: `${rt} donation created`,
+                            meta: new Date(createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+                          });
+                        }
+
+                        if (String(d?.status) === 'assigned') {
+                          const t = d?.assignedNGO?.assignedAt ? new Date(d.assignedNGO.assignedAt).getTime() : updatedAt;
+                          events.push({
+                            at: t,
+                            type: 'assigned',
+                            title: `Pickup assigned${ngoName ? ` to ${ngoName}` : ''}`,
+                            meta:
+                              (pickupAt
+                                ? `Pickup: ${new Date(pickupAt).toLocaleDateString()}${d?.pickup?.timeSlot ? ` (${d.pickup.timeSlot})` : ''}`
+                                : new Date(t).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })),
+                          });
+                        }
+
+                        if (String(d?.status) === 'picked') {
+                          const t = updatedAt;
+                          events.push({
+                            at: t,
+                            type: 'picked',
+                            title: `Donation picked up${ngoName ? ` by ${ngoName}` : ''}`,
+                            meta: new Date(t).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+                          });
+                        }
+
+                        if (String(d?.status) === 'completed') {
+                          const t = updatedAt;
+                          events.push({
+                            at: t,
+                            type: 'completed',
+                            title: `Donation delivered${ngoName ? ` via ${ngoName}` : ''}`,
+                            meta: new Date(t).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+                          });
+                        }
+                      }
+
+                      const sorted = events.sort((a, b) => b.at - a.at).slice(0, 7);
+
+                      if (!sorted.length) {
+                        return (
+                          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center">
+                            <div className="text-sm font-semibold text-gray-900">No activity yet</div>
+                            <div className="mt-1 text-sm text-gray-600">Once you donate, updates will appear here.</div>
+                          </div>
+                        );
+                      }
+
+                      const tone = (t: string) =>
+                        t === 'completed'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                          : t === 'picked'
+                            ? 'bg-blue-50 text-blue-700 border-blue-100'
+                            : t === 'assigned'
+                              ? 'bg-amber-50 text-amber-700 border-amber-100'
+                              : 'bg-gray-50 text-gray-700 border-gray-100';
+
+                      const icon = (t: string) =>
+                        t === 'created'
+                          ? <FiPlusCircle className="h-4 w-4" />
+                          : t === 'assigned'
+                            ? <FiTruck className="h-4 w-4" />
+                            : t === 'picked'
+                              ? <FiTag className="h-4 w-4" />
+                              : <FiCheckCircle className="h-4 w-4" />;
+
+                      return sorted.map((e, idx) => (
+                        <div key={idx} className="flex items-start gap-3">
+                          <div className={`mt-0.5 h-8 w-8 rounded-xl border flex items-center justify-center ${tone(e.type)}`}>
+                            {icon(e.type)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-900">{e.title}</div>
+                            <div className="text-xs text-gray-500 mt-0.5">{e.meta}</div>
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </section>
+
+                <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+                  <div className="text-base font-semibold text-gray-900">Quick Actions</div>
+                  <div className="text-sm text-gray-600 mt-1">Shortcuts to keep donating</div>
+
+                  <div className="mt-4 space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => setActiveItem('donate-now')}
+                      className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-100 hover:bg-emerald-100"
+                    >
+                      <span className="flex items-center gap-3">
+                        <FiPlusCircle className="h-5 w-5" />
+                        <span className="text-sm font-semibold">Donate Again</span>
+                      </span>
+                      <FiArrowUpRight className="h-4 w-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveItem('donation-history')}
+                      className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-white text-gray-800 border border-gray-200 hover:bg-gray-50"
+                    >
+                      <span className="flex items-center gap-3">
+                        <FiClock className="h-5 w-5 text-gray-700" />
+                        <span className="text-sm font-semibold">View Donation History</span>
+                      </span>
+                      <FiArrowUpRight className="h-4 w-4 text-gray-600" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveItem('impact')}
+                      className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-white text-gray-800 border border-gray-200 hover:bg-gray-50"
+                    >
+                      <span className="flex items-center gap-3">
+                        <FiMapPin className="h-5 w-5 text-gray-700" />
+                        <span className="text-sm font-semibold">Find Nearby NGO Needs</span>
+                      </span>
+                      <FiArrowUpRight className="h-4 w-4 text-gray-600" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveItem('help-support');
+                        setShowSupportForm(true);
+                      }}
+                      className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-white text-gray-800 border border-gray-200 hover:bg-gray-50"
+                    >
+                      <span className="flex items-center gap-3">
+                        <FiMail className="h-5 w-5 text-gray-700" />
+                        <span className="text-sm font-semibold">Contact Support</span>
+                      </span>
+                      <FiArrowUpRight className="h-4 w-4 text-gray-600" />
+                    </button>
+                  </div>
+                </section>
+              </div>
 
               <section className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
                 <div className="p-5 flex items-center justify-between">
@@ -1467,6 +2344,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                         <th className="py-3 pr-4 font-medium">Pickup Slot</th>
                         <th className="py-3 pr-4 font-medium">Volunteer Assigned</th>
                         <th className="py-3 pr-4 font-medium">Status</th>
+                        <th className="py-3 pr-4 font-medium">Action</th>
                       </tr>
                     </thead>
                     <tbody className="text-gray-700">
@@ -1478,14 +2356,22 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                         if (actives.length === 0) {
                           return (
                             <tr className="border-t border-gray-100">
-                              <td className="py-4" colSpan={4}>
+                              <td className="py-4" colSpan={5}>
                                 <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center">
                                   <div className="text-sm font-semibold text-gray-900">
-                                    {dashboardLoading ? 'Loading...' : 'No active pickups right now.'}
+                                    {dashboardLoading ? 'Loading...' : 'No active pickups — you’re all caught up.'}
                                   </div>
                                   <div className="mt-1 text-sm text-gray-600">
                                     Once an NGO starts processing your donation, it will show up here.
                                   </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveItem('donate-now')}
+                                    className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
+                                  >
+                                    <FiPlusCircle className="h-4 w-4" />
+                                    Donate Again
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -1510,6 +2396,15 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                                 {d.status}
                               </span>
                             </td>
+                            <td className="py-3 pr-4">
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                              >
+                                Track Pickup
+                                <FiMapPin className="h-4 w-4" />
+                              </button>
+                            </td>
                           </tr>
                         ));
                       })()}
@@ -1525,12 +2420,12 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
           {activeItem === 'impact' && (
             <div className="space-y-6">
               <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mb-4">
                   <FiUsers className="h-5 w-5 text-emerald-700" />
                   <h2 className="text-base font-semibold text-gray-900">Impact Summary</h2>
                 </div>
 
-                <div className="mt-4 grid gap-4 grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
                   <div className="rounded-2xl border border-gray-100 bg-white p-4">
                     <div className="text-xs font-semibold tracking-wide text-gray-600">People Helped</div>
                     <div className="mt-2 text-2xl font-semibold text-gray-900">
@@ -1557,20 +2452,1190 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                   </div>
                 </div>
               </section>
+
+              {/* Impact Stories with Images */}
+              <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <FiHeart className="h-5 w-5 text-emerald-700" />
+                  <h2 className="text-base font-semibold text-gray-900">Impact Stories</h2>
+                </div>
+
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+                  <div className="relative rounded-xl overflow-hidden group cursor-pointer">
+                    <img 
+                      src="/src/assets/poor1.jpg" 
+                      alt="Helping communities" 
+                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <p className="text-white text-sm font-medium">Your donations bring hope to families in need</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="relative rounded-xl overflow-hidden group cursor-pointer">
+                    <img 
+                      src="/src/assets/poor2.jpg" 
+                      alt="Community support" 
+                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <p className="text-white text-sm font-medium">Together we build stronger communities</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="relative rounded-xl overflow-hidden group cursor-pointer">
+                    <img 
+                      src="/src/assets/poor3.jpg" 
+                      alt="Making a difference" 
+                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <p className="text-white text-sm font-medium">Every donation creates lasting change</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Impact Charts */}
+              <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <FiBarChart2 className="h-5 w-5 text-emerald-700" />
+                  <h2 className="text-base font-semibold text-gray-900">Impact Over Time</h2>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-gray-200 bg-white p-5">
+                  <div className="h-64 w-full flex items-end justify-between gap-2 p-4">
+                    {(dashboardData?.activity || Array.from({ length: 6 }).map((_, i) => {
+                      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+                      return { label: months[i], count: 0 };
+                    })).slice(-6).map((a: any, i: number) => {
+                      const max = Math.max(...(dashboardData?.activity || []).map((x: any) => x.count), 1);
+                      const pct = Math.round((Number(a.count || 0) / max) * 100);
+                      const height = Math.max(20, (pct / 100) * 200);
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-2">
+                          <div className="relative w-full flex items-end justify-center" style={{ height: '200px' }}>
+                            <div
+                              className="w-full rounded-t-md bg-gradient-to-t from-blue-500 to-blue-400 hover:from-blue-600 hover:to-blue-500 transition-all cursor-pointer shadow-sm"
+                              style={{ height: `${height}px`, minHeight: a.count > 0 ? '20px' : '0px' }}
+                              title={a.label ? `${a.label}: ${a.count} donation${a.count !== 1 ? 's' : ''}` : undefined}
+                            />
+                          </div>
+                          <div className="text-xs text-gray-600 font-medium mt-2">{a.label || ''}</div>
+                          {a.count > 0 && (
+                            <div className="text-xs font-semibold text-blue-700">{a.count}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-gray-100 text-sm text-gray-600">
+                    Last 6 months donation activity
+                  </div>
+                </div>
+              </section>
+
+              {/* Resource Type Distribution */}
+              <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <FiPackage className="h-5 w-5 text-emerald-700" />
+                  <h2 className="text-base font-semibold text-gray-900">Resource Type Distribution</h2>
+                </div>
+
+                <div className="mt-4">
+                  {(() => {
+                    const resourceTypes = ['Food', 'Clothes', 'Books', 'Medical Supplies', 'Other Essentials'];
+                    const donations = dashboardData?.recentDonations || [];
+                    const typeCounts = resourceTypes.map(type => ({
+                      type,
+                      count: donations.filter((d: any) => d.resourceType === type).length
+                    }));
+                    const maxCount = Math.max(...typeCounts.map(t => t.count), 1);
+
+                    return (
+                      <div className="space-y-3">
+                        {typeCounts.map((item, i) => {
+                          const pct = (item.count / maxCount) * 100;
+                          return (
+                            <div key={i} className="flex items-center gap-3">
+                              <div className="w-24 text-sm text-gray-700 font-medium">{item.type}</div>
+                              <div className="flex-1 h-8 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full flex items-center justify-end pr-2 transition-all"
+                                  style={{ width: `${pct}%` }}
+                                >
+                                  {item.count > 0 && (
+                                    <span className="text-xs font-semibold text-white">{item.count}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </section>
             </div>
           )}
 
-          {activeItem === 'my-donations' && (
+          {activeItem === 'my-donations' && (() => {
+            // Calculate summary metrics
+            const totalDonations = myDonations.length;
+            const totalQuantity = myDonations.reduce((sum, d) => sum + (d.quantity || 0), 0);
+            const activePickups = myDonations.filter((d: any) => ['assigned', 'picked'].includes(d.status)).length;
+            const ngosSupported = new Set(myDonations.filter((d: any) => d.assignedNGO?.ngoFirebaseUid).map((d: any) => d.assignedNGO.ngoFirebaseUid)).size;
+
+            // Build timeline events from donations
+            const buildTimelineEvents = () => {
+              const events: Array<{
+                date: Date;
+                type: string;
+                description: string;
+                donationId: string;
+                icon: React.ReactNode;
+              }> = [];
+
+              myDonations.forEach((d: any) => {
+                // Donation created
+                if (d.createdAt) {
+                  events.push({
+                    date: new Date(d.createdAt),
+                    type: 'created',
+                    description: `Donation created: ${d.resourceType} (${d.quantity} ${d.unit})`,
+                    donationId: d._id,
+                    icon: <FiPlusCircle className="h-4 w-4" />
+                  });
+                }
+
+                // Pickup scheduled
+                if (d.pickup?.pickupDate) {
+                  events.push({
+                    date: new Date(d.pickup.pickupDate),
+                    type: 'scheduled',
+                    description: `Pickup scheduled: ${d.pickup.timeSlot || 'TBD'}`,
+                    donationId: d._id,
+                    icon: <FiCalendar className="h-4 w-4" />
+                  });
+                }
+
+                // NGO assigned
+                if (d.assignedNGO?.assignedAt) {
+                  events.push({
+                    date: new Date(d.assignedNGO.assignedAt),
+                    type: 'assigned',
+                    description: `Assigned to ${d.assignedNGO.ngoName || 'NGO'}`,
+                    donationId: d._id,
+                    icon: <FiUsers className="h-4 w-4" />
+                  });
+                }
+
+                // Picked up
+                if (d.status === 'picked' && d.updatedAt) {
+                  events.push({
+                    date: new Date(d.updatedAt),
+                    type: 'picked',
+                    description: 'Donation picked up',
+                    donationId: d._id,
+                    icon: <FiTruck className="h-4 w-4" />
+                  });
+                }
+
+                // Completed/Delivered
+                if (d.status === 'completed' && d.updatedAt) {
+                  events.push({
+                    date: new Date(d.updatedAt),
+                    type: 'completed',
+                    description: 'Donation completed and delivered',
+                    donationId: d._id,
+                    icon: <FiCheckCircle className="h-4 w-4" />
+                  });
+                }
+              });
+
+              // Sort by date (newest first)
+              return events.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 10);
+            };
+
+            const timelineEvents = buildTimelineEvents();
+
+            return (
+              <div className="space-y-6">
+                {myDonationsError ? (
+                  <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900">
+                    {myDonationsError}
+                  </div>
+                ) : null}
+
+                <section className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="p-5 flex items-center justify-between">
+                    <div className="text-base font-semibold text-gray-900">My Donations</div>
+                    <button
+                      type="button"
+                      onClick={loadMyDonations}
+                      className="px-3 py-2 text-xs font-semibold rounded-xl bg-gray-50 border border-gray-100 text-gray-700 hover:bg-gray-100"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+
+                  <div className="px-5 pb-5 overflow-x-auto">
+                    <table className="min-w-[820px] w-full text-sm">
+                      <thead className="text-left text-gray-500">
+                        <tr>
+                          <th className="py-3 pr-4 font-medium">Donation ID</th>
+                          <th className="py-3 pr-4 font-medium">Resource Type</th>
+                          <th className="py-3 pr-4 font-medium">Quantity</th>
+                          <th className="py-3 pr-4 font-medium">Created At</th>
+                          <th className="py-3 pr-4 font-medium">Pickup Date</th>
+                          <th className="py-3 pr-4 font-medium">Time Slot</th>
+                          <th className="py-3 pr-4 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-gray-700">
+                        {myDonationsLoading ? (
+                          <tr className="border-t border-gray-100">
+                            <td className="py-4" colSpan={7}>
+                              <div className="text-sm text-gray-600">Loading...</div>
+                            </td>
+                          </tr>
+                        ) : myDonations.length === 0 ? (
+                          <tr className="border-t border-gray-100">
+                            <td className="py-4" colSpan={7}>
+                              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center">
+                                <div className="text-sm font-semibold text-gray-900">No donations found</div>
+                                <div className="mt-1 text-sm text-gray-600">Donate something and it will appear here.</div>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          myDonations.map((d) => (
+                            <tr key={d._id} className="border-t border-gray-100">
+                              <td className="py-3 pr-4 font-mono text-xs">{String(d._id).slice(-8)}</td>
+                              <td className="py-3 pr-4">{d.resourceType}</td>
+                              <td className="py-3 pr-4">
+                                {d.quantity} {d.unit}
+                              </td>
+                              <td className="py-3 pr-4 text-xs text-gray-600">
+                                {d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                }) : '--'}
+                              </td>
+                              <td className="py-3 pr-4">
+                                {d.pickup?.pickupDate ? new Date(d.pickup.pickupDate).toLocaleDateString() : '--'}
+                              </td>
+                              <td className="py-3 pr-4">{d.pickup?.timeSlot || '--'}</td>
+                              <td className="py-3 pr-4">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                                  <FiTag className="h-3.5 w-3.5" />
+                                  {d.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                {/* Donation Summary Pie Chart */}
+                {myDonations.length > 0 && (
+                  <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-4">Donation Summary</h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Pie Chart */}
+                      <div className="flex flex-col items-center">
+                        <div className="relative w-64 h-64">
+                          <svg viewBox="0 0 100 100" className="transform -rotate-90 w-full h-full">
+                            {(() => {
+                              const data = [
+                                { label: 'Total Donations', value: totalDonations, color: '#10b981' },
+                                { label: 'Items Donated', value: totalQuantity, color: '#3b82f6' },
+                                { label: 'Active Pickups', value: activePickups, color: '#f59e0b' },
+                                { label: 'NGOs Supported', value: ngosSupported, color: '#8b5cf6' }
+                              ];
+                              
+                              const total = data.reduce((sum, item) => sum + item.value, 0);
+                              let currentAngle = 0;
+                              
+                              return data.map((item, index) => {
+                                if (item.value === 0) return null;
+                                
+                                const percentage = (item.value / total) * 100;
+                                const angle = (percentage / 100) * 360;
+                                const startAngle = currentAngle;
+                                const endAngle = currentAngle + angle;
+                                
+                                const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
+                                const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
+                                const x2 = 50 + 40 * Math.cos((endAngle * Math.PI) / 180);
+                                const y2 = 50 + 40 * Math.sin((endAngle * Math.PI) / 180);
+                                
+                                const largeArcFlag = angle > 180 ? 1 : 0;
+                                
+                                const pathData = [
+                                  `M 50 50`,
+                                  `L ${x1} ${y1}`,
+                                  `A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+                                  'Z'
+                                ].join(' ');
+                                
+                                currentAngle = endAngle;
+                                
+                                return (
+                                  <g key={index}>
+                                    <title>{`${item.label}: ${item.value}`}</title>
+                                    <path
+                                      d={pathData}
+                                      fill={item.color}
+                                      className="hover:opacity-80 transition-opacity cursor-pointer"
+                                    />
+                                  </g>
+                                );
+                              });
+                            })()}
+                          </svg>
+                          
+                          {/* Center circle for donut effect */}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center">
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-gray-900">{totalDonations}</div>
+                                <div className="text-xs text-gray-600">Total</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Legend */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-4 h-4 rounded-full bg-emerald-500"></div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">Total Donations</div>
+                            <div className="text-xs text-gray-600">{totalDonations} donations</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-4 h-4 rounded-full bg-blue-500"></div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">Items Donated</div>
+                            <div className="text-xs text-gray-600">{totalQuantity.toLocaleString()} items</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-4 h-4 rounded-full bg-amber-500"></div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">Active Pickups</div>
+                            <div className="text-xs text-gray-600">{activePickups} pickups</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-4 h-4 rounded-full bg-violet-500"></div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">NGOs Supported</div>
+                            <div className="text-xs text-gray-600">{ngosSupported} NGOs</div>
+                          </div>
+                        </div>
+                        
+                        {/* Summary Stats */}
+                        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                          <div className="text-xs font-medium text-gray-700 mb-2">Quick Stats</div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <span className="text-gray-600">Avg Items/Donation:</span>
+                              <span className="ml-1 font-medium text-gray-900">
+                                {totalDonations > 0 ? Math.round(totalQuantity / totalDonations) : 0}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Pickup Rate:</span>
+                              <span className="ml-1 font-medium text-gray-900">
+                                {totalDonations > 0 ? Math.round((activePickups / totalDonations) * 100) : 0}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {/* Recent Activity Timeline */}
+                {timelineEvents.length > 0 && (
+                  <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-4">Recent Activity Timeline</h3>
+                    <div className="relative">
+                      {/* Timeline line */}
+                      <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
+                      
+                      <div className="space-y-4">
+                        {timelineEvents.map((event, index) => {
+                          const getEventColor = () => {
+                            switch (event.type) {
+                              case 'created': return 'text-blue-600 bg-blue-50 border-blue-200';
+                              case 'scheduled': return 'text-purple-600 bg-purple-50 border-purple-200';
+                              case 'assigned': return 'text-orange-600 bg-orange-50 border-orange-200';
+                              case 'picked': return 'text-indigo-600 bg-indigo-50 border-indigo-200';
+                              case 'completed': return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+                              default: return 'text-gray-600 bg-gray-50 border-gray-200';
+                            }
+                          };
+
+                          return (
+                            <div key={`${event.donationId}-${index}`} className="relative flex items-start gap-4 pl-2">
+                              {/* Timeline dot */}
+                              <div className={`relative z-10 flex-shrink-0 w-8 h-8 rounded-full border-2 ${getEventColor()} flex items-center justify-center`}>
+                                {event.icon}
+                              </div>
+                              
+                              {/* Event content */}
+                              <div className="flex-1 min-w-0 pt-1">
+                                <div className="text-sm text-gray-900 font-medium">{event.description}</div>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {event.date.toLocaleString('en-IN', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </section>
+                )}
+              </div>
+            );
+          })()}
+
+          {activeItem === 'help-support' && (
+            <div className="space-y-6">
+              {/* Page Header */}
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700">
+                  <FiHelpCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold text-gray-900">Help & Support</h1>
+                  <p className="text-sm text-gray-600 mt-1">Get assistance and find answers</p>
+                </div>
+              </div>
+
+              {/* FAQ Section */}
+              <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-2">Frequently Asked Questions</h2>
+                  <p className="text-sm text-gray-600">Find answers to common questions about donations, pickups, and more.</p>
+                </div>
+
+                {faqsLoading ? (
+                  <div className="py-8 text-center text-sm text-gray-600">Loading FAQs...</div>
+                ) : faqsError ? (
+                  <div className="py-8 text-center">
+                    <div className="text-sm text-red-600 mb-2">{faqsError}</div>
+                    <button
+                      onClick={loadFaqs}
+                      className="text-sm text-emerald-600 hover:text-emerald-700"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                ) : faqs.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-gray-600">
+                    No FAQs available at the moment.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {(() => {
+                      // Group FAQs by category
+                      const categories = ['Donation Process', 'Pickup & Delivery', 'Account & Profile', 'Safety & Guidelines', 'General'];
+                      const groupedFaqs = categories.map(cat => ({
+                        category: cat,
+                        faqs: faqs.filter((f: any) => (f.category || 'General') === cat)
+                      })).filter(group => group.faqs.length > 0);
+
+                      return groupedFaqs.map((group) => (
+                        <div key={group.category} className="mb-6">
+                          <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                            {group.category}
+                          </h3>
+                          <div className="space-y-2">
+                            {group.faqs.map((faq: any) => {
+                              const isExpanded = expandedFaq === faq._id;
+                              return (
+                                <div
+                                  key={faq._id}
+                                  className="border border-gray-200 rounded-lg overflow-hidden"
+                                >
+                                  <button
+                                    onClick={() => setExpandedFaq(isExpanded ? null : faq._id)}
+                                    className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+                                  >
+                                    <span className="text-sm font-medium text-gray-900 pr-4">
+                                      {faq.question}
+                                    </span>
+                                    <svg
+                                      className={`h-5 w-5 text-gray-500 flex-shrink-0 transition-transform ${
+                                        isExpanded ? 'transform rotate-180' : ''
+                                      }`}
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                  {isExpanded && (
+                                    <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                                      <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">
+                                        {faq.answer}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                )}
+              </section>
+
+              {/* Contact Support Section */}
+              <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-2">Contact Support</h2>
+                  <p className="text-sm text-gray-600">Reach out to our support team for personalized assistance.</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                    <FiMail className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-gray-900 mb-1">Support Email</div>
+                      <a
+                        href="mailto:admin@sharecare.org"
+                        className="text-sm text-emerald-600 hover:text-emerald-700"
+                      >
+                        admin@sharecare.org
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                    <FiPhone className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-gray-900 mb-1">Admin Contact</div>
+                      <a
+                        href="tel:+919876543210"
+                        className="text-sm text-emerald-600 hover:text-emerald-700"
+                      >
+                        +91 98765 43210
+                      </a>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setShowSupportForm(true)}
+                    className="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <FiMail className="h-4 w-4" />
+                    Raise a Support Request
+                  </button>
+                </div>
+              </section>
+
+              {/* User Guide Section */}
+              <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-2">User Guide</h2>
+                  <p className="text-sm text-gray-600">Learn how to use all features of the donation platform.</p>
+                </div>
+
+                <div className="space-y-6">
+                  {/* How to Donate */}
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <FiPlusCircle className="h-5 w-5 text-emerald-600" />
+                      How to Donate
+                    </h3>
+                    <div className="pl-7 space-y-2">
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          1
+                        </span>
+                        <p className="text-sm text-gray-700">Click on "Donate Now" in the sidebar menu</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          2
+                        </span>
+                        <p className="text-sm text-gray-700">Select the resource type (Food, Clothes, Books, Medical Supplies, or Other Essentials)</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          3
+                        </span>
+                        <p className="text-sm text-gray-700">Fill in the required details including quantity, address, and pickup preferences</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          4
+                        </span>
+                        <p className="text-sm text-gray-700">Upload clear images of the items you're donating</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          5
+                        </span>
+                        <p className="text-sm text-gray-700">Submit your donation request</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* How Pickup Works */}
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <FiTruck className="h-5 w-5 text-emerald-600" />
+                      How Pickup Works
+                    </h3>
+                    <div className="pl-7 space-y-2">
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          1
+                        </span>
+                        <p className="text-sm text-gray-700">After submission, your donation is reviewed by our team</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          2
+                        </span>
+                        <p className="text-sm text-gray-700">An NGO is assigned to your donation based on their needs and location</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          3
+                        </span>
+                        <p className="text-sm text-gray-700">You'll be notified when the pickup is scheduled</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          4
+                        </span>
+                        <p className="text-sm text-gray-700">A volunteer will arrive at your specified address during the chosen time slot</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          5
+                        </span>
+                        <p className="text-sm text-gray-700">Once picked up, the donation status updates to "Picked" and then "Completed" after delivery</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* How to Track Donations */}
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <FiPackage className="h-5 w-5 text-emerald-600" />
+                      How to Track Donations
+                    </h3>
+                    <div className="pl-7 space-y-2">
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          1
+                        </span>
+                        <p className="text-sm text-gray-700">Go to "My Donations" to see all your donation requests</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          2
+                        </span>
+                        <p className="text-sm text-gray-700">Check the status column to see current state: Pending, Assigned, Picked, or Completed</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          3
+                        </span>
+                        <p className="text-sm text-gray-700">View the "Recent Activity Timeline" below the table for detailed event history</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* How to View Donation History */}
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <FiClock className="h-5 w-5 text-emerald-600" />
+                      How to View Donation History
+                    </h3>
+                    <div className="pl-7 space-y-2">
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          1
+                        </span>
+                        <p className="text-sm text-gray-700">Navigate to "Donation History" in the sidebar</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          2
+                        </span>
+                        <p className="text-sm text-gray-700">View all completed donations with details including NGO name and completion date</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center justify-center mt-0.5">
+                          3
+                        </span>
+                        <p className="text-sm text-gray-700">Use the summary cards to see your total impact at a glance</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeItem === 'notifications' && (
             <div className="space-y-4">
-              {myDonationsError ? (
+              <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700">
+                      <FiBell className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-base font-semibold text-gray-900">Notifications</div>
+                      <div className="text-sm text-gray-600">Donation, pickup, and system updates</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await markAllNotificationsRead();
+                          await loadNotifications();
+                        } catch {}
+                      }}
+                      className="px-3 py-2 text-xs font-semibold rounded-xl bg-gray-50 border border-gray-100 text-gray-700 hover:bg-gray-100"
+                    >
+                      Mark all read
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => loadNotifications()}
+                      className="px-3 py-2 text-xs font-semibold rounded-xl bg-gray-50 border border-gray-100 text-gray-700 hover:bg-gray-100"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    {(
+                      [
+                        { key: 'all', label: 'All' },
+                        { key: 'donations', label: 'Donations' },
+                        { key: 'pickups', label: 'Pickups' },
+                        { key: 'system', label: 'System' },
+                      ] as const
+                    ).map((f) => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => setNotificationFilter(f.key)}
+                        className={
+                          'px-3 py-1.5 text-xs font-semibold rounded-full border ' +
+                          (notificationFilter === f.key
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50')
+                        }
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={showReadNotifications}
+                      onChange={(e) => setShowReadNotifications(e.target.checked)}
+                    />
+                    Show read
+                  </label>
+                </div>
+              </div>
+
+              {notificationsError ? (
                 <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900">
-                  {myDonationsError}
+                  {notificationsError}
                 </div>
               ) : null}
 
+              <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+                  <div className="text-sm font-semibold text-gray-900">Recent</div>
+                  <div className="text-xs text-gray-500">
+                    {notificationsLoading ? 'Loading...' : `${notifications.length} notification${notifications.length !== 1 ? 's' : ''}`}
+                  </div>
+                </div>
+
+                <div className="divide-y divide-gray-100">
+                  {notificationsLoading ? (
+                    <div className="p-5 text-sm text-gray-600">Loading notifications...</div>
+                  ) : notifications.length === 0 ? (
+                    <div className="p-8 text-center">
+                      <div className="text-sm font-semibold text-gray-900">No notifications</div>
+                      <div className="mt-1 text-sm text-gray-600">New updates about donations and pickups will appear here.</div>
+                    </div>
+                  ) : (
+                    notifications.map((n) => {
+                      const created = n.createdAt ? new Date(n.createdAt) : null;
+                      const time = created ? created.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                      const isUnread = !n.read;
+                      const pill =
+                        n.category === 'donations'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                          : n.category === 'pickups'
+                            ? 'bg-amber-50 text-amber-700 border-amber-100'
+                            : 'bg-gray-50 text-gray-700 border-gray-100';
+
+                      const catLabel =
+                        n.category === 'donations'
+                          ? 'Donation'
+                          : n.category === 'pickups'
+                            ? 'Pickup'
+                            : n.category === 'ngo_requests'
+                              ? 'NGO'
+                              : 'System';
+
+                      return (
+                        <button
+                          key={n._id}
+                          type="button"
+                          onClick={async () => {
+                            if (!n.read) {
+                              try {
+                                await markNotificationRead(n._id);
+                                await loadNotifications();
+                              } catch {}
+                            }
+                          }}
+                          className={
+                            'w-full text-left p-5 hover:bg-gray-50 transition-colors ' +
+                            (isUnread ? 'bg-white' : 'bg-white')
+                          }
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={
+                              'mt-2 h-2.5 w-2.5 rounded-full ' +
+                              (isUnread ? 'bg-emerald-500' : 'bg-gray-300')
+                            } />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-semibold ${pill}`}>{catLabel}</span>
+                                    {isUnread ? <span className="text-[11px] font-semibold text-emerald-700">Unread</span> : <span className="text-[11px] text-gray-400">Read</span>}
+                                  </div>
+                                  <div className="mt-2 text-sm font-semibold text-gray-900 truncate">{n.title}</div>
+                                </div>
+                                <div className="text-[11px] text-gray-500 whitespace-nowrap">{time}</div>
+                              </div>
+                              <div className="mt-2 text-sm text-gray-600 line-clamp-2">{n.message}</div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeItem === 'settings' && (
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-10 w-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700">
+                  <FiSettings className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="text-base font-semibold text-gray-900">Settings</div>
+                  <div className="text-sm text-gray-600">Manage your account preferences</div>
+                </div>
+              </div>
+
+              {(() => {
+                const emailEnabled = Boolean(donorProfile?.notifications?.emailNotifications ?? true);
+                const pushEnabled = Boolean(donorProfile?.notifications?.pushNotifications ?? true);
+                const smsEnabled = Boolean(donorProfile?.notifications?.smsNotifications ?? false);
+
+                const pickupAddress = String(donorProfile?.location?.pickupAddress || '').trim();
+                const city = String(donorProfile?.location?.city || '').trim();
+                const state = String(donorProfile?.location?.state || '').trim();
+                const pincode = String(donorProfile?.location?.pincode || '').trim();
+
+                const preferredPickupTime = String(donorProfile?.preferences?.preferredPickupTime || '').trim();
+                const nearbyNgoRadiusKm = Number(donorProfile?.preferences?.nearbyNgoRadiusKm ?? 10);
+
+                const saveProfilePatch = async (patch: any) => {
+                  try {
+                    const payload = {
+                      ...(donorProfile || {}),
+                      firebaseUid: user.uid,
+                      basic: {
+                        ...(donorProfile?.basic || {}),
+                        firebaseUid: user.uid,
+                        name: donorProfile?.basic?.name || user.displayName || user.email?.split('@')[0],
+                        email: donorProfile?.basic?.email || user.email,
+                        phone: donorProfile?.basic?.phone || user.phoneNumber || '',
+                      },
+                      ...patch,
+                    };
+                    await fetch('http://localhost:5000/api/v1/profile/upsert', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(payload),
+                    });
+                    window.dispatchEvent(new CustomEvent('profileUpdated'));
+                    refreshProfile();
+                  } catch {
+                    // ignore
+                  }
+                };
+
+                const ToggleRow = ({
+                  title,
+                  subtitle,
+                  checked,
+                  onToggle,
+                }: {
+                  title: string;
+                  subtitle: string;
+                  checked: boolean;
+                  onToggle: (next: boolean) => void;
+                }) => (
+                  <div className="flex items-center justify-between gap-4 py-3">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">{title}</div>
+                      <div className="text-sm text-gray-600">{subtitle}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onToggle(!checked)}
+                      className={
+                        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors ' +
+                        (checked ? 'bg-emerald-600' : 'bg-gray-200')
+                      }
+                      aria-pressed={checked}
+                    >
+                      <span
+                        className={
+                          'inline-block h-5 w-5 transform rounded-full bg-white transition-transform ' +
+                          (checked ? 'translate-x-5' : 'translate-x-1')
+                        }
+                      />
+                    </button>
+                  </div>
+                );
+
+                return (
+                  <div className="space-y-4">
+                    <div
+                      className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5 cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={refreshProfile}
+                    >
+                      <div className="text-sm font-semibold text-gray-900">Profile</div>
+                      <div className="mt-1 text-sm text-gray-600">Refresh and sync your latest profile data.</div>
+                      <div className="mt-2 text-xs text-emerald-700 font-semibold">Click to refresh</div>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
+                      <div className="text-sm font-semibold text-gray-900">Notification Preferences</div>
+                      <div className="mt-1 text-sm text-gray-600">Choose how you want to receive updates.</div>
+                      <div className="mt-4 divide-y divide-gray-100">
+                        <ToggleRow
+                          title="Email notifications"
+                          subtitle="Donation confirmations and status updates"
+                          checked={emailEnabled}
+                          onToggle={(next) => saveProfilePatch({ notifications: { ...(donorProfile?.notifications || {}), emailNotifications: next } })}
+                        />
+                        <ToggleRow
+                          title="Push notifications"
+                          subtitle="Real-time pickup and system alerts"
+                          checked={pushEnabled}
+                          onToggle={(next) => saveProfilePatch({ notifications: { ...(donorProfile?.notifications || {}), pushNotifications: next } })}
+                        />
+                        <ToggleRow
+                          title="SMS notifications"
+                          subtitle="Critical pickup updates"
+                          checked={smsEnabled}
+                          onToggle={(next) => saveProfilePatch({ notifications: { ...(donorProfile?.notifications || {}), smsNotifications: next } })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
+                      <div className="text-sm font-semibold text-gray-900">Location Preferences</div>
+                      <div className="mt-1 text-sm text-gray-600">Pickup address and nearby NGO discovery.</div>
+
+                      <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="lg:col-span-2">
+                          <FieldLabel>Pickup Address</FieldLabel>
+                          <input
+                            defaultValue={pickupAddress}
+                            onBlur={(e) => {
+                              const next = e.target.value;
+                              if (next !== pickupAddress) saveProfilePatch({ location: { ...(donorProfile?.location || {}), pickupAddress: next } });
+                            }}
+                            className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                            placeholder="House no., street, landmark"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>City</FieldLabel>
+                          <input
+                            defaultValue={city}
+                            onBlur={(e) => {
+                              const next = e.target.value;
+                              if (next !== city) saveProfilePatch({ location: { ...(donorProfile?.location || {}), city: next } });
+                            }}
+                            className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                            placeholder="City"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>State</FieldLabel>
+                          <input
+                            defaultValue={state}
+                            onBlur={(e) => {
+                              const next = e.target.value;
+                              if (next !== state) saveProfilePatch({ location: { ...(donorProfile?.location || {}), state: next } });
+                            }}
+                            className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                            placeholder="State"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>Pincode</FieldLabel>
+                          <input
+                            defaultValue={pincode}
+                            onBlur={(e) => {
+                              const next = e.target.value;
+                              if (next !== pincode) saveProfilePatch({ location: { ...(donorProfile?.location || {}), pincode: next } });
+                            }}
+                            inputMode="numeric"
+                            className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                            placeholder="Pincode"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel>Preferred Pickup Time</FieldLabel>
+                          <select
+                            defaultValue={preferredPickupTime}
+                            onBlur={(e) => {
+                              const next = e.target.value;
+                              if (next !== preferredPickupTime) saveProfilePatch({ preferences: { ...(donorProfile?.preferences || {}), preferredPickupTime: next } });
+                            }}
+                            className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                          >
+                            <option value="">No preference</option>
+                            <option value="Morning">Morning</option>
+                            <option value="Afternoon">Afternoon</option>
+                            <option value="Evening">Evening</option>
+                          </select>
+                        </div>
+                        <div>
+                          <FieldLabel>Nearby NGO Radius (km)</FieldLabel>
+                          <input
+                            defaultValue={String(nearbyNgoRadiusKm)}
+                            onBlur={(e) => {
+                              const next = Number(e.target.value);
+                              if (Number.isFinite(next) && next !== nearbyNgoRadiusKm) {
+                                saveProfilePatch({ preferences: { ...(donorProfile?.preferences || {}), nearbyNgoRadiusKm: next } });
+                              }
+                            }}
+                            inputMode="numeric"
+                            className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                            placeholder="10"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
+                      <div className="text-sm font-semibold text-gray-900">Privacy & Security</div>
+                      <div className="mt-1 text-sm text-gray-600">Account actions and security controls.</div>
+
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-sm font-semibold text-gray-800 hover:bg-gray-100"
+                        >
+                          <FiLogOut className="h-4 w-4" />
+                          Logout
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const ok = confirm('Delete your account permanently? This cannot be undone.');
+                            if (!ok) return;
+                            try {
+                              const token = await user.getIdToken();
+                              await fetch('http://localhost:5000/api/v1/auth/delete-me', {
+                                method: 'DELETE',
+                                headers: { Authorization: `Bearer ${token}` },
+                              });
+                            } catch {}
+                            try {
+                              await signOutUser();
+                            } catch {}
+                            onBack();
+                          }}
+                          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-red-50 border border-red-100 text-sm font-semibold text-red-700 hover:bg-red-100"
+                        >
+                          Delete account
+                        </button>
+                      </div>
+                      <div className="mt-3 text-xs text-gray-500">
+                        Password changes can be done from your Profile page (Change Password).
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {activeItem === 'donation-history' && (
+            <div className="space-y-4">
               <section className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
                 <div className="p-5 flex items-center justify-between">
-                  <div className="text-base font-semibold text-gray-900">My Donations</div>
+                  <div>
+                    <div className="text-base font-semibold text-gray-900">Donation History</div>
+                    <div className="text-sm text-gray-600 mt-1">Completed donations only</div>
+                  </div>
                   <button
                     type="button"
                     onClick={loadMyDonations}
@@ -1587,48 +3652,68 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                         <th className="py-3 pr-4 font-medium">Donation ID</th>
                         <th className="py-3 pr-4 font-medium">Resource Type</th>
                         <th className="py-3 pr-4 font-medium">Quantity</th>
-                        <th className="py-3 pr-4 font-medium">Pickup Date</th>
-                        <th className="py-3 pr-4 font-medium">Time Slot</th>
+                        <th className="py-3 pr-4 font-medium">Created At</th>
+                        <th className="py-3 pr-4 font-medium">Completed At</th>
+                        <th className="py-3 pr-4 font-medium">NGO Name</th>
                         <th className="py-3 pr-4 font-medium">Status</th>
                       </tr>
                     </thead>
                     <tbody className="text-gray-700">
                       {myDonationsLoading ? (
                         <tr className="border-t border-gray-100">
-                          <td className="py-4" colSpan={6}>
+                          <td className="py-4" colSpan={7}>
                             <div className="text-sm text-gray-600">Loading...</div>
                           </td>
                         </tr>
-                      ) : myDonations.length === 0 ? (
-                        <tr className="border-t border-gray-100">
-                          <td className="py-4" colSpan={6}>
-                            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center">
-                              <div className="text-sm font-semibold text-gray-900">No donations found</div>
-                              <div className="mt-1 text-sm text-gray-600">Donate something and it will appear here.</div>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        myDonations.map((d) => (
+                      ) : (() => {
+                        const completedDonations = myDonations.filter((d: any) => d.status === 'completed');
+                        if (completedDonations.length === 0) {
+                          return (
+                            <tr className="border-t border-gray-100">
+                              <td className="py-4" colSpan={7}>
+                                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center">
+                                  <div className="text-sm font-semibold text-gray-900">No completed donations yet</div>
+                                  <div className="mt-1 text-sm text-gray-600">Completed donations will appear here once they are processed by admin.</div>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+                        return completedDonations.map((d: any) => (
                           <tr key={d._id} className="border-t border-gray-100">
                             <td className="py-3 pr-4 font-mono text-xs">{String(d._id).slice(-8)}</td>
                             <td className="py-3 pr-4">{d.resourceType}</td>
                             <td className="py-3 pr-4">
                               {d.quantity} {d.unit}
                             </td>
-                            <td className="py-3 pr-4">
-                              {d.pickup?.pickupDate ? new Date(d.pickup.pickupDate).toLocaleDateString() : '--'}
+                            <td className="py-3 pr-4 text-xs text-gray-600">
+                              {d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : '--'}
                             </td>
-                            <td className="py-3 pr-4">{d.pickup?.timeSlot || '--'}</td>
+                            <td className="py-3 pr-4 text-xs text-gray-600">
+                              {d.updatedAt ? new Date(d.updatedAt).toLocaleString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : '--'}
+                            </td>
+                            <td className="py-3 pr-4">{d.assignedNGO?.ngoName || '--'}</td>
                             <td className="py-3 pr-4">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                                <FiTag className="h-3.5 w-3.5" />
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                                <FiCheckCircle className="h-3.5 w-3.5" />
                                 {d.status}
                               </span>
                             </td>
                           </tr>
-                        ))
-                      )}
+                        ));
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -1636,7 +3721,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
             </div>
           )}
 
-          {activeItem !== 'dashboard' && activeItem !== 'donate-now' && activeItem !== 'my-donations' && activeItem !== 'impact' && (
+          {activeItem !== 'dashboard' && activeItem !== 'donate-now' && activeItem !== 'my-donations' && activeItem !== 'impact' && activeItem !== 'help-support' && activeItem !== 'notifications' && activeItem !== 'settings' && activeItem !== 'donation-history' && (
             <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-700">
@@ -1662,6 +3747,155 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
           )}
         </main>
       </div>
+
+      {/* Support Request Form Modal */}
+      {showSupportForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Raise a Support Request</h2>
+                <p className="text-sm text-gray-600 mt-1">Fill in the form below and our team will get back to you</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowSupportForm(false);
+                  setSupportFormError(null);
+                  setSupportFormSuccess(false);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <FiX className="h-6 w-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSupportFormSubmit} className="p-6 space-y-4">
+              {supportFormSuccess && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                  Your support request has been submitted successfully! We'll get back to you soon.
+                </div>
+              )}
+
+              {supportFormError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                  {supportFormError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Name <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={supportFormData.name}
+                    onChange={(e) => setSupportFormData({ ...supportFormData, name: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="Your full name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Email <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={supportFormData.email}
+                    onChange={(e) => setSupportFormData({ ...supportFormData, email: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="your.email@example.com"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={supportFormData.phone}
+                    onChange={(e) => setSupportFormData({ ...supportFormData, phone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Query Type
+                  </label>
+                  <select
+                    value={supportFormData.queryType}
+                    onChange={(e) => setSupportFormData({ ...supportFormData, queryType: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <option value="">Select query type</option>
+                    <option value="Donation Issue">Donation Issue</option>
+                    <option value="Pickup Problem">Pickup Problem</option>
+                    <option value="Account Issue">Account Issue</option>
+                    <option value="Technical Support">Technical Support</option>
+                    <option value="General Inquiry">General Inquiry</option>
+                    <option value="Feedback">Feedback</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Message <span className="text-red-600">*</span>
+                </label>
+                <textarea
+                  value={supportFormData.message}
+                  onChange={(e) => setSupportFormData({ ...supportFormData, message: e.target.value })}
+                  required
+                  rows={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                  placeholder="Please describe your issue or question in detail..."
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSupportForm(false);
+                    setSupportFormError(null);
+                    setSupportFormSuccess(false);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  disabled={supportFormLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={supportFormLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {supportFormLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <FiMail className="h-4 w-4" />
+                      Submit Request
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -9,6 +9,14 @@ exports.getFaqs = asyncHandler(async (req, res, next) => {
     query.role = req.query.role;
   }
 
+  if (req.query.userType) {
+    query.userType = req.query.userType;
+  }
+
+  if (req.query.category) {
+    query.category = req.query.category;
+  }
+
   if (req.query.isActive !== undefined) {
     query.isActive = req.query.isActive === 'true';
   } else {
