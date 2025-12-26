@@ -232,6 +232,7 @@ export const fetchAllNGOs = async () => {
 export interface UpdateDonationPayload {
   ngoFirebaseUid?: string;
   status?: DonationStatus;
+  requestId?: string;
 }
 
 export const updateDonation = async (donationId: string, payload: UpdateDonationPayload) => {

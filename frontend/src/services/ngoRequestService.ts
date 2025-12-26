@@ -137,6 +137,104 @@ export const deleteRequest = async (id: string) => {
   }
 };
 
+// Get all NGOs with active requests (Admin only)
+export interface NgoWithRequests {
+  _id: string;
+  firebaseUid?: string; // Add firebaseUid field
+  ngoName: string;
+  email: string;
+  phone: string;
+  location: {
+    city: string;
+    state: string;
+    pincode: string;
+    address: string;
+  };
+  organizationType: string;
+  registrationNumber: string;
+  requests: Array<{
+    _id: string;
+    requestTitle: string;
+    category: string;
+    quantity: number;
+    urgencyLevel: string;
+    description: string;
+    status: string;
+    neededBy?: string;
+    createdAt: string;
+  }>;
+}
+
+export const getNgosWithActiveRequests = async (): Promise<NgoWithRequests[]> => {
+  try {
+    const token = await getAuthToken();
+    console.log('Making API call to fetch active NGO requests...');
+    
+    // Add a timestamp to prevent caching
+    const timestamp = new Date().getTime();
+    const url = `${API_URL}/ngo-requests/admin/active?t=${timestamp}`;
+    
+    console.log('Request URL:', url);
+    
+    const response = await axios.get(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      },
+      timeout: 10000 // 10 second timeout
+    });
+    
+    console.log('API Response Status:', response.status, response.statusText);
+    
+    if (!response.data) {
+      console.error('Empty response received');
+      throw new Error('Received empty response from server');
+    }
+    
+    if (response.status !== 200) {
+      console.error('Unexpected status code:', response.status);
+      throw new Error(`Server responded with status: ${response.status}`);
+    }
+    
+    if (!response.data.success) {
+      console.error('API response indicates failure:', response.data);
+      throw new Error(response.data.error || 'Failed to fetch NGO requests');
+    }
+    
+    const ngos = Array.isArray(response.data.data) ? response.data.data : [];
+    console.log(`Found ${ngos.length} NGOs with active requests`);
+    
+    return ngos;
+  } catch (error: any) {
+    const errorDetails = {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      response: error.response ? {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+        headers: error.response.headers
+      } : 'No response',
+      request: error.request ? 'Request was made but no response received' : 'No request was made',
+      config: {
+        url: error.config?.url,
+        method: error.config?.method,
+        headers: error.config?.headers,
+        params: error.config?.params
+      }
+    };
+    
+    console.error('Detailed error in getNgosWithActiveRequests:', JSON.stringify(errorDetails, null, 2));
+    
+    // Return empty array instead of throwing to prevent UI from breaking
+    // But log the error for debugging
+    return [];
+  }
+};
+
 // Update request status (Admin only)
 export const updateNgoRequestStatus = async (id: string, status: string) => {
   try {
