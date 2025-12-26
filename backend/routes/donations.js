@@ -4,11 +4,13 @@ const { firebaseProtect, adminProtect } = require('../middleware/firebaseAuth');
 const {
   createDonation,
   getDonorDashboard,
+  verifyDonationOtp,
   listMyDonations,
   getAllDonations,
   getAllNGOs,
   updateDonation,
   getNgoAssignedDonations,
+  getNgoLiveDonationsPool,
   assignVolunteer,
   updateNgoDonationStatus
 } = require('../controllers/donations');
@@ -27,8 +29,11 @@ router.route('/dashboard').get(getDonorDashboard);
 
 router.route('/').post(createDonation).get(listMyDonations);
 
+router.route('/:id/verify-otp').put(verifyDonationOtp);
+
 // NGO routes
 router.route('/ngo/assigned').get(getNgoAssignedDonations);
+router.route('/ngo/live-pool').get(getNgoLiveDonationsPool);
 router.route('/ngo/:id/assign-volunteer').put(assignVolunteer);
 router.route('/ngo/:id/status').put(updateNgoDonationStatus);
 

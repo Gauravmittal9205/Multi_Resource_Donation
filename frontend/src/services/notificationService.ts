@@ -14,7 +14,10 @@ export interface Notification {
   type: string;
   _id: string;
   recipientFirebaseUid: string;
-  type: 'request_approved' | 'registration_approved' | 'donation_update' | 'system' | 'pickup_assigned' | 'pickup_completed';
+  type?: 'request_approved' | 'request_rejected' | 'registration_approved' | 'donation_update' | 'system' | 'pickup_assigned' | 'pickup_completed';
+  eventType?: string | null;
+  relatedType?: 'request' | 'donation' | null;
+  relatedId?: string | null;
   category: 'donations' | 'pickups' | 'system';
   title: string;
   message: string;

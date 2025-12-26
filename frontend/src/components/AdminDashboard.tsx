@@ -3690,22 +3690,6 @@ function PickupTracking() {
                       <div className="bg-white border border-gray-200 rounded-lg p-4">
                         <h4 className="text-sm font-semibold text-gray-900 mb-3">Update Status</h4>
                         <div className="flex flex-wrap gap-2">
-                          {donation.status === 'assigned' && (
-                            <button
-                              onClick={() => updateDonationStatus(donation._id, 'picked')}
-                              className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
-                            >
-                              Mark as Picked
-                            </button>
-                          )}
-                          {donation.status === 'picked' && (
-                            <button
-                              onClick={() => updateDonationStatus(donation._id, 'completed')}
-                              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
-                            >
-                              Mark as Completed
-                            </button>
-                          )}
                           {donation.status !== 'completed' && donation.status !== 'cancelled' && (
                             <button
                               onClick={() => {

@@ -143,6 +143,78 @@ exports.getDonorDashboard = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Verify OTP and mark donation as completed (Donor)
+// @route   PUT /api/v1/donations/:id/verify-otp
+// @access  Private (Firebase)
+exports.verifyDonationOtp = asyncHandler(async (req, res) => {
+  const donorFirebaseUid = req.firebaseUid;
+  const { id } = req.params;
+
+  const donation = await Donation.findById(id);
+  if (!donation) {
+    return res.status(404).json({
+      success: false,
+      error: 'Donation not found'
+    });
+  }
+
+  if (donation.donorFirebaseUid !== donorFirebaseUid) {
+    return res.status(403).json({
+      success: false,
+      error: 'You are not allowed to update this donation'
+    });
+  }
+
+  if (donation.status !== 'picked') {
+    return res.status(400).json({
+      success: false,
+      error: 'OTP can only be verified after pickup is marked as picked'
+    });
+  }
+
+  donation.status = 'completed';
+  await donation.save();
+
+  try {
+    const ngoLabel = donation.assignedNGO?.ngoName || null;
+    const ngoFirebaseUid = donation.assignedNGO?.ngoFirebaseUid || null;
+    await Notification.create({
+      recipientFirebaseUid: donorFirebaseUid,
+      category: 'donations',
+      title: 'Donation Delivered Successfully',
+      message: `Your ${donation.resourceType} donation has been successfully delivered to those in need${ngoLabel ? ` through ${ngoLabel}` : ''}. Your generosity is making a difference!`,
+      donationId: donation._id,
+      redirectUrl: '/donor/dashboard',
+      read: false
+    });
+
+    if (ngoFirebaseUid) {
+      await Notification.create({
+        recipientFirebaseUid: ngoFirebaseUid,
+        category: 'donations',
+        eventType: 'donation_delivered',
+        relatedType: donation.assignedNGO?.assignedRequestId ? 'request' : 'donation',
+        relatedId: donation.assignedNGO?.assignedRequestId
+          ? String(donation.assignedNGO.assignedRequestId)
+          : donation._id.toString(),
+        title: 'Donation Delivered (OTP Verified)',
+        message: `Donor has verified OTP for donation #${donation._id.toString().substring(0, 8).toUpperCase()}. Delivery is completed${ngoLabel ? ` (NGO: ${ngoLabel})` : ''}.`,
+        donationId: donation._id,
+        redirectUrl: `/ngo/dashboard?tab=pickups-deliveries&donationId=${donation._id.toString()}`,
+        read: false
+      });
+    }
+  } catch (error) {
+    console.error('Error creating notification:', error);
+    // non-blocking
+  }
+
+  res.status(200).json({
+    success: true,
+    data: donation
+  });
+});
+
 // @desc    List donor donations
 // @route   GET /api/v1/donations
 // @access  Private (Firebase)
@@ -286,6 +358,20 @@ exports.updateDonation = asyncHandler(async (req, res) => {
         redirectUrl: '/donor/dashboard',
         read: false
       });
+
+      // NGO notification when donation is assigned to them
+      await Notification.create({
+        recipientFirebaseUid: donation.assignedNGO?.ngoFirebaseUid,
+        category: 'donations',
+        eventType: 'donation_assigned',
+        relatedType: requestId ? 'request' : 'donation',
+        relatedId: requestId ? String(requestId) : donation._id.toString(),
+        title: 'New Donation Assigned',
+        message: `A ${donation.resourceType} donation has been assigned to your NGO. Please proceed with volunteer assignment and pickup scheduling.`,
+        donationId: donation._id,
+        redirectUrl: `/ngo/dashboard?tab=pickups-deliveries&donationId=${donation._id.toString()}${requestId ? `&requestId=${String(requestId)}` : ''}`,
+        read: false
+      });
     }
 
     // Notifications based on status changes
@@ -343,6 +429,26 @@ exports.updateDonation = asyncHandler(async (req, res) => {
           });
           break;
       }
+    }
+
+    // NGO notification for admin-driven status changes (if assigned)
+    if (changedStatus && donation.assignedNGO?.ngoFirebaseUid) {
+      const ngoUid = donation.assignedNGO.ngoFirebaseUid;
+      const ngoLabel = donation.assignedNGO?.ngoName || null;
+      const requestIdForTracking = donation.assignedNGO?.assignedRequestId || requestId || null;
+
+      await Notification.create({
+        recipientFirebaseUid: ngoUid,
+        category: newStatus === 'picked' ? 'pickups' : 'donations',
+        eventType: 'donation_status_changed',
+        relatedType: requestIdForTracking ? 'request' : 'donation',
+        relatedId: requestIdForTracking ? String(requestIdForTracking) : donation._id.toString(),
+        title: 'Donation Status Updated',
+        message: `Donation #${donation._id.toString().substring(0, 8).toUpperCase()} status is now "${newStatus}"${ngoLabel ? ` (NGO: ${ngoLabel})` : ''}.`,
+        donationId: donation._id,
+        redirectUrl: `/ngo/dashboard?tab=pickups-deliveries&donationId=${donation._id.toString()}${requestIdForTracking ? `&requestId=${String(requestIdForTracking)}` : ''}`,
+        read: false
+      });
     }
   } catch (error) {
     console.error('Error creating notification:', error);
@@ -436,6 +542,40 @@ exports.getNgoAssignedDonations = asyncHandler(async (req, res) => {
   });
 });
 
+exports.getNgoLiveDonationsPool = asyncHandler(async (req, res) => {
+  const firebaseUid = req.firebaseUid;
+
+  const ngoUser = await User.findOne({ firebaseUid, userType: 'ngo' }).select('_id').lean();
+  if (!ngoUser) {
+    return res.status(403).json({
+      success: false,
+      error: 'Not authorized. NGO access required.'
+    });
+  }
+
+  const take = Math.min(Math.max(Number(req.query.limit || 8), 1), 50);
+
+  const query = {
+    status: 'pending',
+    'assignedNGO.ngoFirebaseUid': null
+  };
+
+  const [count, donations] = await Promise.all([
+    Donation.countDocuments(query),
+    Donation.find(query)
+      .select('resourceType quantity unit address pickup status createdAt')
+      .sort({ createdAt: -1 })
+      .limit(take)
+      .lean()
+  ]);
+
+  res.status(200).json({
+    success: true,
+    count,
+    data: donations
+  });
+});
+
 // @desc    Assign volunteer to donation (NGO)
 // @route   PUT /api/v1/donations/ngo/:id/assign-volunteer
 // @access  Private (NGO)
@@ -502,7 +642,7 @@ exports.assignVolunteer = asyncHandler(async (req, res) => {
 // @access  Private (NGO)
 exports.updateNgoDonationStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, otp } = req.body;
   const ngoFirebaseUid = req.firebaseUid;
 
   const donation = await Donation.findById(id);
@@ -530,8 +670,30 @@ exports.updateNgoDonationStatus = asyncHandler(async (req, res) => {
     });
   }
 
+  const prevStatus = donation.status;
   donation.status = status;
   await donation.save();
+
+  // Donor notification when OTP is sent (picked)
+  try {
+    const changedStatus = status !== prevStatus;
+    if (changedStatus && status === 'picked') {
+      const ngoLabel = donation.assignedNGO?.ngoName || null;
+      const otpLabel = otp ? ` OTP: ${String(otp)}.` : '';
+      await Notification.create({
+        recipientFirebaseUid: donation.donorFirebaseUid,
+        category: 'pickups',
+        title: 'OTP Sent for Verification',
+        message: `OTP has been sent for your donation #${donation._id.toString().substring(0, 8).toUpperCase()}.${otpLabel} Please verify it to confirm receipt${ngoLabel ? ` (NGO: ${ngoLabel})` : ''}.`,
+        donationId: donation._id,
+        redirectUrl: `/donor/dashboard?tab=notifications&filter=pickups&donationId=${donation._id.toString()}`,
+        read: false
+      });
+    }
+  } catch (error) {
+    console.error('Error creating notification:', error);
+    // non-blocking
+  }
 
   res.status(200).json({
     success: true,
