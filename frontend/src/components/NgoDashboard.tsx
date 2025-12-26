@@ -92,8 +92,19 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
   const [dashboardStats, setDashboardStats] = useState({
     totalRequests: 0,
     pendingRequests: 0,
+    assignedRequests: 0,
     approvedRequests: 0,
-    rejectedRequests: 0
+    rejectedRequests: 0,
+    totalDonations: 0,
+    volunteerAssignedCount: 0,
+    pickedUpCount: 0,
+    completedCount: 0
+  });
+  const [dashboardAnalytics, setDashboardAnalytics] = useState({
+    donationsByStatus: {} as Record<string, number>,
+    donationsByType: [] as Array<{type: string, count: number, totalQuantity: number}>,
+    requestsOverTime: [] as Array<{label: string, count: number}>,
+    donationsOverTime: [] as Array<{label: string, count: number}>
   });
   const [dashboardLoading, setDashboardLoading] = useState(true);
 
@@ -174,9 +185,23 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
           setDashboardStats({
             totalRequests: response.data.summary.totalRequests || 0,
             pendingRequests: response.data.summary.pendingRequests || 0,
+            assignedRequests: response.data.summary.assignedRequests || 0,
             approvedRequests: response.data.summary.approvedRequests || 0,
-            rejectedRequests: response.data.summary.rejectedRequests || 0
+            rejectedRequests: response.data.summary.rejectedRequests || 0,
+            totalDonations: response.data.summary.totalDonations || 0,
+            volunteerAssignedCount: response.data.summary.volunteerAssignedCount || 0,
+            pickedUpCount: response.data.summary.pickedUpCount || 0,
+            completedCount: response.data.summary.completedCount || 0
           });
+          
+          if (response.data?.analytics) {
+            setDashboardAnalytics({
+              donationsByStatus: response.data.analytics.donationsByStatus || {},
+              donationsByType: response.data.analytics.donationsByType || [],
+              requestsOverTime: response.data.analytics.requestsOverTime || [],
+              donationsOverTime: response.data.analytics.donationsOverTime || []
+            });
+          }
         }
       } catch (error) {
         console.error('Error fetching dashboard stats:', error);
@@ -615,7 +640,7 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
             </div>
 
             {/* 2. Key Numbers */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
                 <div className="flex items-center justify-between">
                   <div>
@@ -648,16 +673,16 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Approved Requests</p>
+                    <p className="text-sm font-medium text-gray-500">Assigned Requests</p>
                     <p className="mt-1 text-2xl font-bold text-gray-900">
-                      {dashboardLoading ? '...' : dashboardStats.approvedRequests}
+                      {dashboardLoading ? '...' : dashboardStats.assignedRequests}
                     </p>
                   </div>
-                  <div className="flex-shrink-0 bg-green-100 rounded-lg p-3">
-                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex-shrink-0 bg-blue-100 rounded-lg p-3">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
@@ -681,20 +706,134 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-medium text-gray-900">Available Donations</h2>
+            {/* 3. Donation Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Total Donations</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">
+                      {dashboardLoading ? '...' : dashboardStats.totalDonations}
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 bg-purple-100 rounded-lg p-3">
+                    <Package className="w-6 h-6 text-purple-600" />
+                  </div>
+                </div>
               </div>
-              <div className="p-6">
-                <div className="text-center py-12">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No donations available</h3>
-                  <p className="mt-1 text-sm text-gray-500">New donations will appear here when available.</p>
+
+              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Volunteer Assigned</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">
+                      {dashboardLoading ? '...' : dashboardStats.volunteerAssignedCount}
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 bg-indigo-100 rounded-lg p-3">
+                    <UserIcon className="w-6 h-6 text-indigo-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Picked Up</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">
+                      {dashboardLoading ? '...' : dashboardStats.pickedUpCount}
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 bg-orange-100 rounded-lg p-3">
+                    <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Completed</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">
+                      {dashboardLoading ? '...' : dashboardStats.completedCount}
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 bg-green-100 rounded-lg p-3">
+                    <Check className="w-6 h-6 text-green-600" />
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* 4. Analytics Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Requests Over Time Chart */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Requests Over Time</h3>
+                <div className="h-64 flex items-end justify-between space-x-2">
+                  {dashboardAnalytics.requestsOverTime.length > 0 ? (
+                    dashboardAnalytics.requestsOverTime.map((item, index) => {
+                      const maxCount = Math.max(...dashboardAnalytics.requestsOverTime.map(d => d.count), 1);
+                      const height = (item.count / maxCount) * 100;
+                      return (
+                        <div key={index} className="flex-1 flex flex-col items-center">
+                          <div className="w-full flex flex-col items-center justify-end h-48">
+                            <div
+                              className="w-full bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t transition-all hover:from-emerald-600 hover:to-emerald-500"
+                              style={{ height: `${height}%` }}
+                              title={`${item.label}: ${item.count} requests`}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-600 mt-2 transform -rotate-45 origin-top-left whitespace-nowrap">
+                            {item.label}
+                          </p>
+                          <p className="text-xs font-semibold text-gray-900 mt-1">{item.count}</p>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <p>No data available</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Donations Over Time Chart */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Donations Over Time</h3>
+                <div className="h-64 flex items-end justify-between space-x-2">
+                  {dashboardAnalytics.donationsOverTime.length > 0 ? (
+                    dashboardAnalytics.donationsOverTime.map((item, index) => {
+                      const maxCount = Math.max(...dashboardAnalytics.donationsOverTime.map(d => d.count), 1);
+                      const height = (item.count / maxCount) * 100;
+                      return (
+                        <div key={index} className="flex-1 flex flex-col items-center">
+                          <div className="w-full flex flex-col items-center justify-end h-48">
+                            <div
+                              className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all hover:from-blue-600 hover:to-blue-500"
+                              style={{ height: `${height}%` }}
+                              title={`${item.label}: ${item.count} donations`}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-600 mt-2 transform -rotate-45 origin-top-left whitespace-nowrap">
+                            {item.label}
+                          </p>
+                          <p className="text-xs font-semibold text-gray-900 mt-1">{item.count}</p>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <p>No data available</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
           </div>
         )}
 
