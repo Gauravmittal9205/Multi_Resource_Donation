@@ -470,6 +470,7 @@ exports.getNgosWithActiveRequests = asyncHandler(async (req, res) => {
 // @desc    Get NGO dashboard data
 exports.getNgoDashboard = asyncHandler(async (req, res) => {
   const ngoFirebaseUid = req.firebaseUid;
+  const Donation = require('../models/Donation');
 
   const totalRequests = await NgoRequest.countDocuments({ ngoFirebaseUid });
   const pendingRequests = await NgoRequest.countDocuments({
@@ -489,6 +490,96 @@ exports.getNgoDashboard = asyncHandler(async (req, res) => {
     status: 'rejected'
   });
 
+  // Count assigned requests (requests that have donations assigned to them)
+  const assignedDonations = await Donation.find({
+    'assignedNGO.ngoFirebaseUid': ngoFirebaseUid,
+    'assignedNGO.assignedRequestId': { $exists: true, $ne: null }
+  }).select('assignedNGO.assignedRequestId').lean();
+  
+  const assignedRequestIds = [...new Set(assignedDonations.map(d => d.assignedNGO?.assignedRequestId).filter(Boolean))];
+  const assignedRequestsCount = assignedRequestIds.length;
+
+  // Get donation statistics
+  const totalDonations = await Donation.countDocuments({
+    'assignedNGO.ngoFirebaseUid': ngoFirebaseUid
+  });
+  
+  const donationsByStatus = await Donation.aggregate([
+    {
+      $match: { 'assignedNGO.ngoFirebaseUid': ngoFirebaseUid }
+    },
+    {
+      $group: {
+        _id: '$status',
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  const volunteerAssignedCount = await Donation.countDocuments({
+    'assignedNGO.ngoFirebaseUid': ngoFirebaseUid,
+    status: 'volunteer_assigned'
+  });
+
+  const pickedUpCount = await Donation.countDocuments({
+    'assignedNGO.ngoFirebaseUid': ngoFirebaseUid,
+    status: 'picked'
+  });
+
+  const completedCount = await Donation.countDocuments({
+    'assignedNGO.ngoFirebaseUid': ngoFirebaseUid,
+    status: 'completed'
+  });
+
+  // Get donations by resource type
+  const donationsByType = await Donation.aggregate([
+    {
+      $match: { 'assignedNGO.ngoFirebaseUid': ngoFirebaseUid }
+    },
+    {
+      $group: {
+        _id: '$resourceType',
+        count: { $sum: 1 },
+        totalQuantity: { $sum: '$quantity' }
+      }
+    }
+  ]);
+
+  // Get requests over time (last 12 months)
+  const now = new Date();
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      year: date.getFullYear(),
+      month: date.getMonth(),
+      label: date.toLocaleString('en-US', { month: 'short' }),
+      start: new Date(date.getFullYear(), date.getMonth(), 1),
+      end: new Date(date.getFullYear(), date.getMonth() + 1, 1)
+    });
+  }
+
+  const requestsOverTime = await Promise.all(
+    months.map(async (m) => {
+      const count = await NgoRequest.countDocuments({
+        ngoFirebaseUid,
+        createdAt: { $gte: m.start, $lt: m.end }
+      });
+      return { label: m.label, count };
+    })
+  );
+
+  // Get donations over time (last 12 months)
+  const donationsOverTime = await Promise.all(
+    months.map(async (m) => {
+      const count = await Donation.countDocuments({
+        'assignedNGO.ngoFirebaseUid': ngoFirebaseUid,
+        createdAt: { $gte: m.start, $lt: m.end }
+      });
+      return { label: m.label, count };
+    })
+  );
+
   const urgentRequests = await NgoRequest.find({
     ngoFirebaseUid,
     urgencyLevel: 'high',
@@ -504,9 +595,27 @@ exports.getNgoDashboard = asyncHandler(async (req, res) => {
       summary: {
         totalRequests,
         pendingRequests,
+        assignedRequests: assignedRequestsCount,
         approvedRequests,
         fulfilledRequests,
-        rejectedRequests
+        rejectedRequests,
+        totalDonations,
+        volunteerAssignedCount,
+        pickedUpCount,
+        completedCount
+      },
+      analytics: {
+        donationsByStatus: donationsByStatus.reduce((acc, item) => {
+          acc[item._id] = item.count;
+          return acc;
+        }, {}),
+        donationsByType: donationsByType.map(item => ({
+          type: item._id,
+          count: item.count,
+          totalQuantity: item.totalQuantity
+        })),
+        requestsOverTime,
+        donationsOverTime
       },
       urgentRequests
     }
