@@ -10,7 +10,7 @@ const getAuthToken = async (): Promise<string> => {
   return await user.getIdToken();
 };
 
-export type DonationStatus = 'pending' | 'assigned' | 'picked' | 'completed' | 'cancelled';
+export type DonationStatus = 'pending' | 'assigned' | 'volunteer_assigned' | 'picked' | 'completed' | 'cancelled';
 
 export interface DonationPayload {
   resourceType: 'Food' | 'Clothes' | 'Books' | 'Medical Supplies' | 'Other Essentials';
@@ -243,4 +243,41 @@ export const updateDonation = async (donationId: string, payload: UpdateDonation
     }
   });
   return response.data as { success: boolean; data: AdminDonationItem };
+};
+
+// NGO functions
+export const fetchNgoAssignedDonations = async () => {
+  const token = await getAuthToken();
+  const response = await axios.get(`${API_URL}/ngo/assigned`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return response.data as { success: boolean; count: number; data: DonationItem[] };
+};
+
+export interface AssignVolunteerPayload {
+  volunteerId?: string;
+  volunteerName: string;
+  volunteerPhone?: string;
+}
+
+export const assignVolunteer = async (donationId: string, payload: AssignVolunteerPayload) => {
+  const token = await getAuthToken();
+  const response = await axios.put(`${API_URL}/ngo/${donationId}/assign-volunteer`, payload, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return response.data as { success: boolean; data: DonationItem };
+};
+
+export const updateNgoDonationStatus = async (donationId: string, status: 'volunteer_assigned' | 'picked' | 'completed') => {
+  const token = await getAuthToken();
+  const response = await axios.put(`${API_URL}/ngo/${donationId}/status`, { status }, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return response.data as { success: boolean; data: DonationItem };
 };

@@ -781,7 +781,6 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
                     <Clock className="w-12 h-12 text-yellow-500 group-hover:scale-110 transition-transform duration-300" />
                   </div>
                 </button>
-
                 <button
                   onClick={() => setActiveTab('pickups')}
                   className="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500 hover:shadow-xl transform hover:scale-105 transition-all duration-300 group relative overflow-hidden"
@@ -844,194 +843,9 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
                 </button>
               </div>
 
-              {/* Recent Activity */}
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
-                  <button className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 transition-colors">
-                    <RefreshCw className="w-4 h-4" />
-                    <span>Refresh</span>
-                  </button>
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {recentActivities.map((activity, index) => {
-                    const Icon = activity.icon;
-                    return (
-                      <div
-                        key={activity.id}
-                        className="p-4 hover:bg-gray-50 transition-all duration-200 cursor-pointer group"
-                        style={{
-                          animation: `slideIn 0.3s ease-out ${index * 0.1}s both`
-                        }}
-                      >
-                        <div className="flex items-start space-x-4">
-                          <div className={`flex-shrink-0 w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}>
-                            <Icon className={`w-5 h-5 ${activity.color}`} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                                {activity.title}
-                              </p>
-                              <span className="text-xs text-gray-500">{activity.time}</span>
-                            </div>
-                            <p className="text-sm text-gray-600 mt-1">{activity.description}</p>
-                            <div className="flex items-center space-x-4 mt-2">
-                              <button className="text-xs text-blue-600 hover:text-blue-800 transition-colors flex items-center space-x-1">
-                                <Eye className="w-3 h-3" />
-                                <span>View Details</span>
-                              </button>
-                              <button className="text-xs text-gray-500 hover:text-gray-700 transition-colors">
-                                Dismiss
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="p-4 bg-gray-50 border-t border-gray-200">
-                  <button className="w-full text-center text-sm text-blue-600 hover:text-blue-800 transition-colors font-medium">
-                    View All Activities →
-                  </button>
-                </div>
-              </div>
+             
 
-              {/* City-wise Heat Map */}
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="p-6 border-b border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
-                        <MapPin className="w-4 h-4 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">City-wise Impact Heat Map</h3>
-                        <p className="text-sm text-gray-500">Hyper-local donation distribution across cities</p>
-                      </div>
-                    </div>
-                    <button className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 transition-colors">
-                      <Target className="w-4 h-4" />
-                      <span>View Analytics</span>
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="p-6">
-                  {/* Top 3 Cities */}
-                  <div className="mb-6">
-                    <div className="flex items-center space-x-2 mb-4">
-                      <Award className="w-5 h-5 text-yellow-500" />
-                      <h4 className="text-sm font-semibold text-gray-700">Top 3 Active Cities</h4>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {cityDonations.slice(0, 3).map((city, index) => (
-                        <div
-                          key={city.city}
-                          className={`p-4 rounded-lg border-2 transition-all duration-300 hover:shadow-lg transform hover:scale-105 ${
-                            index === 0 ? 'border-yellow-400 bg-yellow-50' :
-                            index === 1 ? 'border-gray-400 bg-gray-50' :
-                            'border-orange-400 bg-orange-50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center space-x-2">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                                index === 0 ? 'bg-yellow-400' :
-                                index === 1 ? 'bg-gray-400' :
-                                'bg-orange-400'
-                              }`}>
-                                <span className="text-white font-bold text-sm">{index + 1}</span>
-                              </div>
-                              <span className="font-semibold text-gray-900">{city.city}</span>
-                            </div>
-                            {index === 0 && <Flame className="w-4 h-4 text-red-500 animate-pulse" />}
-                          </div>
-                          <div className="text-2xl font-bold text-gray-900">{city.donations}</div>
-                          <div className="text-xs text-gray-600">{city.percentage}% of total</div>
-                          <div className={`flex items-center mt-2 text-xs ${
-                            city.trend === 'up' ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {city.trend === 'up' ? <ArrowUp className="w-3 h-3 mr-1" /> : <ArrowDown className="w-3 h-3 mr-1" />}
-                            {Math.abs(city.change)}% from last month
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Heat Map Grid */}
-                  <div>
-                    <div className="flex items-center space-x-2 mb-4">
-                      <div className="w-5 h-5 bg-gradient-to-r from-blue-500 via-green-500 via-yellow-500 via-orange-500 to-red-500 rounded"></div>
-                      <h4 className="text-sm font-semibold text-gray-700">All Cities by Donation Volume</h4>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {cityDonations.map((city, index) => (
-                        <div
-                          key={city.city}
-                          className={`p-4 rounded-lg border transition-all duration-300 cursor-pointer transform hover:scale-105 hover:shadow-lg ${getHeatBgColor(city.percentage)}`}
-                          style={{
-                            animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`
-                          }}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <span className={`font-semibold text-sm ${getHeatTextColor(city.percentage)}`}>
-                              {city.city}
-                            </span>
-                            <div className={`w-3 h-3 rounded-full ${getHeatColor(city.percentage)} animate-pulse`}></div>
-                          </div>
-                          <div className={`text-xl font-bold ${getHeatTextColor(city.percentage)}`}>
-                            {city.donations}
-                          </div>
-                          <div className="text-xs text-gray-600">{city.percentage}%</div>
-                          <div className={`flex items-center mt-2 text-xs ${
-                            city.trend === 'up' ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {city.trend === 'up' ? <ArrowUp className="w-3 h-3 mr-1" /> : <ArrowDown className="w-3 h-3 mr-1" />}
-                            {Math.abs(city.change)}%
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Heat Map Legend */}
-                  <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <span className="text-xs font-medium text-gray-600">Volume Intensity:</span>
-                        <div className="flex items-center space-x-2">
-                          <div className="flex items-center space-x-1">
-                            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                            <span className="text-xs text-gray-600">Low</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                            <span className="text-xs text-gray-600">Medium</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                            <span className="text-xs text-gray-600">High</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                            <span className="text-xs text-gray-600">Very High</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                            <span className="text-xs text-gray-600">Critical</span>
-                          </div>
-                        </div>
-                      </div>
-                      <button className="text-xs text-blue-600 hover:text-blue-800 transition-colors font-medium">
-                        Expand Map →
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              
               
               <style dangerouslySetInnerHTML={{
                 __html: `
@@ -2656,7 +2470,7 @@ function PickupTracking() {
     try {
       setLoading(true);
       const donationService = await import('../services/donationService');
-      type DonationStatus = 'pending' | 'assigned' | 'picked' | 'completed' | 'cancelled';
+      type DonationStatus = 'pending' | 'assigned' | 'volunteer_assigned' | 'picked' | 'completed' | 'cancelled';
       const response = await donationService.fetchAllDonations({
         status: (filters.status || 'assigned') as DonationStatus
       });
@@ -2735,8 +2549,10 @@ function PickupTracking() {
     switch (status) {
       case 'assigned':
         return 'bg-blue-100 text-blue-800';
-      case 'picked':
+      case 'volunteer_assigned':
         return 'bg-purple-100 text-purple-800';
+      case 'picked':
+        return 'bg-yellow-100 text-yellow-800';
       case 'completed':
         return 'bg-green-100 text-green-800';
       case 'cancelled':
@@ -2749,8 +2565,18 @@ function PickupTracking() {
   const getTrackingSteps = (status: string) => {
     const steps = [
       { id: 1, name: 'Assigned', status: 'completed' },
-      { id: 2, name: 'Pickup Scheduled', status: status === 'assigned' ? 'current' : status === 'picked' || status === 'completed' ? 'completed' : 'pending' },
-      { id: 3, name: 'Picked Up', status: status === 'picked' ? 'current' : status === 'completed' ? 'completed' : 'pending' },
+      { 
+        id: 2, 
+        name: 'Volunteer Assigned', 
+        status: status === 'assigned' ? 'pending' : 
+                status === 'volunteer_assigned' || status === 'picked' || status === 'completed' ? 'completed' : 
+                status === 'volunteer_assigned' ? 'current' : 'pending'
+      },
+      { 
+        id: 3, 
+        name: 'Picked Up', 
+        status: status === 'picked' ? 'current' : status === 'completed' ? 'completed' : 'pending' 
+      },
       { id: 4, name: 'Delivered', status: status === 'completed' ? 'completed' : 'pending' }
     ];
     return steps;
@@ -2811,6 +2637,7 @@ function PickupTracking() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             >
               <option value="assigned">Assigned</option>
+              <option value="volunteer_assigned">Volunteer Assigned</option>
               <option value="picked">Picked</option>
               <option value="completed">Completed</option>
               <option value="">All Status</option>
@@ -3059,6 +2886,40 @@ function PickupTracking() {
                               <div>
                                 <p className="text-xs font-medium text-gray-500">Description</p>
                                 <p className="text-sm text-gray-700 mt-1">{request.description}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Volunteer Assignment Details */}
+                      {donation.assignedVolunteer && (
+                        <div className="bg-purple-50 rounded-lg p-4">
+                          <div className="flex items-center space-x-2 mb-3">
+                            <UserIcon className="w-4 h-4 text-purple-600" />
+                            <h4 className="text-sm font-semibold text-gray-900">Assigned Volunteer</h4>
+                          </div>
+                          <div className="space-y-2">
+                            <div>
+                              <p className="text-xs font-medium text-gray-500">Volunteer Name</p>
+                              <p className="text-sm text-gray-900 font-medium">
+                                {donation.assignedVolunteer.volunteerName}
+                              </p>
+                            </div>
+                            {donation.assignedVolunteer.volunteerPhone && (
+                              <div>
+                                <p className="text-xs font-medium text-gray-500">Phone</p>
+                                <p className="text-sm text-gray-700">
+                                  {donation.assignedVolunteer.volunteerPhone}
+                                </p>
+                              </div>
+                            )}
+                            {donation.assignedVolunteer.assignedAt && (
+                              <div>
+                                <p className="text-xs font-medium text-gray-500">Assigned At</p>
+                                <p className="text-sm text-gray-700">
+                                  {formatDate(donation.assignedVolunteer.assignedAt)}
+                                </p>
                               </div>
                             )}
                           </div>
@@ -3594,12 +3455,16 @@ function ImpactAnalytics() {
 function AnnouncementsPanel() {
   const [requests, setRequests] = useState<any[]>([]);
   const [registrations, setRegistrations] = useState<any[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     fetchData();
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchData = async () => {
@@ -3607,28 +3472,49 @@ function AnnouncementsPanel() {
       setLoading(true);
       setError(null);
       
-      // Fetch both NGO requests and NGO registrations
-      const [requestsResponse, registrationsResponse] = await Promise.all([
+      // Fetch NGO requests, registrations, and announcements
+      const [requestsResponse, registrationsResponse, announcementsResponse] = await Promise.all([
         getAllNgoRequests(),
-        getAllNgoRegistrations()
+        getAllNgoRegistrations(),
+        fetchAnnouncements()
       ]);
       
       const requestData = requestsResponse.success ? requestsResponse.data || [] : [];
       const registrationData = registrationsResponse.success ? registrationsResponse.data || [] : [];
+      const announcementData = announcementsResponse.success ? announcementsResponse.data || [] : [];
       
       setRequests(requestData);
       setRegistrations(registrationData);
+      setAnnouncements(announcementData);
       
-      // Count unread items (both requests and registrations)
+      // Count unread items (requests, registrations, and announcements)
       const unreadRequests = requestData.filter((req: any) => !req.isRead).length;
       const unreadRegistrations = registrationData.filter((reg: any) => !reg.isRead).length;
-      setUnreadCount(unreadRequests + unreadRegistrations);
+      const unreadAnnouncements = announcementData.filter((ann: any) => !ann.isRead).length;
+      setUnreadCount(unreadRequests + unreadRegistrations + unreadAnnouncements);
       
     } catch (err) {
       setError('An error occurred while fetching data');
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAnnouncements = async () => {
+    try {
+      const { auth } = await import('../firebase');
+      const axios = await import('axios');
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('No auth token');
+      
+      const response = await axios.default.get('http://localhost:5000/api/v1/announcements', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching announcements:', error);
+      return { success: false, data: [] };
     }
   };
 
@@ -3656,7 +3542,7 @@ function AnnouncementsPanel() {
     }
   };
 
-  const markAsRead = (itemId: string, type: 'request' | 'registration') => {
+  const markAsRead = async (itemId: string, type: 'request' | 'registration' | 'announcement') => {
     if (type === 'request') {
       setRequests(prev => 
         prev.map(item => 
@@ -3665,7 +3551,7 @@ function AnnouncementsPanel() {
             : item
         )
       );
-    } else {
+    } else if (type === 'registration') {
       setRegistrations(prev => 
         prev.map(item => 
           item._id === itemId 
@@ -3673,14 +3559,35 @@ function AnnouncementsPanel() {
             : item
         )
       );
+    } else if (type === 'announcement') {
+      try {
+        const { auth } = await import('../firebase');
+        const axios = await import('axios');
+        const token = await auth.currentUser?.getIdToken();
+        if (token) {
+          await axios.default.put(`http://localhost:5000/api/v1/announcements/${itemId}/read`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        }
+        setAnnouncements(prev => 
+          prev.map(item => 
+            item._id === itemId 
+              ? { ...item, isRead: true }
+              : item
+          )
+        );
+      } catch (error) {
+        console.error('Error marking announcement as read:', error);
+      }
     }
     setUnreadCount(prev => Math.max(0, prev - 1));
   };
 
-  // Combine both requests and registrations for display
+  // Combine requests, registrations, and announcements for display
   const allItems = [
     ...requests.map(req => ({ ...req, type: 'request' })),
-    ...registrations.map(reg => ({ ...reg, type: 'registration' }))
+    ...registrations.map(reg => ({ ...reg, type: 'registration' })),
+    ...announcements.map(ann => ({ ...ann, type: 'announcement' }))
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   if (loading) {
@@ -3752,27 +3659,37 @@ function AnnouncementsPanel() {
                   }`}
                   onClick={() => {
                     markAsRead(item._id, item.type);
-                    // Navigate to NGO tab and specific section
-                    const ngoTab = document.querySelector('[data-tab="ngos"]') as HTMLElement;
-                    if (ngoTab) {
-                      ngoTab.click();
-                      
-                      // After tab switch, navigate to specific section
-                      setTimeout(() => {
-                        if (item.type === 'registration') {
-                          // Switch to registrations section
-                          const registrationTab = document.querySelector('[data-ngo-tab="registrations"]') as HTMLElement;
-                          if (registrationTab) {
-                            registrationTab.click();
-                          }
-                        } else {
-                          // Switch to requests section
-                          const requestTab = document.querySelector('[data-ngo-tab="requests"]') as HTMLElement;
-                          if (requestTab) {
-                            requestTab.click();
-                          }
+                    if (item.type === 'announcement') {
+                      // Navigate to pickups tab for volunteer assignment announcements
+                      if (item.type === 'volunteer_assigned') {
+                        const pickupsTab = document.querySelector('[data-tab="pickups"]') as HTMLElement;
+                        if (pickupsTab) {
+                          pickupsTab.click();
                         }
-                      }, 100);
+                      }
+                    } else {
+                      // Navigate to NGO tab and specific section
+                      const ngoTab = document.querySelector('[data-tab="ngos"]') as HTMLElement;
+                      if (ngoTab) {
+                        ngoTab.click();
+                        
+                        // After tab switch, navigate to specific section
+                        setTimeout(() => {
+                          if (item.type === 'registration') {
+                            // Switch to registrations section
+                            const registrationTab = document.querySelector('[data-ngo-tab="registrations"]') as HTMLElement;
+                            if (registrationTab) {
+                              registrationTab.click();
+                            }
+                          } else {
+                            // Switch to requests section
+                            const requestTab = document.querySelector('[data-ngo-tab="requests"]') as HTMLElement;
+                            if (requestTab) {
+                              requestTab.click();
+                            }
+                          }
+                        }, 100);
+                      }
                     }
                   }}
                 >
@@ -3785,9 +3702,12 @@ function AnnouncementsPanel() {
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                           item.type === 'registration' 
                             ? 'bg-blue-100 text-blue-800' 
+                            : item.type === 'announcement'
+                            ? 'bg-orange-100 text-orange-800'
                             : 'bg-purple-100 text-purple-800'
                         }`}>
-                          {item.type === 'registration' ? 'Registration' : 'Request'}
+                          {item.type === 'registration' ? 'Registration' : 
+                           item.type === 'announcement' ? 'Announcement' : 'Request'}
                         </span>
                         <span className="text-xs text-gray-500 whitespace-nowrap">
                           {formatDate(item.createdAt)}
@@ -3797,9 +3717,14 @@ function AnnouncementsPanel() {
                       <h4 className="text-sm font-semibold text-gray-900 mb-1 truncate">
                         {item.type === 'registration' 
                           ? `New NGO Registration: ${item.ngoName || 'Unknown NGO'}`
+                          : item.type === 'announcement'
+                          ? item.title || 'Announcement'
                           : item.requestTitle || 'New Request'
                         }
                       </h4>
+                      {item.type === 'announcement' && item.message && (
+                        <p className="text-sm text-gray-600 mb-2">{item.message}</p>
+                      )}
                       
                       <div className="flex items-center space-x-4 text-xs text-gray-600 mb-2 flex-wrap">
                         {item.type === 'registration' ? (
