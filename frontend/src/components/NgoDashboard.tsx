@@ -2739,11 +2739,11 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
 
                       const getNotificationColor = () => {
                         if (notification.type === 'request_approved' || notification.type === 'registration_approved') {
-                          return notification.isRead
+                          return notification.read
                             ? 'bg-white border-gray-200 hover:bg-gray-50'
                             : 'bg-green-50 border-green-200 hover:bg-green-100';
                         } else {
-                          return notification.isRead
+                          return notification.read
                             ? 'bg-white border-gray-200 hover:bg-gray-50'
                             : 'bg-red-50 border-red-200 hover:bg-red-100';
                         }
@@ -2754,7 +2754,7 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                           key={notification._id}
                           className={`p-4 rounded-lg border transition-all cursor-pointer ${getNotificationColor()}`}
                           onClick={() => {
-                            if (!notification.isRead) {
+                            if (!notification.read) {
                               handleMarkAsRead(notification._id);
                             }
                           }}
@@ -2776,7 +2776,7 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                                     })}
                                   </p>
                                 </div>
-                                {!notification.isRead && (
+                                {!notification.read && (
                                   <div className="flex-shrink-0 ml-2">
                                     <div className="w-2 h-2 bg-emerald-600 rounded-full"></div>
                                   </div>
