@@ -69,6 +69,10 @@ const DonationSchema = new mongoose.Schema(
       assignedBy: {
         type: String, // Admin Firebase UID
         default: null
+      },
+      assignedRequestId: {
+        type: String, // NGO Request ID
+        default: null
       }
     }
   },

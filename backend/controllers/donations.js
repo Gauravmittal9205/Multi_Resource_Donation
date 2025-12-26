@@ -168,7 +168,7 @@ exports.getAllNGOs = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 exports.updateDonation = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { ngoFirebaseUid, status } = req.body;
+  const { ngoFirebaseUid, status, requestId } = req.body;
   const adminFirebaseUid = req.firebaseUid;
 
   const donation = await Donation.findById(id);
@@ -194,20 +194,45 @@ exports.updateDonation = asyncHandler(async (req, res) => {
       });
     }
 
+    console.log('Assigning donation:', {
+      donationId: id,
+      ngoFirebaseUid: ngoFirebaseUid,
+      requestId: requestId
+    });
+
     donation.assignedNGO = {
       ngoFirebaseUid: ngoFirebaseUid,
       ngoName: ngo.organizationName || ngo.name,
       assignedAt: new Date(),
-      assignedBy: adminFirebaseUid
+      assignedBy: adminFirebaseUid,
+      assignedRequestId: requestId || null
     };
+    
+    console.log('Donation assignedNGO object:', donation.assignedNGO);
 
     // If status is not explicitly set and NGO is assigned, set status to 'assigned'
     if (!status) {
       donation.status = 'assigned';
     }
+
+    // Update request status to 'approved' if requestId is provided
+    if (requestId) {
+      const NgoRequest = require('../models/NgoRequest');
+      const updatedRequest = await NgoRequest.findByIdAndUpdate(
+        requestId, 
+        { status: 'approved' },
+        { new: true }
+      );
+      console.log(`Updated request ${requestId} status to approved:`, updatedRequest ? 'Success' : 'Failed');
+    }
   }
 
   await donation.save();
+  
+  // Verify the save was successful
+  const savedDonation = await Donation.findById(id);
+  console.log('Saved donation assignedNGO:', savedDonation?.assignedNGO);
+  console.log('Saved donation assignedRequestId:', savedDonation?.assignedNGO?.assignedRequestId);
 
   res.status(200).json({
     success: true,
