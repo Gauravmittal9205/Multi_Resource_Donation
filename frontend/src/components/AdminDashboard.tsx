@@ -25,7 +25,6 @@ import {
   XCircle,
   Clock,
   FileText,
-  Ban,
   MessageSquare,
   Menu,
   X,
@@ -1359,13 +1358,7 @@ function NGORequests({ onViewRequest }: NGORequestsProps) {
                   }
                 };
 
-                const priority = getPriorityColor();
                 const status = getStatusColor();
-                const urgencyIcons: Record<string, React.ReactElement> = {
-                  high: <Flame className="w-4 h-4 text-red-500" />,
-                  medium: <Activity className="w-4 h-4 text-yellow-500" />,
-                  low: <Clock className="w-4 h-4 text-green-500" />
-                };
 
                 return (
                   <div 
