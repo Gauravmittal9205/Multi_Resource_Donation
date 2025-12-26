@@ -1,4 +1,5 @@
 const Notification = require('../models/Notification');
+const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 const asyncHandler = require('../middleware/async');
 
@@ -83,6 +84,60 @@ exports.markAllAsRead = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: 'All notifications marked as read'
+  });
+});
+
+// @desc    Get all notifications (Admin)
+// @route   GET /api/v1/notifications/admin/all
+// @access  Private (Admin)
+exports.getAllNotifications = asyncHandler(async (req, res) => {
+  const { recipientFirebaseUid, category, read, limit } = req.query;
+
+  const query = {};
+  if (recipientFirebaseUid) query.recipientFirebaseUid = recipientFirebaseUid;
+  if (category && String(category).trim() !== 'all') {
+    query.category = String(category).trim();
+  }
+  if (read !== undefined) query.read = read === 'true';
+
+  const take = Math.min(Math.max(Number(limit || 100), 1), 500);
+
+  const notifications = await Notification.find(query)
+    .populate('donationId', 'resourceType status')
+    .sort({ createdAt: -1 })
+    .limit(take)
+    .lean();
+
+  // Get donor names for notifications
+  const donorUids = [...new Set(notifications.map(n => n.recipientFirebaseUid))];
+  const donors = await User.find({ 
+    firebaseUid: { $in: donorUids },
+    userType: 'donor'
+  })
+  .select('firebaseUid name email')
+  .lean();
+
+  const donorMap = {};
+  donors.forEach(donor => {
+    donorMap[donor.firebaseUid] = {
+      name: donor.name,
+      email: donor.email
+    };
+  });
+
+  // Add donor info to each notification
+  const notificationsWithDonor = notifications.map(notification => ({
+    ...notification,
+    donor: donorMap[notification.recipientFirebaseUid] || {
+      name: 'Unknown',
+      email: 'N/A'
+    }
+  }));
+
+  res.status(200).json({
+    success: true,
+    count: notificationsWithDonor.length,
+    data: notificationsWithDonor
   });
 });
 

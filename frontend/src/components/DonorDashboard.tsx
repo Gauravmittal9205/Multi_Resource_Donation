@@ -4049,12 +4049,12 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                                 </div>
                                 <div>
                                   <div className="text-xs text-gray-500 mb-1">Cancelled By</div>
-                                  <div className="font-medium">{d.cancelledBy || 'System'}</div>
+                                  <div className="font-medium">Admin</div>
                                 </div>
                                 <div>
                                   <div className="text-xs text-gray-500 mb-1">Cancelled Date</div>
                                   <div className="text-sm">
-                                    {d.updatedAt ? new Date(d.updatedAt).toLocaleString('en-IN', {
+                                    {(d.cancelledAt || d.updatedAt) ? new Date(d.cancelledAt || d.updatedAt).toLocaleString('en-IN', {
                                       day: '2-digit',
                                       month: 'short',
                                       year: 'numeric',
@@ -4076,7 +4076,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                                   <div>
                                     <div className="text-sm font-semibold text-red-900 mb-1">Cancellation Reason</div>
                                     <div className="text-sm text-gray-700">
-                                      {d.cancellationReason || 'No specific reason provided'}
+                                      {d.cancelReason || 'No specific reason provided'}
                                     </div>
                                   </div>
                                 </div>

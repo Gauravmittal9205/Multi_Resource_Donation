@@ -11,6 +11,7 @@ const getAuthToken = async (): Promise<string> => {
 };
 
 export interface Notification {
+  type: string;
   _id: string;
   recipientFirebaseUid: string;
   type?: 'request_approved' | 'request_rejected' | 'registration_approved' | 'donation_update' | 'system' | 'pickup_assigned' | 'pickup_completed';

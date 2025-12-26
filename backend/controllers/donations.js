@@ -254,7 +254,7 @@ exports.getAllNGOs = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 exports.updateDonation = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { ngoFirebaseUid, status, requestId } = req.body;
+  const { ngoFirebaseUid, status, requestId, cancelReason } = req.body;
   const adminFirebaseUid = req.firebaseUid;
 
   const donation = await Donation.findById(id);
@@ -272,6 +272,22 @@ exports.updateDonation = asyncHandler(async (req, res) => {
   // Update status if provided
   if (status) {
     donation.status = status;
+  }
+
+  // Save cancellation reason only when donation is cancelled
+  if (status === 'cancelled') {
+    if (typeof cancelReason === 'string') {
+      donation.cancelReason = cancelReason;
+    }
+    if (!donation.cancelledAt) {
+      donation.cancelledAt = new Date();
+    }
+  }
+
+  // Clear cancellation metadata if donation is moved away from cancelled
+  if (status && status !== 'cancelled') {
+    donation.cancelReason = '';
+    donation.cancelledAt = null;
   }
 
   // Assign NGO if provided
@@ -369,7 +385,7 @@ exports.updateDonation = asyncHandler(async (req, res) => {
             recipientFirebaseUid: donorUid,
             category: 'donations',
             title: 'Donation Cancelled',
-            message: `Your ${donation.resourceType} donation has been cancelled${ngoLabel ? ` by ${ngoLabel}` : ''}. Please contact support if you have questions.`,
+            message: `Your ${donation.resourceType} donation has been cancelled${ngoLabel ? ` by ${ngoLabel}` : ''}.${donation.cancelReason ? ` Reason: ${donation.cancelReason}` : ''} Please contact support if you have questions.`,
             donationId: donation._id,
             redirectUrl: '/donor/dashboard',
             read: false
