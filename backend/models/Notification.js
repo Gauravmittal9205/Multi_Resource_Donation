@@ -12,7 +12,7 @@ const NotificationSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     message: { type: String, required: true, trim: true },
     read: { type: Boolean, default: false, index: true },
-    readAt: { type: Date, default: null }
+    readAt: { type: Date, default: null },
     ngoFirebaseUid: {
       type: String,
       required: true,
