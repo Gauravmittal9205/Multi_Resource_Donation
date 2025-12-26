@@ -154,9 +154,16 @@ function App() {
       
       try {
         const res = await fetchDonorProfileByUid(user.uid);
-        setDonorProfile(res.data);
-      } catch (error) {
-        console.error('Failed to load donor profile:', error);
+        if (res.success && res.data) {
+          setDonorProfile(res.data);
+        } else {
+          setDonorProfile(null);
+        }
+      } catch (error: any) {
+        // Only log non-404 errors (404 is expected for new users)
+        if (error.response?.status !== 404) {
+          console.error('Failed to load donor profile:', error);
+        }
         setDonorProfile(null);
       }
     };

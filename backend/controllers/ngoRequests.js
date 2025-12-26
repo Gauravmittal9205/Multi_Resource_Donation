@@ -692,25 +692,25 @@ exports.updateRequestStatus = asyncHandler(async (req, res) => {
 
   // Create notification for NGO
   if (status === 'approved' || status === 'rejected') {
-    const ngo = await User.findOne({ firebaseUid: request.ngoFirebaseUid });
-    const ngoName = ngo?.organizationName || ngo?.name || 'NGO';
-    
-    const notificationType = status === 'approved' ? 'request_approved' : 'request_rejected';
-    const title = status === 'approved' 
-      ? 'Request Approved' 
-      : 'Request Rejected';
-    const message = status === 'approved'
-      ? `Your request "${request.requestTitle}" has been approved by the admin.`
-      : `Your request "${request.requestTitle}" has been rejected by the admin.`;
+    const title = status === 'approved' ? 'Request Approved' : 'Request Rejected';
+    const message =
+      status === 'approved'
+        ? `Your request "${request.requestTitle}" has been approved by the admin.`
+        : `Your request "${request.requestTitle}" has been rejected by the admin.`;
 
-    await Notification.create({
-      ngoFirebaseUid: request.ngoFirebaseUid,
-      type: notificationType,
-      title,
-      message,
-      relatedId: request._id.toString(),
-      relatedType: 'request'
-    });
+    try {
+      await Notification.create({
+        recipientFirebaseUid: request.ngoFirebaseUid,
+        category: 'system',
+        title,
+        message,
+        redirectUrl: `/ngo/dashboard?tab=my-requests&requestId=${request._id.toString()}`,
+        read: false
+      });
+    } catch (error) {
+      console.error('Error creating NGO request status notification:', error);
+      // non-blocking
+    }
   }
 
   res.status(200).json({

@@ -4,8 +4,8 @@ import { createNgoRequest, getMyRequests, getNgoDashboard } from '../services/ng
 import { createFeedback } from '../services/feedbackService';
 import { createContact } from '../services/contactService';
 import { getMyNotifications, markNotificationAsRead, markAllNotificationsAsRead, type Notification } from '../services/notificationService';
-import { fetchNgoAssignedDonations, assignVolunteer, updateNgoDonationStatus } from '../services/donationService';
-import { Package, Check, Activity, MapPin, Calendar, User as UserIcon, RefreshCw, FileText } from 'lucide-react';
+import { fetchNgoAssignedDonations, fetchNgoLiveDonationsPool, assignVolunteer, updateNgoDonationStatus } from '../services/donationService';
+import { Package, Check, Activity, MapPin, Calendar, User as UserIcon, RefreshCw, FileText, Bell, LayoutGrid, Gift, Truck, Settings } from 'lucide-react';
 import NgoRegistration from './NgoRegistration';
 
 interface NgoDashboardProps {
@@ -107,12 +107,26 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
     donationsOverTime: [] as Array<{label: string, count: number}>
   });
   const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [urgentRequests, setUrgentRequests] = useState<any[]>([]);
+
+  const [liveDonationsCount, setLiveDonationsCount] = useState(0);
+  const [liveDonations, setLiveDonations] = useState<any[]>([]);
+  const [liveDonationsLoading, setLiveDonationsLoading] = useState(false);
+  const [liveDonationsError, setLiveDonationsError] = useState<string | null>(null);
+  const [liveDonationsLastUpdatedAt, setLiveDonationsLastUpdatedAt] = useState<string | null>(null);
 
   // State for Notifications tab
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsCategoryFilter, setNotificationsCategoryFilter] = useState<'all' | 'donations' | 'system'>('all');
+  const [notificationsShowRead, setNotificationsShowRead] = useState(false);
+
+  const [recentActivities, setRecentActivities] = useState<Notification[]>([]);
+  const [recentActivitiesLoading, setRecentActivitiesLoading] = useState(false);
+  const [recentActivitiesError, setRecentActivitiesError] = useState<string | null>(null);
+  const [recentActivitiesLastUpdatedAt, setRecentActivitiesLastUpdatedAt] = useState<string | null>(null);
 
   const [verificationStatus, setVerificationStatus] = useState('unregistered');
   const [ngoName, setNgoName] = useState('');
@@ -202,6 +216,8 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
               donationsOverTime: response.data.analytics.donationsOverTime || []
             });
           }
+
+          setUrgentRequests(Array.isArray(response.data?.urgentRequests) ? response.data.urgentRequests : []);
         }
       } catch (error) {
         console.error('Error fetching dashboard stats:', error);
@@ -227,20 +243,74 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
     if (activeTab === 'incoming-donations') {
       loadNotifications();
     }
-  }, [activeTab]);
+  }, [activeTab, notificationsCategoryFilter, notificationsShowRead]);
 
   // Also fetch notifications on component mount to show badge count
   useEffect(() => {
-    if (hasRegistered && user) {
+    if (hasRegistered && user && notifications.length === 0) {
       loadNotifications();
     }
   }, [hasRegistered, user]);
+
+  useEffect(() => {
+    if (!hasRegistered || !user || activeTab !== 'overview') return;
+
+    let cancelled = false;
+    let intervalId: any = null;
+
+    const run = async () => {
+      try {
+        if (!cancelled) {
+          await loadRecentActivities();
+        }
+      } catch {
+        // handled in loadRecentActivities
+      }
+    };
+
+    run();
+    intervalId = setInterval(run, 10000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [hasRegistered, user, activeTab]);
+
+  useEffect(() => {
+    if (!hasRegistered || !user || activeTab !== 'overview') return;
+
+    let cancelled = false;
+    let intervalId: any = null;
+
+    const run = async () => {
+      try {
+        if (!cancelled) {
+          await loadLiveDonations();
+        }
+      } catch {
+        // handled in loadLiveDonations
+      }
+    };
+
+    run();
+    intervalId = setInterval(run, 10000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [hasRegistered, user, activeTab]);
 
   const loadNotifications = async () => {
     setNotificationsLoading(true);
     setNotificationsError(null);
     try {
-      const response = await getMyNotifications();
+      const response = await getMyNotifications({
+        category: notificationsCategoryFilter === 'all' ? 'all' : notificationsCategoryFilter,
+        includeRead: notificationsShowRead,
+        limit: 200
+      });
       if (response.success) {
         setNotifications(response.data || []);
         setUnreadCount(response.unreadCount || 0);
@@ -253,15 +323,126 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
     }
   };
 
+  const loadLiveDonations = async () => {
+    setLiveDonationsLoading(true);
+    setLiveDonationsError(null);
+    try {
+      const response = await fetchNgoLiveDonationsPool({ limit: 8 });
+      if (response.success) {
+        setLiveDonationsCount(response.count || 0);
+        setLiveDonations(Array.isArray(response.data) ? response.data : []);
+        setLiveDonationsLastUpdatedAt(new Date().toISOString());
+      }
+    } catch (error: any) {
+      console.error('Error loading live donations pool:', error);
+      setLiveDonationsError(error.response?.data?.error || 'Failed to load live donations');
+    } finally {
+      setLiveDonationsLoading(false);
+    }
+  };
+
+  const loadRecentActivities = async () => {
+    setRecentActivitiesLoading(true);
+    setRecentActivitiesError(null);
+    try {
+      const response = await getMyNotifications({
+        category: 'all',
+        includeRead: true,
+        limit: 10
+      });
+      if (response.success) {
+        setRecentActivities(response.data || []);
+        setRecentActivitiesLastUpdatedAt(new Date().toISOString());
+      }
+    } catch (error: any) {
+      console.error('Error loading recent activities:', error);
+      setRecentActivitiesError(error.response?.data?.error || 'Failed to load recent activities');
+    } finally {
+      setRecentActivitiesLoading(false);
+    }
+  };
+
+  const formatNotificationTimestamp = (dateString: string) => {
+    const dt = new Date(dateString);
+    return new Intl.DateTimeFormat(undefined, {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(dt);
+  };
+
+  const getNotificationCategoryMeta = (category: Notification['category']) => {
+    if (category === 'donations') {
+      return {
+        label: 'Donation Update',
+        badgeCls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        iconWrapCls: 'bg-emerald-50 border-emerald-100',
+        icon: <Gift className="w-5 h-5 text-emerald-600" />
+      };
+    }
+    if (category === 'pickups') {
+      return {
+        label: 'Pickup Update',
+        badgeCls: 'bg-amber-50 text-amber-700 border-amber-200',
+        iconWrapCls: 'bg-amber-50 border-amber-100',
+        icon: <Truck className="w-5 h-5 text-amber-600" />
+      };
+    }
+    return {
+      label: 'System',
+      badgeCls: 'bg-slate-50 text-slate-700 border-slate-200',
+      iconWrapCls: 'bg-slate-50 border-slate-100',
+      icon: <Settings className="w-5 h-5 text-slate-600" />
+    };
+  };
+
+  const getNotificationReference = (n: Notification) => {
+    const anyN = n as any;
+
+    const donationIdVal = anyN.donationId;
+    const relatedIdVal = anyN.relatedId;
+
+    const rawId =
+      typeof donationIdVal === 'string'
+        ? donationIdVal
+        : typeof donationIdVal?._id === 'string'
+          ? donationIdVal._id
+          : typeof relatedIdVal === 'string'
+            ? relatedIdVal
+            : null;
+
+    if (!rawId) return null;
+    return String(rawId);
+  };
+
+  const formatTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    return `${diffInDays}d ago`;
+  };
+
   const handleMarkAsRead = async (notificationId: string) => {
     try {
       await markNotificationAsRead(notificationId);
+      // Optimistically update UI then reload to respect filter
       setNotifications(prev =>
         prev.map(n =>
-          n._id === notificationId ? { ...n, isRead: true, readAt: new Date().toISOString() } : n
+          n._id === notificationId ? { ...n, read: true, readAt: new Date().toISOString() } : n
         )
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
+      // Reload to respect current filter (especially if 'Show read' is off)
+      setTimeout(() => loadNotifications(), 0);
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -270,10 +451,13 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
   const handleMarkAllAsRead = async () => {
     try {
       await markAllNotificationsAsRead();
+      // Optimistically update UI then reload to respect filter
       setNotifications(prev =>
-        prev.map(n => ({ ...n, isRead: true, readAt: new Date().toISOString() }))
+        prev.map(n => ({ ...n, read: true, readAt: new Date().toISOString() }))
       );
       setUnreadCount(0);
+      // Reload to respect current filter (especially if 'Show read' is off)
+      setTimeout(() => loadNotifications(), 0);
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
     }
@@ -770,7 +954,7 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
             {/* 4. Analytics Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Requests Over Time Chart */}
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all hover:shadow-md">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Requests Over Time</h3>
                 <div className="h-64 flex items-end justify-between space-x-2">
                   {dashboardAnalytics.requestsOverTime.length > 0 ? (
@@ -802,7 +986,7 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
               </div>
 
               {/* Donations Over Time Chart */}
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all hover:shadow-md">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Donations Over Time</h3>
                 <div className="h-64 flex items-end justify-between space-x-2">
                   {dashboardAnalytics.donationsOverTime.length > 0 ? (
@@ -831,6 +1015,263 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden transition-all hover:shadow-md">
+              <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Package className="w-5 h-5 text-indigo-600" />
+                    Live Donations Pool
+                    <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      {liveDonationsLoading ? '...' : liveDonationsCount}
+                    </span>
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Donor submissions waiting for admin to assign to an NGO.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {liveDonationsLastUpdatedAt && (
+                    <span className="text-xs text-gray-400 whitespace-nowrap">
+                      Updated {formatTimeAgo(liveDonationsLastUpdatedAt)}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => loadLiveDonations()}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 transition-colors"
+                    disabled={liveDonationsLoading}
+                    title="Refresh"
+                  >
+                    <RefreshCw className={liveDonationsLoading ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6">
+                {liveDonationsError ? (
+                  <div className="p-4 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm">
+                    {liveDonationsError}
+                  </div>
+                ) : liveDonationsLoading && liveDonations.length === 0 ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : liveDonations.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-600 font-medium">No new donations in the pool</p>
+                    <p className="text-sm text-gray-500 mt-1">New donor donations will appear here until admin assigns them.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {liveDonations.map((d: any) => (
+                      <div key={d._id} className="border border-gray-200 rounded-xl p-5 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">{d.resourceType}</p>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Quantity: <span className="font-medium">{d.quantity} {d.unit}</span>
+                            </p>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Location: <span className="font-medium">{d.address?.city || 'N/A'}, {d.address?.state || 'N/A'}</span>
+                            </p>
+                          </div>
+
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-200 whitespace-nowrap">
+                            Pending
+                          </span>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="w-4 h-4" />
+                            {d.pickup?.pickupDate ? formatNotificationTimestamp(d.pickup.pickupDate) : 'Pickup date N/A'}
+                          </span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                            {d.pickup?.timeSlot || 'N/A'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden transition-all hover:shadow-md">
+              <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-emerald-600" />
+                    Recent Activities (Live)
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Latest updates happening on your NGO dashboard.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {recentActivitiesLastUpdatedAt && (
+                    <span className="text-xs text-gray-400 whitespace-nowrap">
+                      Updated {formatTimeAgo(recentActivitiesLastUpdatedAt)}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => loadRecentActivities()}
+                    className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 transition-colors"
+                    disabled={recentActivitiesLoading}
+                    title="Refresh"
+                  >
+                    <RefreshCw className={recentActivitiesLoading ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6">
+                {recentActivitiesError ? (
+                  <div className="p-4 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm">
+                    {recentActivitiesError}
+                  </div>
+                ) : recentActivitiesLoading && recentActivities.length === 0 ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : recentActivities.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-600 font-medium">No recent activity yet</p>
+                    <p className="text-sm text-gray-500 mt-1">New updates will appear here automatically.</p>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <div className="absolute left-4 top-0 bottom-0 w-px bg-gray-200" />
+                    <div className="space-y-5">
+                      {recentActivities.map((n) => {
+                        const meta = getNotificationCategoryMeta(n.category);
+                        return (
+                          <div key={n._id} className="relative pl-10">
+                            <div className="absolute left-4 top-2 -translate-x-1/2">
+                              <div className={`w-8 h-8 rounded-full border flex items-center justify-center ${meta.iconWrapCls}`}>
+                                {meta.icon}
+                              </div>
+                            </div>
+
+                            <div
+                              className={`rounded-xl border p-5 hover:bg-gray-50 transition-colors ${n.read ? 'border-gray-200 bg-white' : 'border-emerald-200 bg-emerald-50/30'}`}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => {
+                                if (!n.read) handleMarkAsRead(n._id);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !n.read) handleMarkAsRead(n._id);
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${meta.badgeCls}`}>
+                                      {meta.label}
+                                    </span>
+                                    {!n.read && (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-600 text-white">
+                                        New
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="mt-2 text-sm font-semibold text-gray-900">{n.title}</p>
+                                  <p className="mt-1 text-sm text-gray-600">{n.message}</p>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <p className="text-xs text-gray-500 whitespace-nowrap">
+                                    {formatTimeAgo(n.createdAt)}
+                                  </p>
+                                  <p className="text-xs text-gray-400 whitespace-nowrap mt-1">
+                                    {formatNotificationTimestamp(n.createdAt)}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden transition-all hover:shadow-md">
+              <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-red-600" />
+                    Urgent Requests
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    High priority requests that need attention.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('my-requests')}
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 transition-colors"
+                >
+                  View all
+                </button>
+              </div>
+
+              <div className="p-6">
+                {dashboardLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : urgentRequests.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-600 font-medium">No urgent requests right now</p>
+                    <p className="text-sm text-gray-500 mt-1">High urgency requests will show up here automatically.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {urgentRequests.slice(0, 6).map((req: any) => (
+                      <div key={req._id || req.id} className="border border-gray-200 rounded-xl p-5 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {req.requestTitle || req.title || 'Urgent request'}
+                            </p>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Category: <span className="font-medium">{req.category || 'N/A'}</span>
+                            </p>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Quantity: <span className="font-medium">{typeof req.quantity === 'number' ? req.quantity : (req.quantity || 'N/A')}</span>
+                            </p>
+                          </div>
+
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200 whitespace-nowrap">
+                            High
+                          </span>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="w-4 h-4" />
+                            {req.neededBy ? formatNotificationTimestamp(req.neededBy) : 'No deadline'}
+                          </span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                            {req.status || 'pending'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2658,38 +3099,78 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
 
         {activeTab === 'incoming-donations' && (
           <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 bg-emerald-50">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-medium text-emerald-800 flex items-center">
-                      <svg className="w-5 h-5 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                      </svg>
-                      Notifications
-                    </h2>
-                    {unreadCount > 0 && (
-                      <p className="text-sm text-emerald-600 mt-1">
-                        {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
-                      </p>
-                    )}
+            <div className="bg-white rounded-2xl shadow overflow-hidden">
+              <div className="p-6 bg-gradient-to-r from-emerald-50 to-sky-50 border-b border-emerald-100">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="h-12 w-12 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-sm">
+                      <Bell className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-900">Stay Connected</h2>
+                      <p className="text-sm text-slate-600 mt-0.5">Track your impact and never miss an update</p>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-3">
-                    {unreadCount > 0 && (
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                    <div className="flex items-center gap-2 justify-end">
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={handleMarkAllAsRead}
+                          className="px-4 py-2 text-sm font-medium text-emerald-700 bg-white border border-emerald-200 rounded-xl hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                        >
+                          Mark all read
+                        </button>
+                      )}
                       <button
-                        onClick={handleMarkAllAsRead}
-                        className="px-4 py-2 text-sm font-medium text-emerald-700 bg-white border border-emerald-200 rounded-md hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                        onClick={loadNotifications}
+                        disabled={notificationsLoading}
+                        className="px-4 py-2 text-sm font-medium text-emerald-700 bg-white border border-emerald-200 rounded-xl hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Mark All as Read
+                        Refresh
                       </button>
-                    )}
-                    <button
-                      onClick={loadNotifications}
-                      disabled={notificationsLoading}
-                      className="px-4 py-2 text-sm font-medium text-emerald-700 bg-white border border-emerald-200 rounded-md hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {notificationsLoading ? 'Refreshing...' : 'Refresh'}
-                    </button>
+                    </div>
+
+                    <label className="flex items-center justify-end gap-2 text-sm text-slate-700 select-none">
+                      <input
+                        type="checkbox"
+                        checked={notificationsShowRead}
+                        onChange={(e) => setNotificationsShowRead(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      Show read notifications
+                    </label>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {([
+                      { key: 'all', label: 'All Notifications', icon: <LayoutGrid className="w-4 h-4" /> },
+                      { key: 'donations', label: 'Donations', icon: <Gift className="w-4 h-4" /> },
+                      { key: 'system', label: 'System', icon: <Settings className="w-4 h-4" /> }
+                    ] as Array<{ key: 'all' | 'donations' | 'system'; label: string; icon: JSX.Element }>).map((opt) => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setNotificationsCategoryFilter(opt.key)}
+                        className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border transition-colors ${
+                          notificationsCategoryFilter === opt.key
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        {opt.icon}
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-between md:justify-end gap-6 text-sm">
+                    <div className="flex items-center gap-2 text-slate-700">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                      <span className="font-medium">{unreadCount} unread</span>
+                    </div>
+                    <div className="text-slate-500">{notifications.length} notifications</div>
                   </div>
                 </div>
               </div>
@@ -2715,76 +3196,54 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                     <p className="mt-1 text-sm text-gray-500">You don't have any notifications yet.</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {notifications.map((notification) => {
-                      const getNotificationIcon = () => {
-                        if (notification.type === 'request_approved' || notification.type === 'registration_approved') {
-                          return (
-                            <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                            </div>
-                          );
-                        } else {
-                          return (
-                            <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </div>
-                          );
-                        }
-                      };
-
-                      const getNotificationColor = () => {
-                        if (notification.type === 'request_approved' || notification.type === 'registration_approved') {
-                          return notification.read
-                            ? 'bg-white border-gray-200 hover:bg-gray-50'
-                            : 'bg-green-50 border-green-200 hover:bg-green-100';
-                        } else {
-                          return notification.read
-                            ? 'bg-white border-gray-200 hover:bg-gray-50'
-                            : 'bg-red-50 border-red-200 hover:bg-red-100';
-                        }
-                      };
-
+                      const meta = getNotificationCategoryMeta(notification.category);
+                      const ref = getNotificationReference(notification);
                       return (
-                        <div
+                        <button
                           key={notification._id}
-                          className={`p-4 rounded-lg border transition-all cursor-pointer ${getNotificationColor()}`}
+                          type="button"
+                          className={`w-full text-left rounded-2xl border shadow-sm transition-colors ${
+                            notification.read
+                              ? 'bg-white border-slate-200 hover:bg-slate-50'
+                              : 'bg-emerald-50/40 border-emerald-200 hover:bg-emerald-50/60'
+                          }`}
                           onClick={() => {
                             if (!notification.read) {
                               handleMarkAsRead(notification._id);
                             }
                           }}
                         >
-                          <div className="flex items-start space-x-4">
-                            {getNotificationIcon()}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
-                                  <p className="mt-1 text-sm text-gray-600">{notification.message}</p>
-                                  <p className="mt-2 text-xs text-gray-500">
-                                    {new Date(notification.createdAt).toLocaleString('en-US', {
-                                      year: 'numeric',
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })}
-                                  </p>
+                          <div className="p-5">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-4 min-w-0">
+                                <div className={`h-12 w-12 rounded-2xl border flex items-center justify-center flex-shrink-0 ${meta.iconWrapCls}`}>
+                                  {meta.icon}
                                 </div>
-                                {!notification.read && (
-                                  <div className="flex-shrink-0 ml-2">
-                                    <div className="w-2 h-2 bg-emerald-600 rounded-full"></div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${meta.badgeCls}`}>{meta.label}</span>
+                                    {!notification.read && (
+                                      <span className="inline-flex items-center gap-2 text-xs font-medium text-emerald-700">
+                                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                        New
+                                      </span>
+                                    )}
                                   </div>
-                                )}
+                                  <h3 className="mt-2 text-base font-semibold text-slate-900 truncate">{notification.title}</h3>
+                                  <p className="mt-1 text-sm text-slate-600">{notification.message}</p>
+                                  {ref && (
+                                    <p className="mt-2 text-xs text-slate-500">Reference ID: {ref}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex-shrink-0 text-right">
+                                <p className="text-xs text-slate-500">{formatNotificationTimestamp(notification.createdAt)}</p>
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -2853,12 +3312,14 @@ function PickupDeliveriesTab() {
   const [donations, setDonations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [requestDetails, setRequestDetails] = useState<Map<string, any>>(new Map());
+  const [otpByDonationId, setOtpByDonationId] = useState<Record<string, string>>({});
   const [filters, setFilters] = useState({
     status: '',
     search: ''
   });
   const [assigningVolunteer, setAssigningVolunteer] = useState<string | null>(null);
   const [selectedVolunteer, setSelectedVolunteer] = useState<{id: string, name: string, phone: string} | null>(null);
+  const [otpSentStatus, setOtpSentStatus] = useState<Record<string, boolean>>({});
 
   // Random volunteers list
   const volunteers = [
@@ -2950,12 +3411,24 @@ function PickupDeliveriesTab() {
 
   const handleUpdateStatus = async (donationId: string, newStatus: 'volunteer_assigned' | 'picked' | 'completed') => {
     try {
-      await updateNgoDonationStatus(donationId, newStatus);
-      await fetchDonations();
-      alert('Status updated successfully!');
-    } catch (error: any) {
-      console.error('Error updating status:', error);
-      alert(error.response?.data?.error || 'Failed to update status');
+      setLoading(true);
+      const otp = newStatus === 'picked' ? otpByDonationId[donationId] : undefined;
+      const response = await updateNgoDonationStatus(donationId, newStatus, otp);
+      if (response.success) {
+        // If OTP is being sent, update the OTP sent status
+        if (newStatus === 'picked') {
+          setOtpSentStatus(prev => ({
+            ...prev,
+            [donationId]: true
+          }));
+        }
+        // Refresh the donations list
+        fetchDonations();
+      }
+    } catch (error) {
+      console.error('Error updating donation status:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -2986,6 +3459,11 @@ function PickupDeliveriesTab() {
     }
   };
 
+  const generateOtpForDonation = (donationId: string) => {
+    const otp = Math.floor(10000 + Math.random() * 90000).toString();
+    setOtpByDonationId(prev => ({ ...prev, [donationId]: otp }));
+  };
+
   const getTrackingSteps = (status: string) => {
     const steps = [
       { id: 1, name: 'Assigned', status: 'completed' },
@@ -2997,14 +3475,15 @@ function PickupDeliveriesTab() {
       },
       { 
         id: 3, 
-        name: 'Picked Up', 
-        status: status === 'picked' ? 'current' : 
-                status === 'completed' ? 'completed' : 'pending'
+        name: 'OTP Generation', 
+        status: status === 'volunteer_assigned' ? 'current' : 
+                status === 'picked' || status === 'completed' ? 'completed' : 'pending'
       },
       { 
         id: 4, 
-        name: 'Delivered', 
-        status: status === 'completed' ? 'completed' : 'pending'
+        name: 'Received', 
+        status: status === 'picked' ? 'current' :
+                status === 'completed' ? 'completed' : 'pending'
       }
     ];
     return steps;
@@ -3325,25 +3804,54 @@ function PickupDeliveriesTab() {
                             </div>
                           )}
 
+                          {donation.status === 'volunteer_assigned' && (
+                            <div className="bg-white border border-gray-200 rounded-lg p-4">
+                              <h4 className="text-sm font-semibold text-gray-900 mb-3">OTP Generation</h4>
+                              <div className="space-y-3">
+                                <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex items-center justify-between">
+                                  <div>
+                                    <p className="text-xs font-medium text-gray-500">Generated OTP</p>
+                                    <p className="text-xl font-semibold text-gray-900 tracking-widest font-mono">
+                                      {otpByDonationId[donation._id] || '-----'}
+                                    </p>
+                                  </div>
+                                  <button
+                                    onClick={() => generateOtpForDonation(donation._id)}
+                                    className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                                  >
+                                    {otpByDonationId[donation._id] ? 'Regenerate' : 'Generate'}
+                                  </button>
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                  Share this OTP with the assigned volunteer to confirm pickup.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
                           {/* Status Update Actions */}
                           <div className="bg-white border border-gray-200 rounded-lg p-4">
                             <h4 className="text-sm font-semibold text-gray-900 mb-3">Update Status</h4>
                             <div className="flex flex-wrap gap-2">
-                              {donation.status === 'volunteer_assigned' && (
+                              {donation.status === 'volunteer_assigned' && !otpSentStatus[donation._id] && (
                                 <button
-                                  onClick={() => handleUpdateStatus(donation._id, 'picked')}
+                                  onClick={() => {
+                                    const otp = otpByDonationId[donation._id];
+                                    if (!otp) {
+                                      alert('Please generate OTP first');
+                                      return;
+                                    }
+                                    handleUpdateStatus(donation._id, 'picked');
+                                  }}
                                   className="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition-colors"
                                 >
-                                  Mark as Picked Up
+                                  Send OTP
                                 </button>
                               )}
-                              {donation.status === 'picked' && (
-                                <button
-                                  onClick={() => handleUpdateStatus(donation._id, 'completed')}
-                                  className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
-                                >
-                                  Mark as Delivered
-                                </button>
+                              {(donation.status === 'picked' || otpSentStatus[donation._id]) && (
+                                <div className="w-full bg-blue-50 border border-blue-100 text-blue-700 text-sm px-4 py-2 rounded-lg">
+                                  OTP has been sent to the donor and it's being verified. The donation is being received.
+                                </div>
                               )}
                             </div>
                           </div>

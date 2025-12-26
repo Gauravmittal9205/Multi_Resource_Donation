@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type * as React from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { signOutUser } from '../firebase';
-import { createDonation, fetchDonorDashboard, fetchDonorProfileByUid, fetchMyDonations, fetchMyNotifications, markAllNotificationsRead, markNotificationRead } from '../services/donationService';
+import { createDonation, fetchDonorDashboard, fetchDonorProfileByUid, fetchMyDonations, fetchMyNotifications, markAllNotificationsRead, markNotificationRead, verifyDonationOtp } from '../services/donationService';
 import type { DonationItem } from '../services/donationService';
 import type { NotificationItem } from '../services/donationService';
 import {
@@ -200,9 +200,18 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
     if (!user?.uid) return;
     try {
       const res = await fetchDonorProfileByUid(user.uid);
-      setDonorProfile(res.data);
+      if (res.success && res.data) {
+        setDonorProfile(res.data);
+      } else {
+        // Profile doesn't exist yet - this is fine, set to null
+        setDonorProfile(null);
+      }
     } catch (e: any) {
-      console.error('Failed to load donor profile:', e);
+      // Only log non-404 errors (404 is expected for new users)
+      if (e.response?.status !== 404) {
+        console.error('Failed to load donor profile:', e);
+      }
+      setDonorProfile(null);
     }
   };
 
@@ -460,6 +469,31 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationFilter, setNotificationFilter] = useState<'all' | 'donations' | 'pickups' | 'system'>('all');
   const [showReadNotifications, setShowReadNotifications] = useState(false);
+  const [highlightDonationId, setHighlightDonationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const filter = params.get('filter');
+      const donationId = params.get('donationId');
+
+      if (tab === 'notifications') {
+        setActiveItem('notifications');
+      }
+
+      if (filter === 'donations' || filter === 'pickups' || filter === 'system' || filter === 'all') {
+        setNotificationFilter(filter);
+      }
+
+      if (donationId) {
+        setHighlightDonationId(donationId);
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadMyDonations = async () => {
     try {
@@ -751,7 +785,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
           if (!uid) return;
 
           const res = await fetchDonorProfileByUid(uid);
-          const profile = res?.data;
+          const profile = res?.success && res?.data ? res.data : null;
           if (!profile || cancelled) return;
 
           const pickupAddress = String(profile.location?.pickupAddress || '').trim();
@@ -3374,6 +3408,11 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                       const created = n.createdAt ? new Date(n.createdAt) : null;
                       const time = created ? created.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
                       const isUnread = !n.read;
+                      const isDonationMatch = Boolean(
+                        highlightDonationId &&
+                          n.donationId &&
+                          String(n.donationId) === String(highlightDonationId)
+                      );
                       
                       // Get icon and colors based on category
                       const getCategoryInfo = () => {
@@ -3428,9 +3467,11 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                         <div
                           key={n._id}
                           className={`group rounded-2xl border shadow-sm hover:shadow-md transition-all ${
-                            isUnread 
-                              ? 'bg-white border-emerald-200 bg-gradient-to-r from-emerald-50/50 to-transparent' 
-                              : 'bg-white border-gray-100'
+                            isDonationMatch
+                              ? 'bg-white border-amber-300 ring-2 ring-amber-200'
+                              : isUnread 
+                                ? 'bg-white border-emerald-200 bg-gradient-to-r from-emerald-50/50 to-transparent' 
+                                : 'bg-white border-gray-100'
                           }`}
                         >
                           <button
@@ -3473,6 +3514,12 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                                     
                                     {/* Message */}
                                     <div className="text-sm text-gray-600 leading-relaxed">{n.message}</div>
+
+                                    {n.donationId && (
+                                      <div className="mt-2 text-xs text-gray-500 font-medium">
+                                        Donation ID: {String(n.donationId).substring(0, 8).toUpperCase()}
+                                      </div>
+                                    )}
                                     
                                     {/* CTA Buttons for specific notifications */}
                                     {n.category === 'ngo_requests' && (
@@ -4250,15 +4297,15 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
             </div>
           )}
 
-          {activeItem !== 'dashboard' && activeItem !== 'donate-now' && activeItem !== 'my-donations' && activeItem !== 'impact' && activeItem !== 'help-support' && activeItem !== 'notifications' && activeItem !== 'settings' && activeItem !== 'donation-history' && (
+          {activeItem === 'active-pickups' && (
+            <ActivePickupsTab />
+          )}
+
+          {activeItem !== 'dashboard' && activeItem !== 'donate-now' && activeItem !== 'my-donations' && activeItem !== 'impact' && activeItem !== 'help-support' && activeItem !== 'notifications' && activeItem !== 'settings' && activeItem !== 'donation-history' && activeItem !== 'active-pickups' && (
             <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-700">
-                  {activeItem === 'active-pickups' ? (
-                    <FiUsers className="h-5 w-5" />
-                  ) : (
-                    <FiCalendar className="h-5 w-5" />
-                  )}
+                  <FiCalendar className="h-5 w-5" />
                 </div>
                 <div>
                   <div className="text-base font-semibold text-gray-900">
@@ -4423,6 +4470,469 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
               </div>
             </form>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Active Pickups Tab Component
+function ActivePickupsTab() {
+  const [allActivePickups, setAllActivePickups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [verifyingOtpDonationId, setVerifyingOtpDonationId] = useState<string | null>(null);
+  const [filters, setFilters] = useState({
+    status: '',
+    search: ''
+  });
+
+  useEffect(() => {
+    fetchActivePickups();
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchActivePickups, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchActivePickups = async () => {
+    try {
+      setLoading(true);
+      // Fetch all active statuses: assigned, volunteer_assigned, picked
+      const response = await fetchMyDonations();
+      
+      if (response.success) {
+        // Filter for active pickups (assigned, volunteer_assigned, picked)
+        const activeStatuses = ['assigned', 'volunteer_assigned', 'picked', 'completed'];
+        const active = response.data.filter((d: any) => 
+          activeStatuses.includes(String(d.status))
+        );
+
+        setAllActivePickups(active);
+      }
+    } catch (error) {
+      console.error('Error fetching active pickups:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOtpVerified = async (donationId: string) => {
+    try {
+      setVerifyingOtpDonationId(donationId);
+      const response = await verifyDonationOtp(donationId);
+      if (response.success) {
+        await fetchActivePickups();
+      }
+    } catch (error) {
+      console.error('Error verifying OTP:', error);
+    } finally {
+      setVerifyingOtpDonationId(null);
+    }
+  };
+
+  const formatDate = (dateString: string | Date) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'assigned':
+        return 'bg-blue-100 text-blue-800';
+      case 'volunteer_assigned':
+        return 'bg-purple-100 text-purple-800';
+      case 'picked':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getTrackingSteps = (status: string) => {
+    const steps = [
+      { 
+        id: 1, 
+        name: 'Assigned', 
+        status: status === 'assigned' || status === 'volunteer_assigned' || status === 'picked' || status === 'completed' ? 'completed' : 'pending' 
+      },
+      { 
+        id: 2, 
+        name: 'Volunteer Assigned', 
+        status: status === 'assigned' ? 'pending' : 
+                status === 'volunteer_assigned' || status === 'picked' || status === 'completed' ? 'completed' : 
+                'pending'
+      },
+      { 
+        id: 3, 
+        name: 'OTP Verified', 
+        status: status === 'picked' ? 'current' : 
+                status === 'completed' ? 'completed' : 
+                'pending' 
+      },
+      { 
+        id: 4, 
+        name: 'Delivered', 
+        status: status === 'completed' ? 'completed' : 'pending' 
+      }
+    ];
+    return steps;
+  };
+
+  const getNextStep = (status: string) => {
+    switch (status) {
+      case 'assigned':
+        return 'Volunteer Assignment';
+      case 'volunteer_assigned':
+        return 'Pickup';
+      case 'picked':
+        return 'Delivery';
+      default:
+        return 'Processing';
+    }
+  };
+
+  // Calculate filter stats from all active pickups (not filtered)
+  const stats = {
+    totalAssigned: allActivePickups.filter((d: any) => d.status === 'assigned').length,
+    volunteerAssigned: allActivePickups.filter((d: any) => d.status === 'volunteer_assigned').length,
+    picked: allActivePickups.filter((d: any) => d.status === 'picked').length,
+    total: allActivePickups.length
+  };
+
+  // Apply filters to get displayed pickups
+  const filteredPickups = allActivePickups.filter((donation: any) => {
+    // Apply status filter
+    if (filters.status && String(donation.status) !== filters.status) {
+      return false;
+    }
+    
+    // Apply search filter
+    if (filters.search) {
+      const search = filters.search.toLowerCase();
+      return (
+        donation.resourceType?.toLowerCase().includes(search) ||
+        donation.assignedNGO?.ngoName?.toLowerCase().includes(search) ||
+        donation.address?.city?.toLowerCase().includes(search) ||
+        donation._id?.toLowerCase().includes(search)
+      );
+    }
+    
+    return true;
+  });
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Active Pickups</h2>
+          <p className="text-gray-600">Track your donation pickups in real-time</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Active Pickups</h2>
+          <p className="text-gray-600">Track your donation pickups and see their progress</p>
+        </div>
+        <button
+          onClick={fetchActivePickups}
+          className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+        >
+          <FiRefreshCw className="w-4 h-4" />
+          <span>Refresh</span>
+        </button>
+      </div>
+
+      {/* Filter Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+          <div className="text-sm font-medium text-gray-600">Total Assigned</div>
+          <div className="text-2xl font-bold text-gray-900 mt-1">{stats.totalAssigned}</div>
+          <div className="text-xs text-gray-500 mt-1">Donations assigned to NGOs</div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
+          <div className="text-sm font-medium text-gray-600">Volunteer Assigned</div>
+          <div className="text-2xl font-bold text-gray-900 mt-1">{stats.volunteerAssigned}</div>
+          <div className="text-xs text-gray-500 mt-1">With volunteers assigned</div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500">
+          <div className="text-sm font-medium text-gray-600">Picked Up</div>
+          <div className="text-2xl font-bold text-gray-900 mt-1">{stats.picked}</div>
+          <div className="text-xs text-gray-500 mt-1">Currently in transit</div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-emerald-500">
+          <div className="text-sm font-medium text-gray-600">Total Active</div>
+          <div className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</div>
+          <div className="text-xs text-gray-500 mt-1">All active pickups</div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Status Filter</label>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="">All Status</option>
+              <option value="assigned">Assigned</option>
+              <option value="volunteer_assigned">Volunteer Assigned</option>
+              <option value="picked">Verified</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+            <input
+              type="text"
+              placeholder="Search by resource type, NGO name, city, or donation ID..."
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+        </div>
+      </div>
+
+      {filteredPickups.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="text-center py-12">
+            <FiTruck className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              {allActivePickups.length === 0 ? 'No Active Pickups' : 'No Matching Pickups'}
+            </h3>
+            <p className="text-gray-500">
+              {allActivePickups.length === 0 
+                ? 'You currently have no active pickups. Your donations will appear here once they are assigned to an NGO.'
+                : 'Try adjusting your filters to see more results.'}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredPickups.map((donation: any) => {
+            const trackingSteps = getTrackingSteps(donation.status);
+            const nextStep = getNextStep(donation.status);
+
+            return (
+              <div
+                key={donation._id}
+                className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow"
+              >
+                {/* Header */}
+                <div className="bg-gradient-to-r from-emerald-50 to-green-50 px-6 py-4 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+                        <FiPackage className="w-6 h-6 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Donation #{donation._id.substring(0, 8).toUpperCase()}
+                        </h3>
+                        <p className="text-sm text-gray-500">Created: {formatDate(donation.createdAt)}</p>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(donation.status)}`}>
+                      {donation.status.charAt(0).toUpperCase() + donation.status.slice(1).replace('_', ' ')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-6">
+                  {/* Tracking Timeline */}
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center">
+                      <FiBarChart2 className="w-4 h-4 mr-2" />
+                      Tracking Progress
+                    </h4>
+                    <div className="flex items-center space-x-4">
+                      {trackingSteps.map((step, index) => (
+                        <div key={step.id} className="flex items-center flex-1">
+                          <div className="flex flex-col items-center flex-1">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
+                              step.status === 'completed' ? 'bg-green-500 border-green-500 text-white' :
+                              step.status === 'current' ? 'bg-emerald-500 border-emerald-500 text-white' :
+                              'bg-gray-100 border-gray-300 text-gray-400'
+                            }`}>
+                              {step.status === 'completed' ? (
+                                <FiCheckCircle className="w-5 h-5" />
+                              ) : (
+                                <span className="text-sm font-medium">{step.id}</span>
+                              )}
+                            </div>
+                            <p className={`text-xs mt-2 text-center ${
+                              step.status === 'completed' || step.status === 'current' 
+                                ? 'text-gray-900 font-medium' 
+                                : 'text-gray-500'
+                            }`}>
+                              {step.name}
+                            </p>
+                            {step.id === 3 && step.status === 'current' && (
+                              <button
+                                type="button"
+                                onClick={() => handleOtpVerified(donation._id)}
+                                disabled={verifyingOtpDonationId === donation._id}
+                                className="mt-3 px-3 py-1.5 bg-emerald-600 text-white text-xs rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {verifyingOtpDonationId === donation._id ? 'Verifying...' : 'OTP Verified'}
+                              </button>
+                            )}
+                          </div>
+                          {index < trackingSteps.length - 1 && (
+                            <div className={`flex-1 h-0.5 ${
+                              step.status === 'completed' ? 'bg-green-500' : 'bg-gray-300'
+                            }`} />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Donation Details */}
+                    <div className="space-y-4">
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                          <FiPackage className="w-4 h-4 mr-2 text-gray-600" />
+                          Donation Details
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Resource Type</p>
+                            <p className="text-sm text-gray-900 font-medium">{donation.resourceType}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Quantity</p>
+                            <p className="text-sm text-gray-900 font-medium">
+                              {donation.quantity} {donation.unit}
+                            </p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-xs font-medium text-gray-500">Next Step</p>
+                            <p className="text-sm text-emerald-600 font-semibold">{nextStep}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Pickup Address */}
+                      <div className="bg-green-50 rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                          <FiMapPin className="w-4 h-4 mr-2 text-green-600" />
+                          Pickup Address
+                        </h4>
+                        <div className="space-y-1 text-sm text-gray-700">
+                          <p>{donation.address?.addressLine || 'N/A'}</p>
+                          <p>{donation.address?.city || 'N/A'}, {donation.address?.state || 'N/A'}</p>
+                          <p>Pincode: {donation.address?.pincode || 'N/A'}</p>
+                          {donation.pickup?.pickupDate && (
+                            <p className="mt-2">
+                              <FiCalendar className="w-4 h-4 inline mr-1" />
+                              Pickup Date: {formatDate(donation.pickup.pickupDate)}
+                            </p>
+                          )}
+                          {donation.pickup?.timeSlot && (
+                            <p>Time Slot: {donation.pickup.timeSlot}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* NGO Assignment & Volunteer Details */}
+                    <div className="space-y-4">
+                      <div className="bg-purple-50 rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                          <FiUsers className="w-4 h-4 mr-2 text-purple-600" />
+                          Assigned NGO
+                        </h4>
+                        <div className="space-y-2">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">NGO Name</p>
+                            <p className="text-sm text-gray-900 font-medium">
+                              {donation.assignedNGO?.ngoName || 'N/A'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Assigned At</p>
+                            <p className="text-sm text-gray-700">
+                              {donation.assignedNGO?.assignedAt
+                                ? formatDate(donation.assignedNGO.assignedAt)
+                                : 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Volunteer Information */}
+                      {donation.assignedVolunteer && (
+                        <div className="bg-blue-50 rounded-lg p-4">
+                          <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                            <FiUsers className="w-4 h-4 mr-2 text-blue-600" />
+                            Assigned Volunteer
+                          </h4>
+                          <div className="space-y-2">
+                            <div>
+                              <p className="text-xs font-medium text-gray-500">Volunteer Name</p>
+                              <p className="text-sm text-gray-900 font-medium">
+                                {donation.assignedVolunteer.volunteerName || 'N/A'}
+                              </p>
+                            </div>
+                            {donation.assignedVolunteer.volunteerPhone && (
+                              <div>
+                                <p className="text-xs font-medium text-gray-500">Phone</p>
+                                <p className="text-sm text-gray-700">
+                                  {donation.assignedVolunteer.volunteerPhone}
+                                </p>
+                              </div>
+                            )}
+                            {donation.assignedVolunteer.assignedAt && (
+                              <div>
+                                <p className="text-xs font-medium text-gray-500">Assigned At</p>
+                                <p className="text-sm text-gray-700">
+                                  {formatDate(donation.assignedVolunteer.assignedAt)}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {!donation.assignedVolunteer && donation.status === 'assigned' && (
+                        <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                          <div className="flex items-center">
+                            <FiAlertCircle className="w-4 h-4 text-yellow-600 mr-2" />
+                            <p className="text-sm text-yellow-800">
+                              Waiting for volunteer assignment
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
