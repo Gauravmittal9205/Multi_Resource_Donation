@@ -2,6 +2,7 @@ const Donation = require('../models/Donation');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Notification = require('../models/Notification');
+const Announcement = require('../models/Announcement');
 const asyncHandler = require('../middleware/async');
 
 const toStartOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
@@ -353,5 +354,128 @@ exports.getAllDonations = asyncHandler(async (req, res) => {
     success: true,
     count: donationsWithDonorInfo.length,
     data: donationsWithDonorInfo
+  });
+});
+
+// @desc    Get donations assigned to NGO
+// @route   GET /api/v1/donations/ngo/assigned
+// @access  Private (NGO)
+exports.getNgoAssignedDonations = asyncHandler(async (req, res) => {
+  const ngoFirebaseUid = req.firebaseUid;
+
+  const donations = await Donation.find({
+    'assignedNGO.ngoFirebaseUid': ngoFirebaseUid,
+    status: { $in: ['assigned', 'volunteer_assigned', 'picked', 'completed'] }
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  res.status(200).json({
+    success: true,
+    count: donations.length,
+    data: donations
+  });
+});
+
+// @desc    Assign volunteer to donation (NGO)
+// @route   PUT /api/v1/donations/ngo/:id/assign-volunteer
+// @access  Private (NGO)
+exports.assignVolunteer = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { volunteerId, volunteerName, volunteerPhone } = req.body;
+  const ngoFirebaseUid = req.firebaseUid;
+
+  const donation = await Donation.findById(id);
+  if (!donation) {
+    return res.status(404).json({
+      success: false,
+      error: 'Donation not found'
+    });
+  }
+
+  // Verify that this donation is assigned to the requesting NGO
+  if (donation.assignedNGO?.ngoFirebaseUid !== ngoFirebaseUid) {
+    return res.status(403).json({
+      success: false,
+      error: 'This donation is not assigned to your NGO'
+    });
+  }
+
+  // Assign volunteer
+  donation.assignedVolunteer = {
+    volunteerId: volunteerId || `vol_${Date.now()}`,
+    volunteerName: volunteerName || 'Unknown Volunteer',
+    volunteerPhone: volunteerPhone || '',
+    assignedAt: new Date(),
+    assignedBy: ngoFirebaseUid
+  };
+
+  // Update status to volunteer_assigned
+  donation.status = 'volunteer_assigned';
+
+  await donation.save();
+
+  // Create announcement for admin
+  try {
+    await Announcement.create({
+      title: 'Volunteer Assigned',
+      message: `Volunteer ${volunteerName || 'Unknown'} has been assigned to donation #${donation._id.toString().substring(0, 8).toUpperCase()} by ${donation.assignedNGO?.ngoName || 'NGO'}`,
+      type: 'volunteer_assigned',
+      donationId: donation._id.toString(),
+      ngoName: donation.assignedNGO?.ngoName || null,
+      volunteerName: volunteerName || null,
+      isRead: false,
+      createdBy: ngoFirebaseUid
+    });
+  } catch (err) {
+    console.error('Error creating announcement:', err);
+    // Non-blocking
+  }
+
+  res.status(200).json({
+    success: true,
+    data: donation
+  });
+});
+
+// @desc    Update donation status (NGO)
+// @route   PUT /api/v1/donations/ngo/:id/status
+// @access  Private (NGO)
+exports.updateNgoDonationStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const ngoFirebaseUid = req.firebaseUid;
+
+  const donation = await Donation.findById(id);
+  if (!donation) {
+    return res.status(404).json({
+      success: false,
+      error: 'Donation not found'
+    });
+  }
+
+  // Verify that this donation is assigned to the requesting NGO
+  if (donation.assignedNGO?.ngoFirebaseUid !== ngoFirebaseUid) {
+    return res.status(403).json({
+      success: false,
+      error: 'This donation is not assigned to your NGO'
+    });
+  }
+
+  // Validate status transition
+  const validStatuses = ['volunteer_assigned', 'picked', 'completed'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+    });
+  }
+
+  donation.status = status;
+  await donation.save();
+
+  res.status(200).json({
+    success: true,
+    data: donation
   });
 });

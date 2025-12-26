@@ -49,7 +49,7 @@ const DonationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'assigned', 'picked', 'completed', 'cancelled'],
+      enum: ['pending', 'assigned', 'volunteer_assigned', 'picked', 'completed', 'cancelled'],
       default: 'pending',
       index: true
     },
@@ -72,6 +72,28 @@ const DonationSchema = new mongoose.Schema(
       },
       assignedRequestId: {
         type: String, // NGO Request ID
+        default: null
+      }
+    },
+    assignedVolunteer: {
+      volunteerId: {
+        type: String,
+        default: null
+      },
+      volunteerName: {
+        type: String,
+        default: null
+      },
+      volunteerPhone: {
+        type: String,
+        default: null
+      },
+      assignedAt: {
+        type: Date,
+        default: null
+      },
+      assignedBy: {
+        type: String, // NGO Firebase UID
         default: null
       }
     }
