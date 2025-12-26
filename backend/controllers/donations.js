@@ -1,6 +1,7 @@
 const Donation = require('../models/Donation');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
+const Notification = require('../models/Notification');
 const asyncHandler = require('../middleware/async');
 
 const toStartOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
@@ -37,6 +38,18 @@ exports.createDonation = asyncHandler(async (req, res) => {
     details: details || {},
     status: 'pending'
   });
+
+  try {
+    await Notification.create({
+      recipientFirebaseUid: donorFirebaseUid,
+      category: 'donations',
+      title: 'Donation submitted',
+      message: `Your ${resourceType} donation has been created successfully and is awaiting NGO assignment.`,
+      read: false
+    });
+  } catch (_) {
+    // non-blocking
+  }
 
   res.status(201).json({
     success: true,
@@ -179,6 +192,10 @@ exports.updateDonation = asyncHandler(async (req, res) => {
     });
   }
 
+  const prevStatus = donation.status;
+  const prevNgoUid = donation.assignedNGO?.ngoFirebaseUid || null;
+  const prevNgoName = donation.assignedNGO?.ngoName || null;
+
   // Update status if provided
   if (status) {
     donation.status = status;
@@ -233,6 +250,44 @@ exports.updateDonation = asyncHandler(async (req, res) => {
   const savedDonation = await Donation.findById(id);
   console.log('Saved donation assignedNGO:', savedDonation?.assignedNGO);
   console.log('Saved donation assignedRequestId:', savedDonation?.assignedNGO?.assignedRequestId);
+
+  // Create donor notifications for key lifecycle events
+  try {
+    const donorUid = donation.donorFirebaseUid;
+
+    const changedStatus = Boolean(status) && status !== prevStatus;
+    const assignedNow = Boolean(ngoFirebaseUid) && ngoFirebaseUid !== prevNgoUid;
+
+    if (assignedNow) {
+      await Notification.create({
+        recipientFirebaseUid: donorUid,
+        category: 'pickups',
+        title: 'NGO assigned for pickup',
+        message: `Your donation has been assigned to ${donation.assignedNGO?.ngoName || 'an NGO'}. Pickup will be scheduled soon.`,
+        read: false
+      });
+    }
+
+    if (changedStatus) {
+      const label = String(status);
+      let category = 'donations';
+      if (label === 'assigned' || label === 'picked') category = 'pickups';
+      if (label === 'completed') category = 'donations';
+
+      const ngoLabel = donation.assignedNGO?.ngoName || prevNgoName;
+      const suffix = ngoLabel ? ` (NGO: ${ngoLabel})` : '';
+
+      await Notification.create({
+        recipientFirebaseUid: donorUid,
+        category,
+        title: 'Donation status updated',
+        message: `Your donation status is now "${label}"${suffix}.`,
+        read: false
+      });
+    }
+  } catch (_) {
+    // non-blocking
+  }
 
   res.status(200).json({
     success: true,

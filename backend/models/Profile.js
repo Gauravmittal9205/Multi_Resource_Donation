@@ -30,6 +30,7 @@ const ProfileSchema = new mongoose.Schema(
       donationCategories: [String],
       preferredPickupTime: String,
       notificationPreference: { type: String, enum: ['email', 'push', 'sms'], default: 'push' },
+      nearbyNgoRadiusKm: { type: Number, default: 10 },
     },
     trust: {
       verifiedStatus: { type: Boolean, default: false },

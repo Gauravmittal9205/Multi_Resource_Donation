@@ -8,6 +8,11 @@ const FaqSchema = new mongoose.Schema(
       enum: ['donors', 'ngos', 'volunteers'],
       index: true
     },
+    userType: {
+      type: String,
+      enum: ['donor', 'ngo', 'volunteer'],
+      index: true
+    },
     question: {
       type: String,
       required: [true, 'Question is required'],
@@ -17,6 +22,12 @@ const FaqSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Answer is required'],
       trim: true
+    },
+    category: {
+      type: String,
+      enum: ['Donation Process', 'Pickup & Delivery', 'Account & Profile', 'Safety & Guidelines', 'General'],
+      default: 'General',
+      index: true
     },
     order: {
       type: Number,

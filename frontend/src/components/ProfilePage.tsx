@@ -3,44 +3,13 @@ import { auth } from '../firebase';
 import { FiUser, FiMail, FiPhone, FiCalendar, FiShield, FiImage, FiEye, FiEyeOff } from 'react-icons/fi';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut, updatePassword } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
+import { fetchDonorProfileByUid, fetchMyDonations } from '../services/donationService';
+import type { DonationItem } from '../services/donationService';
 
 interface ProfilePageProps {
   user: FirebaseUser;
 }
-// Lightweight count-up hook
-function useCountUp(target: number, duration = 1200) {
-  const [value, setValue] = useState(0);
-  const startRef = useRef<number | null>(null);
-  useEffect(() => {
-    let raf: number;
-    const step = (ts: number) => {
-      if (!startRef.current) startRef.current = ts;
-      const progress = Math.min(1, (ts - startRef.current) / duration);
-      setValue(Math.floor(progress * target));
-      if (progress < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-  return value;
-}
-const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: number; bg: string }>
-  = ({ icon, label, value, bg }) => {
-  const v = useCountUp(value, 1400);
-  return (
-    <div className={`rounded-2xl ${bg} p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow`}> 
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-white/70 backdrop-blur flex items-center justify-center text-xl">
-          {icon}
-        </div>
-        <div>
-          <div className="text-2xl font-bold text-gray-900">{v.toLocaleString()}</div>
-          <div className="text-gray-600 text-sm">{label}</div>
-        </div>
-      </div>
-    </div>
-  );
-};
+ 
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
   // Simple pincode -> city lookup (extend as needed)
@@ -105,15 +74,36 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
   const geoLookupAbortRef = useRef<AbortController | null>(null);
   type GeoCandidate = { displayName: string; city: string; state: string; country: string };
   const [geoCandidates, setGeoCandidates] = useState<GeoCandidate[]>([]);
+  const profileLoadedRef = useRef(false);
 
   // Use the passed user prop instead of auth state
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(propUser ?? null);
+
+  const [myDonations, setMyDonations] = useState<DonationItem[]>([]);
+  const [myDonationsLoading, setMyDonationsLoading] = useState(false);
 
   // Still keep the auth state listener for changes
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => setAuthUser(u));
     return () => unsubscribe();
   }, [propUser]);
+
+  useEffect(() => {
+    const run = async () => {
+      if (!authUser?.uid) return;
+      try {
+        setMyDonationsLoading(true);
+        const res = await fetchMyDonations();
+        setMyDonations(res.data || []);
+      } catch (e) {
+        setMyDonations([]);
+      } finally {
+        setMyDonationsLoading(false);
+      }
+    };
+
+    run();
+  }, [authUser?.uid]);
 
   const roleLabel = 'User';
 
@@ -205,17 +195,103 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
     },
   });
 
+  // Load profile data from MongoDB when component mounts
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (!authUser?.uid) return;
+      
+      try {
+        const res = await fetchDonorProfileByUid(authUser.uid);
+        const savedProfile = res.data as any; // Backend returns full profile object
+        
+        if (savedProfile) {
+          setProfile((p) => ({
+            ...p,
+            basic: {
+              ...p.basic,
+              name: savedProfile.basic?.name || authUser.displayName || '—',
+              email: savedProfile.basic?.email || authUser.email || '—',
+              phone: savedProfile.basic?.phone || authUser.phoneNumber || '',
+              photoUrl: savedProfile.basic?.photoUrl || p.basic.photoUrl || authUser.photoURL || '',
+              firebaseUid: authUser.uid || '—',
+              accountCreationDate: formatAuthTime(authUser.metadata?.creationTime || null),
+            },
+            gallery: savedProfile.gallery || p.gallery || [],
+            donorType: (savedProfile.donorType as DonorType) || p.donorType,
+            organization: {
+              organizationName: savedProfile.organization?.organizationName || p.organization.organizationName,
+              businessType: savedProfile.organization?.businessType || p.organization.businessType,
+              address: savedProfile.organization?.address || p.organization.address,
+              licenseNumber: savedProfile.organization?.licenseNumber || p.organization.licenseNumber,
+            },
+            location: {
+              pickupAddress: savedProfile.location?.pickupAddress || p.location.pickupAddress,
+              pincode: savedProfile.location?.pincode || p.location.pincode,
+              city: savedProfile.location?.city || p.location.city,
+              state: savedProfile.location?.state || p.location.state,
+              country: savedProfile.location?.country || p.location.country,
+            },
+            preferences: {
+              donationCategories: (savedProfile.preferences?.donationCategories as DonationCategory[]) || p.preferences.donationCategories,
+              preferredPickupTime: savedProfile.preferences?.preferredPickupTime || p.preferences.preferredPickupTime,
+              notificationPreference: (savedProfile.preferences?.notificationPreference as 'email' | 'push' | 'sms') || p.preferences.notificationPreference,
+            },
+            trust: {
+              verifiedStatus: savedProfile.trust?.verifiedStatus ?? p.trust.verifiedStatus,
+              donorRating: savedProfile.trust?.donorRating ?? p.trust.donorRating,
+              trustBadges: savedProfile.trust?.trustBadges || p.trust.trustBadges,
+            },
+            notifications: {
+              emailNotifications: savedProfile.notifications?.emailNotifications ?? p.notifications.emailNotifications,
+              pushNotifications: savedProfile.notifications?.pushNotifications ?? p.notifications.pushNotifications,
+              smsNotifications: savedProfile.notifications?.smsNotifications ?? p.notifications.smsNotifications,
+            },
+            systemSecurity: {
+              lastLoginTime: formatAuthTime(authUser.metadata?.lastSignInTime || null),
+              accountBlocked: savedProfile.systemSecurity?.accountBlocked ?? p.systemSecurity.accountBlocked,
+            },
+          }));
+          profileLoadedRef.current = true;
+        }
+      } catch (error) {
+        console.error('Failed to load profile data:', error);
+        // If profile doesn't exist, keep default values
+      }
+    };
+
+    if (authUser?.uid) {
+      loadProfileData();
+    }
+  }, [authUser?.uid]);
+
   useEffect(() => {
     if (!authUser?.email) return;
+    // Don't overwrite if profile has been loaded from MongoDB
+    if (profileLoadedRef.current) {
+      // Only update systemSecurity.lastLoginTime and accountCreationDate
+      setProfile((p) => ({
+        ...p,
+        basic: {
+          ...p.basic,
+          firebaseUid: authUser.uid || '—',
+          accountCreationDate: formatAuthTime(authUser.metadata?.creationTime || null),
+        },
+        systemSecurity: {
+          ...p.systemSecurity,
+          lastLoginTime: formatAuthTime(authUser.metadata?.lastSignInTime || null),
+        },
+      }));
+      return;
+    }
 
     setProfile((p) => ({
       ...p,
       basic: {
         ...p.basic,
-        name: authUser.displayName || '—',
-        email: authUser.email || '—',
-        phone: authUser.phoneNumber || '',
-        photoUrl: authUser.photoURL || '',
+        name: p.basic.name === '—' ? (authUser.displayName || '—') : p.basic.name,
+        email: p.basic.email === '—' ? (authUser.email || '—') : p.basic.email,
+        phone: p.basic.phone || authUser.phoneNumber || '',
+        photoUrl: p.basic.photoUrl || authUser.photoURL || '',
         firebaseUid: authUser.uid || '—',
         accountCreationDate: formatAuthTime(authUser.metadata?.creationTime || null),
       },
@@ -438,6 +514,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      // Dispatch event to notify other components to refresh profile data
+      window.dispatchEvent(new CustomEvent('profileUpdated'));
     } catch (e) {}
     setProfile(() => nextProfile);
     setIsEditing(false);
@@ -451,12 +529,35 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
   };
 
   const metrics = useMemo(() => {
-    return { totalDonationsCount: 0, mealsServed: 0, clothesDonated: 0, booksDonated: 0 };
-  }, []);
+    const totalDonationsCount = myDonations.length;
+
+    const sumByType = (type: DonationItem['resourceType']) =>
+      myDonations
+        .filter((d) => d.resourceType === type)
+        .reduce((s, d) => s + Number(d.quantity || 0), 0);
+
+    const foodQty = sumByType('Food');
+    const mealsServed = Math.max(0, Math.round(foodQty * 2.5));
+    const clothesDonated = Math.max(0, Math.round(sumByType('Clothes')));
+    const booksDonated = Math.max(0, Math.round(sumByType('Books')));
+
+    return { totalDonationsCount, mealsServed, clothesDonated, booksDonated };
+  }, [myDonations]);
 
   const activity = useMemo(() => {
-    return { lastDonationDate: null as string | null, isActive: null as boolean | null };
-  }, []);
+    if (myDonations.length === 0) return { lastDonationDate: null as string | null, isActive: null as boolean | null };
+
+    const last = [...myDonations]
+      .map((d) => (d.createdAt ? new Date(d.createdAt) : null))
+      .filter(Boolean)
+      .sort((a: any, b: any) => b.getTime() - a.getTime())[0] as Date | undefined;
+
+    if (!last) return { lastDonationDate: null as string | null, isActive: null as boolean | null };
+
+    const days = Math.floor((Date.now() - last.getTime()) / (1000 * 60 * 60 * 24));
+    const isActive = days <= 30;
+    return { lastDonationDate: last.toLocaleDateString(), isActive };
+  }, [myDonations]);
 
   const trustBadges = useMemo(() => {
     const badges: string[] = [];
@@ -1026,12 +1127,95 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
 
             <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">
               <div className="text-lg font-semibold text-gray-900 mb-4">Impact Metrics (Auto-calculated)</div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard icon={<span>📦</span>} label="Total donations count" value={metrics.totalDonationsCount} bg="bg-blue-50" />
-                <StatCard icon={<span>🍽️</span>} label="Meals served" value={metrics.mealsServed} bg="bg-emerald-50" />
-                <StatCard icon={<span>👕</span>} label="Clothes donated" value={metrics.clothesDonated} bg="bg-blue-50" />
-                <StatCard icon={<span>📚</span>} label="Books donated" value={metrics.booksDonated} bg="bg-emerald-50" />
-              </div>
+              {myDonationsLoading ? (
+                <div className="py-10 text-center text-sm text-gray-600">Calculating impact metrics...</div>
+              ) : myDonations.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-white px-4 py-10 text-center">
+                  <div className="text-sm font-semibold text-gray-900">No donations yet</div>
+                  <div className="mt-1 text-sm text-gray-600">Your impact graph will appear after your first donation.</div>
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-white border border-gray-100 p-4">
+                  <div className="text-sm font-semibold text-gray-900">Impact Graph</div>
+
+                  {(() => {
+                    const totalDonations = metrics.totalDonationsCount || 0;
+                    const otherItems = [
+                      { label: 'Meals served', value: metrics.mealsServed, color: 'bg-emerald-600' },
+                      { label: 'Clothes donated', value: metrics.clothesDonated, color: 'bg-indigo-600' },
+                      { label: 'Books donated', value: metrics.booksDonated, color: 'bg-amber-500' },
+                    ];
+
+                    const max = Math.max(...otherItems.map((x) => Number(x.value || 0)), 1);
+
+                    return (
+                      <div className="mt-5 space-y-6">
+                        {/* Circular graph for Total Donations - Top */}
+                        <div className="flex justify-center">
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="relative">
+                              <svg className="w-32 h-32 transform -rotate-90">
+                                <circle
+                                  cx="64"
+                                  cy="64"
+                                  r="48"
+                                  stroke="#e5e7eb"
+                                  strokeWidth="16"
+                                  fill="none"
+                                />
+                                <circle
+                                  cx="64"
+                                  cy="64"
+                                  r="48"
+                                  stroke="#2563eb"
+                                  strokeWidth="16"
+                                  fill="none"
+                                  strokeDasharray={`${2 * Math.PI * 48}`}
+                                  strokeDashoffset={`${2 * Math.PI * 48 * (1 - Math.min(totalDonations / 10, 1))}`}
+                                  className="transition-all duration-500"
+                                />
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="text-center">
+                                  <div className="text-xl font-bold text-gray-900">{totalDonations}</div>
+                                  <div className="text-[11px] text-gray-500">Total</div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-[11px] text-gray-600 font-medium text-center leading-tight line-clamp-2">
+                              Total donations
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bar charts for other metrics - Bottom */}
+                        <div className="h-40 w-full flex items-end justify-between gap-3">
+                          {otherItems.map((it) => {
+                            const v = Number(it.value || 0);
+                            const pct = Math.round((v / max) * 100);
+                            const height = Math.max(18, (pct / 100) * 120);
+                            return (
+                              <div key={it.label} className="flex-1 flex flex-col items-center gap-2 min-w-0">
+                                <div className="w-full flex items-end" style={{ height: '120px' }}>
+                                  <div
+                                    className={`w-full rounded-t-xl ${it.color} shadow-sm`}
+                                    style={{ height: `${height}px` }}
+                                    title={`${it.label}: ${v}`}
+                                  />
+                                </div>
+                                <div className="text-[11px] text-gray-600 font-medium text-center leading-tight line-clamp-2">
+                                  {it.label}
+                                </div>
+                                <div className="text-xs font-semibold text-gray-900">{v.toLocaleString()}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">

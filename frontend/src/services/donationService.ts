@@ -2,6 +2,7 @@ import axios from 'axios';
 import { auth } from '../firebase';
 
 const API_URL = 'http://localhost:5000/api/v1/donations';
+const NOTIFICATIONS_URL = 'http://localhost:5000/api/v1/notifications';
 
 const getAuthToken = async (): Promise<string> => {
   const user = auth.currentUser;
@@ -119,6 +120,59 @@ export const fetchMyDonations = async (status?: DonationStatus) => {
 export const fetchDonorProfileByUid = async (firebaseUid: string) => {
   const response = await axios.get(`http://localhost:5000/api/v1/profile/${encodeURIComponent(firebaseUid)}`);
   return response.data as { success: boolean; data: DonorProfile };
+};
+
+export type NotificationCategory = 'donations' | 'pickups' | 'ngo_requests' | 'system';
+
+export interface NotificationItem {
+  _id: string;
+  recipientFirebaseUid: string;
+  category: NotificationCategory;
+  title: string;
+  message: string;
+  read: boolean;
+  readAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const fetchMyNotifications = async (params?: { category?: 'all' | NotificationCategory; includeRead?: boolean; limit?: number }) => {
+  const token = await getAuthToken();
+  const response = await axios.get(NOTIFICATIONS_URL, {
+    params,
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return response.data as { success: boolean; count: number; data: NotificationItem[] };
+};
+
+export const markNotificationRead = async (id: string) => {
+  const token = await getAuthToken();
+  const response = await axios.put(
+    `${NOTIFICATIONS_URL}/${encodeURIComponent(id)}/read`,
+    {},
+    {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    }
+  );
+  return response.data as { success: boolean; data: NotificationItem };
+};
+
+export const markAllNotificationsRead = async () => {
+  const token = await getAuthToken();
+  const response = await axios.put(
+    `${NOTIFICATIONS_URL}/read-all`,
+    {},
+    {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    }
+  );
+  return response.data as { success: boolean; data: {} };
 };
 
 // Admin function to fetch all donations

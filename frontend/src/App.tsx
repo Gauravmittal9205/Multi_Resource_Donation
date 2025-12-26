@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { signInWithGoogle, signOutUser, onAuthStateChanged, signInWithEmail, signUpWithEmail, setUpRecaptcha, sendVerificationCode, verifyPhoneNumber } from './firebase';
 import type { User as FirebaseUser } from 'firebase/auth';
+import { fetchDonorProfileByUid } from './services/donationService';
 
 import AboutUs from './components/AboutUs';
 import Footer from './components/Footer';
@@ -55,6 +56,7 @@ function App() {
   const [showAbout, setShowAbout] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [donorProfile, setDonorProfile] = useState<any>(null);
 
   const isDonorUser = userMeta?.userType === 'donor';
   const isNgoUser = userMeta?.userType === 'ngo';
@@ -141,6 +143,36 @@ function App() {
       cancelled = true;
     };
   }, [user?.uid, user?.email]);
+
+  // Load donor profile for profile picture
+  useEffect(() => {
+    const loadDonorProfile = async () => {
+      if (!user?.uid || !isDonorUser) {
+        setDonorProfile(null);
+        return;
+      }
+      
+      try {
+        const res = await fetchDonorProfileByUid(user.uid);
+        setDonorProfile(res.data);
+      } catch (error) {
+        console.error('Failed to load donor profile:', error);
+        setDonorProfile(null);
+      }
+    };
+
+    loadDonorProfile();
+    
+    // Listen for profile updates
+    const handleProfileUpdate = () => {
+      loadDonorProfile();
+    };
+    
+    window.addEventListener('profileUpdated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('profileUpdated', handleProfileUpdate);
+    };
+  }, [user?.uid, isDonorUser]);
 
   // Handle initial page load and user type changes
   useEffect(() => {
@@ -1076,20 +1108,45 @@ function App() {
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
                     className="flex items-center space-x-2 focus:outline-none"
                   >
-                    {user.photoURL ? (
-                      <img 
-                        src={user.photoURL} 
-                        alt={user.displayName || 'User'} 
-                        className="w-8 h-8 rounded-full"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-medium">
-                        {user.displayName?.charAt(0) || user.email?.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    {(() => {
+                      // Priority: profile photo from MongoDB > Firebase photoURL > initial
+                      const photoUrl = donorProfile?.basic?.photoUrl || user.photoURL;
+                      const displayName = donorProfile?.basic?.name || user.displayName || user.email?.split('@')[0] || 'User';
+                      const initial = displayName?.charAt(0)?.toUpperCase() || user.email?.charAt(0).toUpperCase();
+                      
+                      if (photoUrl) {
+                        return (
+                          <div className="relative w-8 h-8">
+                            <img 
+                              src={photoUrl} 
+                              alt={displayName} 
+                              className="w-8 h-8 rounded-full object-cover border border-emerald-100"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                // Hide image and show fallback
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                const fallback = parent?.querySelector('.nav-avatar-fallback') as HTMLElement;
+                                if (fallback) fallback.style.display = 'flex';
+                              }}
+                            />
+                            <div 
+                              className="nav-avatar-fallback w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-medium hidden"
+                            >
+                              {initial}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-medium">
+                          {initial}
+                        </div>
+                      );
+                    })()}
                     <span className="text-sm font-medium text-gray-700">
-                      {user.displayName || user.email?.split('@')[0]}
+                      {donorProfile?.basic?.name || user.displayName || user.email?.split('@')[0]}
                     </span>
                     <svg 
                       className={`w-4 h-4 text-gray-500 transition-transform ${isProfileOpen ? 'transform rotate-180' : ''}`} 
