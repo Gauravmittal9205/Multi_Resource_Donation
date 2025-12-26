@@ -2,45 +2,37 @@ const mongoose = require('mongoose');
 
 const NotificationSchema = new mongoose.Schema(
   {
-    recipientFirebaseUid: { type: String, required: true, index: true },
+    recipientFirebaseUid: {
+      type: String,
+      required: true,
+      index: true
+    },
     category: {
       type: String,
       required: true,
-      enum: ['donations', 'pickups', 'ngo_requests', 'system'],
+      enum: ['donations', 'pickups', 'system'],
       index: true
-    },
-    title: { type: String, required: true, trim: true },
-    message: { type: String, required: true, trim: true },
-    read: { type: Boolean, default: false, index: true },
-    readAt: { type: Date, default: null },
-    ngoFirebaseUid: {
-      type: String,
-      required: true,
-      index: true
-    },
-    type: {
-      type: String,
-      enum: ['request_approved', 'request_rejected', 'registration_approved', 'registration_rejected'],
-      required: true
     },
     title: {
       type: String,
-      required: true
+      required: true,
+      trim: true
     },
     message: {
       type: String,
-      required: true
+      required: true,
+      trim: true
     },
-    relatedId: {
-      type: String, // ID of the related request or registration
-      required: true
+    donationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Donation',
+      default: null
     },
-    relatedType: {
+    redirectUrl: {
       type: String,
-      enum: ['request', 'registration'],
-      required: true
+      default: null // URL to redirect when notification is clicked
     },
-    isRead: {
+    read: {
       type: Boolean,
       default: false,
       index: true
@@ -53,9 +45,9 @@ const NotificationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model('Notification', NotificationSchema);
-// Index for efficient queries
-NotificationSchema.index({ ngoFirebaseUid: 1, isRead: 1, createdAt: -1 });
+// Indexes for efficient queries
+NotificationSchema.index({ recipientFirebaseUid: 1, read: 1, createdAt: -1 });
+NotificationSchema.index({ recipientFirebaseUid: 1, category: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', NotificationSchema);
 

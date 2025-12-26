@@ -105,7 +105,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
     run();
   }, [authUser?.uid]);
 
-  const roleLabel = 'User';
+  const roleLabel = 'Donor';
 
   const formatAuthTime = (value?: string | null) => {
     if (!value) return '—';
@@ -559,14 +559,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
     return { lastDonationDate: last.toLocaleDateString(), isActive };
   }, [myDonations]);
 
-  const trustBadges = useMemo(() => {
-    const badges: string[] = [];
-    if (metrics.totalDonationsCount > 0) badges.push('First Donation');
-    if (metrics.mealsServed >= 100) badges.push('100 Meals Club');
-    if (profile.trust.verifiedStatus) badges.push('Verified');
-    return badges;
-  }, [metrics.mealsServed, metrics.totalDonationsCount, profile.trust.verifiedStatus]);
-  
+    
   // Quick Actions handlers
   const handleChangePassword = () => {
     setChangePasswordError(null);
@@ -1218,62 +1211,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
               )}
             </div>
 
-            <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">
-              <div className="text-lg font-semibold text-gray-900 mb-4">Trust & Verification</div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">Verified status</div>
-                  {isEditing ? (
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={profile.trust.verifiedStatus}
-                        onChange={(e) => setProfile(p => ({ ...p, trust: { ...p.trust, verifiedStatus: e.target.checked } }))}
-                      />
-                      <span className="text-gray-900">{profile.trust.verifiedStatus ? 'Verified' : 'Not verified'}</span>
-                    </label>
-                  ) : (
-                    <div className={`inline-flex px-3 py-1 rounded-full text-sm ${profile.trust.verifiedStatus ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700'}`}>
-                      {profile.trust.verifiedStatus ? 'Verified' : 'Not verified'}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">Donor rating</div>
-                  {isEditing ? (
-                    <input
-                      type="number"
-                      min={0}
-                      max={5}
-                      step={0.1}
-                      value={profile.trust.donorRating}
-                      onChange={(e) => {
-                        setProfile(p => ({ ...p, trust: { ...p.trust, donorRating: Number(e.target.value) } }));
-                        setErrors(prev => {
-                          const copy = { ...prev };
-                          delete copy['trust.donorRating'];
-                          return copy;
-                        });
-                      }}
-                      className={`w-full bg-white border rounded-lg px-3 py-2 ${errors['trust.donorRating'] ? 'border-red-300 focus:ring-red-200 focus:border-red-400' : 'border-gray-200'}`}
-                    />
-                  ) : (
-                    <div className="text-gray-900">{profile.trust.donorRating ? profile.trust.donorRating.toFixed(1) : '—'}</div>
-                  )}
-                  {isEditing && errors['trust.donorRating'] && <div className="mt-1 text-xs text-red-600">{errors['trust.donorRating']}</div>}
-                </div>
-                <div className="sm:col-span-2">
-                  <div className="text-xs text-gray-500 mb-2">Trust badges</div>
-                  <div className="flex flex-wrap gap-2">
-                    {(trustBadges.length ? trustBadges : ['—']).map((b, i) => (
-                      <span key={`${b}-${i}`} className="px-3 py-1 rounded-full text-sm bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        {b}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
 
             <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">
               <div className="text-lg font-semibold text-gray-900 mb-4">Activity Status</div>

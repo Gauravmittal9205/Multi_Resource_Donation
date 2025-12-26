@@ -34,11 +34,17 @@ import {
   FiArrowDownRight,
   FiMapPin,
   FiRefreshCw,
+  FiEye,
+  FiAlertCircle,
 } from 'react-icons/fi';
 
 type DonorDashboardProps = {
   user: FirebaseUser | null;
   onBack: () => void;
+  userMeta?: {
+    userType?: 'donor' | 'ngo';
+    organizationName?: string;
+  } | null;
 };
 
 type MenuKey = 'dashboard' | 'my-donations' | 'donate-now' | 'active-pickups' | 'donation-history' | 'impact' | 'help-support' | 'notifications' | 'settings';
@@ -127,7 +133,7 @@ const Select = ({
   </select>
 );
 
-function DonorDashboard({ user, onBack }: DonorDashboardProps) {
+function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
   if (!user) {
     return (
       <div className="min-h-[calc(100vh-4rem)] bg-gray-50 flex items-center justify-center">
@@ -172,6 +178,10 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
   >(null);
 
   const [donorProfile, setDonorProfile] = useState<any>(null);
+
+  // Donation details modal state
+  const [selectedDonation, setSelectedDonation] = useState<any>(null);
+  const [showDonationDetails, setShowDonationDetails] = useState(false);
 
   const loadDashboard = async () => {
     try {
@@ -632,7 +642,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
 
     return (
       <div className="group rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="text-sm font-medium text-gray-600">{title}</div>
             <div className="mt-2 text-3xl font-semibold text-gray-900">{value}</div>
@@ -1669,7 +1679,7 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
               {/* Time-based Greeting */}
               {(() => {
                 const hour = new Date().getHours();
-                const greeting = hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
+                const greeting = hour < 12 ? 'Good Morning' : hour < 16 ? 'Good Afternoon' : 'Good Evening';
                 const profileName = donorProfile?.basic?.name || user.displayName || user.email?.split('@')[0] || 'Donor';
                 return (
                   <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -2037,7 +2047,6 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                 </div>
 
                 {(() => {
-                  const totalDonations = dashboardData?.summary?.totalDonations ?? 0;
                   const recent = dashboardData?.recentDonations || [];
 
                   const foodSavedKg = Number(dashboardData?.impact?.foodSavedKg ?? 0);
@@ -3212,16 +3221,17 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
           )}
 
           {activeItem === 'notifications' && (
-            <div className="space-y-4">
-              <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="rounded-2xl bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-100 shadow-sm p-6">
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700">
-                      <FiBell className="h-5 w-5" />
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-emerald-600 border border-emerald-200 flex items-center justify-center text-white shadow-lg">
+                      <FiBell className="h-6 w-6" />
                     </div>
                     <div>
-                      <div className="text-base font-semibold text-gray-900">Notifications</div>
-                      <div className="text-sm text-gray-600">Donation, pickup, and system updates</div>
+                      <div className="text-xl font-bold text-gray-900">Stay Connected</div>
+                      <div className="text-sm text-gray-600 mt-1">Track your impact and never miss an update</div>
                     </div>
                   </div>
 
@@ -3234,142 +3244,277 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                           await loadNotifications();
                         } catch {}
                       }}
-                      className="px-3 py-2 text-xs font-semibold rounded-xl bg-gray-50 border border-gray-100 text-gray-700 hover:bg-gray-100"
+                      className="px-4 py-2 text-sm font-semibold rounded-xl bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 shadow-sm transition-all"
                     >
                       Mark all read
                     </button>
                     <button
                       type="button"
                       onClick={() => loadNotifications()}
-                      className="px-3 py-2 text-xs font-semibold rounded-xl bg-gray-50 border border-gray-100 text-gray-700 hover:bg-gray-100"
+                      className="px-4 py-2 text-sm font-semibold rounded-xl bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 shadow-sm transition-all"
                     >
                       Refresh
                     </button>
                   </div>
                 </div>
 
-                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                {/* Filter Tabs */}
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
                   <div className="flex flex-wrap gap-2">
                     {(
                       [
-                        { key: 'all', label: 'All' },
-                        { key: 'donations', label: 'Donations' },
-                        { key: 'pickups', label: 'Pickups' },
-                        { key: 'system', label: 'System' },
+                        { key: 'all', label: 'All Notifications', icon: FiGrid },
+                        { key: 'donations', label: 'Donations', icon: FiPackage },
+                        { key: 'pickups', label: 'Pickups', icon: FiTruck },
+                        { key: 'system', label: 'System', icon: FiSettings },
                       ] as const
-                    ).map((f) => (
-                      <button
-                        key={f.key}
-                        type="button"
-                        onClick={() => setNotificationFilter(f.key)}
-                        className={
-                          'px-3 py-1.5 text-xs font-semibold rounded-full border ' +
-                          (notificationFilter === f.key
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50')
-                        }
-                      >
-                        {f.label}
-                      </button>
-                    ))}
+                    ).map((f) => {
+                      const Icon = f.icon;
+                      return (
+                        <button
+                          key={f.key}
+                          type="button"
+                          onClick={() => setNotificationFilter(f.key)}
+                          className={
+                            'flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border transition-all ' +
+                            (notificationFilter === f.key
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
+                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50')
+                          }
+                        >
+                          <Icon className="h-4 w-4" />
+                          {f.label}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-600 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
                     <input
                       type="checkbox"
                       checked={showReadNotifications}
                       onChange={(e) => setShowReadNotifications(e.target.checked)}
+                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                     />
-                    Show read
+                    Show read notifications
                   </label>
                 </div>
               </div>
 
+              {/* Notifications List */}
               {notificationsError ? (
-                <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900">
-                  {notificationsError}
-                </div>
-              ) : null}
-
-              <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-                <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-                  <div className="text-sm font-semibold text-gray-900">Recent</div>
-                  <div className="text-xs text-gray-500">
-                    {notificationsLoading ? 'Loading...' : `${notifications.length} notification${notifications.length !== 1 ? 's' : ''}`}
+                <div className="rounded-2xl border border-red-100 bg-red-50 px-6 py-4 text-sm text-red-900">
+                  <div className="flex items-center gap-2">
+                    <FiX className="h-4 w-4" />
+                    {notificationsError}
                   </div>
                 </div>
-
-                <div className="divide-y divide-gray-100">
-                  {notificationsLoading ? (
-                    <div className="p-5 text-sm text-gray-600">Loading notifications...</div>
-                  ) : notifications.length === 0 ? (
-                    <div className="p-8 text-center">
-                      <div className="text-sm font-semibold text-gray-900">No notifications</div>
-                      <div className="mt-1 text-sm text-gray-600">New updates about donations and pickups will appear here.</div>
+              ) : notificationsLoading ? (
+                <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-8">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-emerald-600 mb-4"></div>
+                    <div className="text-sm font-medium text-gray-900">Loading notifications...</div>
+                    <div className="text-sm text-gray-600 mt-1">Please wait while we fetch your updates</div>
+                  </div>
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12">
+                  <div className="flex flex-col items-center justify-center text-center max-w-md mx-auto">
+                    {/* Empty State Illustration */}
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-100 to-blue-100 flex items-center justify-center mb-6">
+                      <FiBell className="h-12 w-12 text-emerald-600" />
                     </div>
-                  ) : (
-                    notifications.map((n) => {
+                    
+                    <div className="text-xl font-bold text-gray-900 mb-3">All caught up!</div>
+                    <div className="text-sm text-gray-600 mb-6 leading-relaxed">
+                      You're all caught up with your notifications. New updates about your donations, pickups, and impact will appear here.
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => setActiveItem('donate-now')}
+                        className="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-colors shadow-lg flex items-center justify-center gap-2"
+                      >
+                        <FiPlusCircle className="h-5 w-5" />
+                        Make a Donation
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveItem('impact')}
+                        className="px-6 py-3 bg-white border border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <FiHeart className="h-5 w-5" />
+                        View Impact
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between px-2">
+                    <div className="text-sm font-semibold text-gray-700">
+                      {notifications.filter(n => !n.read).length > 0 && (
+                        <span className="inline-flex items-center gap-2">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          {notifications.filter(n => !n.read).length} unread
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {notifications.length} notification{notifications.length !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                  {/* Notification Cards */}
+                  <div className="space-y-3">
+                    {notifications.map((n) => {
                       const created = n.createdAt ? new Date(n.createdAt) : null;
                       const time = created ? created.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
                       const isUnread = !n.read;
-                      const pill =
-                        n.category === 'donations'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                          : n.category === 'pickups'
-                            ? 'bg-amber-50 text-amber-700 border-amber-100'
-                            : 'bg-gray-50 text-gray-700 border-gray-100';
-
-                      const catLabel =
-                        n.category === 'donations'
-                          ? 'Donation'
-                          : n.category === 'pickups'
-                            ? 'Pickup'
-                            : n.category === 'ngo_requests'
-                              ? 'NGO'
-                              : 'System';
+                      
+                      // Get icon and colors based on category
+                      const getCategoryInfo = () => {
+                        switch (n.category) {
+                          case 'donations':
+                            return {
+                              icon: FiPackage,
+                              bg: 'bg-emerald-50',
+                              fg: 'text-emerald-700',
+                              border: 'border-emerald-200',
+                              label: 'Donation Update'
+                            };
+                          case 'pickups':
+                            return {
+                              icon: FiTruck,
+                              bg: 'bg-amber-50',
+                              fg: 'text-amber-700',
+                              border: 'border-amber-200',
+                              label: 'Pickup Update'
+                            };
+                          case 'ngo_requests':
+                            return {
+                              icon: FiUsers,
+                              bg: 'bg-blue-50',
+                              fg: 'text-blue-700',
+                              border: 'border-blue-200',
+                              label: 'NGO Request'
+                            };
+                          case 'impact':
+                            return {
+                              icon: FiHeart,
+                              bg: 'bg-pink-50',
+                              fg: 'text-pink-700',
+                              border: 'border-pink-200',
+                              label: 'Impact Update'
+                            };
+                          default:
+                            return {
+                              icon: FiSettings,
+                              bg: 'bg-gray-50',
+                              fg: 'text-gray-700',
+                              border: 'border-gray-200',
+                              label: 'System Update'
+                            };
+                        }
+                      };
+                      
+                      const categoryInfo = getCategoryInfo();
+                      const Icon = categoryInfo.icon;
 
                       return (
-                        <button
+                        <div
                           key={n._id}
-                          type="button"
-                          onClick={async () => {
-                            if (!n.read) {
-                              try {
-                                await markNotificationRead(n._id);
-                                await loadNotifications();
-                              } catch {}
-                            }
-                          }}
-                          className={
-                            'w-full text-left p-5 hover:bg-gray-50 transition-colors ' +
-                            (isUnread ? 'bg-white' : 'bg-white')
-                          }
+                          className={`group rounded-2xl border shadow-sm hover:shadow-md transition-all ${
+                            isUnread 
+                              ? 'bg-white border-emerald-200 bg-gradient-to-r from-emerald-50/50 to-transparent' 
+                              : 'bg-white border-gray-100'
+                          }`}
                         >
-                          <div className="flex items-start gap-3">
-                            <div className={
-                              'mt-2 h-2.5 w-2.5 rounded-full ' +
-                              (isUnread ? 'bg-emerald-500' : 'bg-gray-300')
-                            } />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-semibold ${pill}`}>{catLabel}</span>
-                                    {isUnread ? <span className="text-[11px] font-semibold text-emerald-700">Unread</span> : <span className="text-[11px] text-gray-400">Read</span>}
-                                  </div>
-                                  <div className="mt-2 text-sm font-semibold text-gray-900 truncate">{n.title}</div>
-                                </div>
-                                <div className="text-[11px] text-gray-500 whitespace-nowrap">{time}</div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!n.read) {
+                                try {
+                                  await markNotificationRead(n._id);
+                                  await loadNotifications();
+                                } catch {}
+                              }
+                            }}
+                            className="w-full p-5 text-left"
+                          >
+                            <div className="flex items-start gap-4">
+                              {/* Icon */}
+                              <div className={`h-12 w-12 rounded-xl ${categoryInfo.bg} ${categoryInfo.border} border flex items-center justify-center flex-shrink-0`}>
+                                <Icon className={`h-6 w-6 ${categoryInfo.fg}`} />
                               </div>
-                              <div className="mt-2 text-sm text-gray-600 line-clamp-2">{n.message}</div>
+                              
+                              {/* Content */}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    {/* Category and Status */}
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-xs font-semibold ${categoryInfo.bg} ${categoryInfo.fg} ${categoryInfo.border}`}>
+                                        {categoryInfo.label}
+                                      </span>
+                                      {isUnread && (
+                                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
+                                          <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                                          New
+                                        </span>
+                                      )}
+                                    </div>
+                                    
+                                    {/* Title */}
+                                    <div className="text-base font-semibold text-gray-900 mb-1">{n.title}</div>
+                                    
+                                    {/* Message */}
+                                    <div className="text-sm text-gray-600 leading-relaxed">{n.message}</div>
+                                    
+                                    {/* CTA Buttons for specific notifications */}
+                                    {n.category === 'ngo_requests' && (
+                                      <div className="mt-3 flex gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveItem('donate-now');
+                                          }}
+                                          className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 transition-colors"
+                                        >
+                                          Donate Now
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            // View details logic
+                                          }}
+                                          className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+                                        >
+                                          View Details
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Timestamp */}
+                                  <div className="text-xs text-gray-500 whitespace-nowrap flex-shrink-0">
+                                    {time}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </button>
+                          </button>
+                        </div>
                       );
-                    })
-                  )}
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -3468,6 +3613,39 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
                       <div className="text-sm font-semibold text-gray-900">Profile</div>
                       <div className="mt-1 text-sm text-gray-600">Refresh and sync your latest profile data.</div>
                       <div className="mt-2 text-xs text-emerald-700 font-semibold">Click to refresh</div>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
+                      <div className="text-sm font-semibold text-gray-900">Account Information</div>
+                      <div className="mt-1 text-sm text-gray-600">Your account details and role.</div>
+                      
+                      <div className="mt-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-medium text-gray-700">Account Type</div>
+                            <div className="text-xs text-gray-500 mt-1">Your role on the platform</div>
+                          </div>
+                          <div className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
+                            userMeta?.userType === 'ngo' 
+                              ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}>
+                            {userMeta?.userType === 'ngo' ? 'NGO' : 'Donor'}
+                          </div>
+                        </div>
+                        
+                        {userMeta?.organizationName && (
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-sm font-medium text-gray-700">Organization</div>
+                              <div className="text-xs text-gray-500 mt-1">Registered organization name</div>
+                            </div>
+                            <div className="text-sm text-gray-900 font-medium">
+                              {userMeta.organizationName}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
@@ -3629,95 +3807,446 @@ function DonorDashboard({ user, onBack }: DonorDashboardProps) {
           )}
 
           {activeItem === 'donation-history' && (
-            <div className="space-y-4">
-              <section className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-                <div className="p-5 flex items-center justify-between">
-                  <div>
-                    <div className="text-base font-semibold text-gray-900">Donation History</div>
-                    <div className="text-sm text-gray-600 mt-1">Completed donations only</div>
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="rounded-2xl bg-gradient-to-r from-blue-50 to-emerald-50 border border-blue-100 shadow-sm p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-blue-600 border border-blue-200 flex items-center justify-center text-white shadow-lg">
+                      <FiClock className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold text-gray-900">Donation History</div>
+                      <div className="text-sm text-gray-600 mt-1">Complete transparency of all your donations</div>
+                    </div>
                   </div>
                   <button
                     type="button"
                     onClick={loadMyDonations}
-                    className="px-3 py-2 text-xs font-semibold rounded-xl bg-gray-50 border border-gray-100 text-gray-700 hover:bg-gray-100"
+                    className="px-4 py-2 text-sm font-semibold rounded-xl bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 shadow-sm transition-all"
                   >
                     Refresh
                   </button>
                 </div>
+              </div>
 
-                <div className="px-5 pb-5 overflow-x-auto">
-                  <table className="min-w-[820px] w-full text-sm">
-                    <thead className="text-left text-gray-500">
-                      <tr>
-                        <th className="py-3 pr-4 font-medium">Donation ID</th>
-                        <th className="py-3 pr-4 font-medium">Resource Type</th>
-                        <th className="py-3 pr-4 font-medium">Quantity</th>
-                        <th className="py-3 pr-4 font-medium">Created At</th>
-                        <th className="py-3 pr-4 font-medium">Completed At</th>
-                        <th className="py-3 pr-4 font-medium">NGO Name</th>
-                        <th className="py-3 pr-4 font-medium">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-gray-700">
-                      {myDonationsLoading ? (
-                        <tr className="border-t border-gray-100">
-                          <td className="py-4" colSpan={7}>
-                            <div className="text-sm text-gray-600">Loading...</div>
-                          </td>
-                        </tr>
-                      ) : (() => {
-                        const completedDonations = myDonations.filter((d: any) => d.status === 'completed');
-                        if (completedDonations.length === 0) {
-                          return (
-                            <tr className="border-t border-gray-100">
-                              <td className="py-4" colSpan={7}>
-                                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center">
-                                  <div className="text-sm font-semibold text-gray-900">No completed donations yet</div>
-                                  <div className="mt-1 text-sm text-gray-600">Completed donations will appear here once they are processed by admin.</div>
+              {myDonationsError ? (
+                <div className="rounded-2xl border border-red-100 bg-red-50 px-6 py-4 text-sm text-red-900">
+                  <div className="flex items-center gap-2">
+                    <FiX className="h-4 w-4" />
+                    {myDonationsError}
+                  </div>
+                </div>
+              ) : myDonationsLoading ? (
+                <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-8">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600 mb-4"></div>
+                    <div className="text-sm font-medium text-gray-900">Loading donation history...</div>
+                    <div className="text-sm text-gray-600 mt-1">Please wait while we fetch your records</div>
+                  </div>
+                </div>
+              ) : myDonations.length === 0 ? (
+                <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-12">
+                  <div className="flex flex-col items-center justify-center text-center max-w-md mx-auto">
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-emerald-100 flex items-center justify-center mb-6">
+                      <FiClock className="h-12 w-12 text-blue-600" />
+                    </div>
+                    <div className="text-xl font-bold text-gray-900 mb-3">No donations yet</div>
+                    <div className="text-sm text-gray-600 mb-6 leading-relaxed">
+                      You haven't made any donations yet. Start making a difference today!
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveItem('donate-now')}
+                      className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-lg flex items-center justify-center gap-2"
+                    >
+                      <FiPlusCircle className="h-5 w-5" />
+                      Make Your First Donation
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Main Donation History Table */}
+                  <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="p-5 border-b border-gray-100">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-lg font-semibold text-gray-900">All Donations</h2>
+                          <p className="text-sm text-gray-600 mt-1">Complete history of your donation activities</p>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <span>{myDonations.length} total donations</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-100">
+                          <tr>
+                            <th className="px-5 py-3 text-left font-medium text-gray-700">Donation ID</th>
+                            <th className="px-5 py-3 text-left font-medium text-gray-700">Resource Type</th>
+                            <th className="px-5 py-3 text-left font-medium text-gray-700">Quantity</th>
+                            <th className="px-5 py-3 text-left font-medium text-gray-700">Donated On</th>
+                            <th className="px-5 py-3 text-left font-medium text-gray-700">NGO Name</th>
+                            <th className="px-5 py-3 text-left font-medium text-gray-700">Status</th>
+                            <th className="px-5 py-3 text-left font-medium text-gray-700">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {myDonations.map((d: any) => (
+                            <tr key={d._id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-5 py-4">
+                                <div className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+                                  #{String(d._id).slice(-8)}
                                 </div>
                               </td>
+                              <td className="px-5 py-4">
+                                <div className="flex items-center gap-2">
+                                  {(() => {
+                                    const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+                                      'Food': FiPackage,
+                                      'Clothes': FiTag,
+                                      'Books': FiTag,
+                                      'Medical Supplies': FiTag,
+                                      'Other Essentials': FiTag
+                                    };
+                                    const Icon = iconMap[d.resourceType] || FiTag;
+                                    return <Icon className="h-4 w-4 text-gray-500" />;
+                                  })()}
+                                  <span className="font-medium">{d.resourceType}</span>
+                                </div>
+                              </td>
+                              <td className="px-5 py-4">
+                                <div className="font-medium">{d.quantity} {d.unit}</div>
+                              </td>
+                              <td className="px-5 py-4">
+                                <div className="text-sm text-gray-600">
+                                  {d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  }) : '--'}
+                                </div>
+                              </td>
+                              <td className="px-5 py-4">
+                                <div className="text-sm font-medium">{d.assignedNGO?.ngoName || 'Not assigned'}</div>
+                              </td>
+                              <td className="px-5 py-4">
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                                  d.status === 'completed' 
+                                    ? 'bg-emerald-100 text-emerald-800' 
+                                    : d.status === 'cancelled'
+                                      ? 'bg-red-100 text-red-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                  {d.status === 'completed' ? <FiCheckCircle className="h-3.5 w-3.5" /> : d.status === 'cancelled' ? <FiX className="h-3.5 w-3.5" /> : <FiClock className="h-3.5 w-3.5" />}
+                                  {d.status.charAt(0).toUpperCase() + d.status.slice(1)}
+                                </span>
+                              </td>
+                              <td className="px-5 py-4">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedDonation(d);
+                                    setShowDonationDetails(true);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
+                                >
+                                  <FiEye className="h-4 w-4" />
+                                  View Details
+                                </button>
+                              </td>
                             </tr>
-                          );
-                        }
-                        return completedDonations.map((d: any) => (
-                          <tr key={d._id} className="border-t border-gray-100">
-                            <td className="py-3 pr-4 font-mono text-xs">{String(d._id).slice(-8)}</td>
-                            <td className="py-3 pr-4">{d.resourceType}</td>
-                            <td className="py-3 pr-4">
-                              {d.quantity} {d.unit}
-                            </td>
-                            <td className="py-3 pr-4 text-xs text-gray-600">
-                              {d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              }) : '--'}
-                            </td>
-                            <td className="py-3 pr-4 text-xs text-gray-600">
-                              {d.updatedAt ? new Date(d.updatedAt).toLocaleString('en-IN', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              }) : '--'}
-                            </td>
-                            <td className="py-3 pr-4">{d.assignedNGO?.ngoName || '--'}</td>
-                            <td className="py-3 pr-4">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                                <FiCheckCircle className="h-3.5 w-3.5" />
-                                {d.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ));
-                      })()}
-                    </tbody>
-                  </table>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Cancelled Donations Section */}
+                  {(() => {
+                    const cancelledDonations = myDonations.filter((d: any) => d.status === 'cancelled');
+                    if (cancelledDonations.length === 0) return null;
+                    
+                    return (
+                      <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                        <div className="p-5 border-b border-red-100 bg-red-50">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-xl bg-red-100 border border-red-200 flex items-center justify-center">
+                              <FiX className="h-5 w-5 text-red-600" />
+                            </div>
+                            <div>
+                              <h2 className="text-lg font-semibold text-gray-900">Cancelled Donations</h2>
+                              <p className="text-sm text-gray-600 mt-1">Review cancellation details and reasons</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-5 space-y-4">
+                          {cancelledDonations.map((d: any) => (
+                            <div key={d._id} className="border border-red-100 rounded-xl bg-red-50/30 p-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-3">
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">Donation ID</div>
+                                  <div className="font-mono text-sm bg-white px-2 py-1 rounded border border-red-100">
+                                    #{String(d._id).slice(-8)}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">Resource Type</div>
+                                  <div className="font-medium">{d.resourceType}</div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">Cancelled By</div>
+                                  <div className="font-medium">{d.cancelledBy || 'System'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">Cancelled Date</div>
+                                  <div className="text-sm">
+                                    {d.updatedAt ? new Date(d.updatedAt).toLocaleString('en-IN', {
+                                      day: '2-digit',
+                                      month: 'short',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    }) : '--'}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1">Quantity</div>
+                                  <div className="font-medium">{d.quantity} {d.unit}</div>
+                                </div>
+                              </div>
+                              
+                              {/* Cancellation Reason Alert */}
+                              <div className="bg-white border border-red-200 rounded-lg p-3">
+                                <div className="flex items-start gap-2">
+                                  <FiAlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                                  <div>
+                                    <div className="text-sm font-semibold text-red-900 mb-1">Cancellation Reason</div>
+                                    <div className="text-sm text-gray-700">
+                                      {d.cancellationReason || 'No specific reason provided'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}</>
+              )}
+
+              {/* Profile Gallery Section */}
+              <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-5 border-b border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center">
+                      <FiCamera className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">Donation Gallery</h2>
+                      <p className="text-sm text-gray-600 mt-1">Your personal collection of Donation memories</p>
+                    </div>
+                  </div>
                 </div>
-              </section>
+
+                <div className="p-5">
+                  {donorProfile?.gallery && donorProfile.gallery.length > 0 ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {donorProfile.gallery.map((image: any, index: number) => (
+                        <div key={index} className="relative group cursor-pointer">
+                          <img
+                            src={image.url || image}
+                            alt={`Gallery image ${index + 1}`}
+                            className="w-full h-40 object-cover rounded-lg border border-gray-200 group-hover:border-purple-300 transition-colors"
+                            onClick={() => {
+                              // Open image in lightbox (you can implement this later)
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors flex items-center justify-center">
+                            <FiEye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                          {image.uploadDate && (
+                            <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                              {new Date(image.uploadDate).toLocaleDateString('en-IN')}
+                            </div>
+                          )}
+                          {image.caption && (
+                            <div className="absolute bottom-2 right-2 bg-purple-600 text-white text-xs px-2 py-1 rounded max-w-[80px] truncate">
+                              {image.caption}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <FiCamera className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No gallery images yet</h3>
+                      <p className="text-sm text-gray-600 mb-6">Start building your gallery by adding images to your profile</p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveItem('settings')}
+                        className="px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors shadow-lg flex items-center justify-center gap-2 mx-auto"
+                      >
+                        <FiPlusCircle className="h-5 w-5" />
+                        Add Images to Gallery
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Donation Details Modal */}
+              {showDonationDetails && selectedDonation && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                  <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+                    {/* Modal Header */}
+                    <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-emerald-50">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className="h-12 w-12 rounded-xl bg-blue-600 border border-blue-200 flex items-center justify-center text-white shadow-lg">
+                            <FiPackage className="h-6 w-6" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-bold text-gray-900">Donation Details</h2>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {selectedDonation.resourceType} - #{String(selectedDonation._id).slice(-8)}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowDonationDetails(false);
+                            setSelectedDonation(null);
+                          }}
+                          className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                        >
+                          <FiX className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Modal Content */}
+                    <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                      {/* Donation Information */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold text-gray-900">Donation Information</h3>
+                          
+                          <div className="space-y-3">
+                            <div className="flex justify-between py-2 border-b border-gray-100">
+                              <span className="text-sm text-gray-600">Resource Type</span>
+                              <span className="text-sm font-medium text-gray-900">{selectedDonation.resourceType}</span>
+                            </div>
+                            <div className="flex justify-between py-2 border-b border-gray-100">
+                              <span className="text-sm text-gray-600">Quantity</span>
+                              <span className="text-sm font-medium text-gray-900">{selectedDonation.quantity} {selectedDonation.unit}</span>
+                            </div>
+                            <div className="flex justify-between py-2 border-b border-gray-100">
+                              <span className="text-sm text-gray-600">Status</span>
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                                selectedDonation.status === 'completed' 
+                                  ? 'bg-emerald-100 text-emerald-800' 
+                                  : selectedDonation.status === 'cancelled'
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {selectedDonation.status === 'completed' ? <FiCheckCircle className="h-3.5 w-3.5" /> : selectedDonation.status === 'cancelled' ? <FiX className="h-3.5 w-3.5" /> : <FiClock className="h-3.5 w-3.5" />}
+                                {selectedDonation.status.charAt(0).toUpperCase() + selectedDonation.status.slice(1)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between py-2 border-b border-gray-100">
+                              <span className="text-sm text-gray-600">Donated On</span>
+                              <span className="text-sm font-medium text-gray-900">
+                                {selectedDonation.createdAt ? new Date(selectedDonation.createdAt).toLocaleString('en-IN', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                }) : '--'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between py-2 border-b border-gray-100">
+                              <span className="text-sm text-gray-600">NGO</span>
+                              <span className="text-sm font-medium text-gray-900">{selectedDonation.assignedNGO?.ngoName || 'Not assigned'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Timeline */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold text-gray-900">Donation Timeline</h3>
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-3">
+                              <div className="h-8 w-8 rounded-full bg-emerald-100 border-2 border-emerald-200 flex items-center justify-center flex-shrink-0">
+                                <FiPackage className="h-4 w-4 text-emerald-600" />
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">Created</div>
+                                <div className="text-xs text-gray-600">
+                                  {selectedDonation.createdAt ? new Date(selectedDonation.createdAt).toLocaleString('en-IN') : '--'}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {selectedDonation.status !== 'pending' && (
+                              <div className="flex items-start gap-3">
+                                <div className="h-8 w-8 rounded-full bg-blue-100 border-2 border-blue-200 flex items-center justify-center flex-shrink-0">
+                                  <FiCheckCircle className="h-4 w-4 text-blue-600" />
+                                </div>
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">Approved</div>
+                                  <div className="text-xs text-gray-600">Donation was approved and processed</div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {selectedDonation.status === 'completed' && (
+                              <div className="flex items-start gap-3">
+                                <div className="h-8 w-8 rounded-full bg-emerald-100 border-2 border-emerald-200 flex items-center justify-center flex-shrink-0">
+                                  <FiCheckCircle className="h-4 w-4 text-emerald-600" />
+                                </div>
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">Completed</div>
+                                  <div className="text-xs text-gray-600">
+                                    {selectedDonation.updatedAt ? new Date(selectedDonation.updatedAt).toLocaleString('en-IN') : '--'}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {selectedDonation.status === 'cancelled' && (
+                              <div className="flex items-start gap-3">
+                                <div className="h-8 w-8 rounded-full bg-red-100 border-2 border-red-200 flex items-center justify-center flex-shrink-0">
+                                  <FiX className="h-4 w-4 text-red-600" />
+                                </div>
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">Cancelled</div>
+                                  <div className="text-xs text-gray-600">
+                                    {selectedDonation.updatedAt ? new Date(selectedDonation.updatedAt).toLocaleString('en-IN') : '--'}
+                                  </div>
+                                  {selectedDonation.cancellationReason && (
+                                    <div className="text-xs text-red-600 mt-1">Reason: {selectedDonation.cancellationReason}</div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

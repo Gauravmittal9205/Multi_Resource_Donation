@@ -12,16 +12,20 @@ const getAuthToken = async (): Promise<string> => {
 
 export interface Notification {
   _id: string;
-  ngoFirebaseUid: string;
-  type: 'request_approved' | 'request_rejected' | 'registration_approved' | 'registration_rejected';
+  recipientFirebaseUid: string;
+  category: 'donations' | 'pickups' | 'system';
   title: string;
   message: string;
-  relatedId: string;
-  relatedType: 'request' | 'registration';
-  isRead: boolean;
+  donationId?: string;
+  redirectUrl?: string;
+  read: boolean;
   readAt: string | null;
   createdAt: string;
   updatedAt: string;
+  donationId_populated?: {
+    resourceType: string;
+    status: string;
+  };
 }
 
 export interface NotificationsResponse {
@@ -31,12 +35,17 @@ export interface NotificationsResponse {
   data: Notification[];
 }
 
-// Get all notifications for logged in NGO
-export const getMyNotifications = async (): Promise<NotificationsResponse> => {
+// Get all notifications for logged in donor
+export const getMyNotifications = async (params?: {
+  category?: string;
+  includeRead?: boolean;
+  limit?: number;
+}): Promise<NotificationsResponse> => {
   try {
     const token = await getAuthToken();
     const response = await axios.get(`${API_URL}/notifications`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
+      params
     });
     return response.data;
   } catch (error) {

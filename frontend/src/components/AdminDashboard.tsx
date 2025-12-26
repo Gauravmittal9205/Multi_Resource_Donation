@@ -631,20 +631,19 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
               <p className="text-sm text-gray-500 mt-1 truncate">{user?.email}</p>
             </div>
           ) : (
-            <div className="flex justify-center">
-              <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">A</span>
-              </div>
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
+              <LayoutDashboard className="w-5 h-5 text-white" />
             </div>
           )}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="w-6 h-6 bg-gray-100 border border-gray-300 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors shadow-sm"
+            className="absolute -right-3 top-8 z-10 h-6 w-6 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors"
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {sidebarCollapsed ? (
-              <Menu className="w-4 h-4 text-gray-600" />
+              <ChevronDown className="h-4 w-4 -rotate-90" />
             ) : (
-              <X className="w-4 h-4 text-gray-600" />
+              <ChevronDown className="h-4 w-4 rotate-90" />
             )}
           </button>
         </div>
@@ -1104,7 +1103,7 @@ interface NGORequestsProps {
   onViewRequest: (request: any) => void;
 }
 
-function NGORequests({ onViewRequest }: NGORequestsProps) {
+function NGORequests({ onViewRequest: _onViewRequest }: NGORequestsProps) {
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'resolved'>('all');
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

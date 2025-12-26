@@ -285,13 +285,20 @@ function App() {
           return;
         }
 
-        await signUpWithEmail(
+        const result = await signUpWithEmail(
           formData.email, 
           formData.password, 
           formData.name, 
           formData.userType,
           formData.userType === 'ngo' ? formData.organizationName : undefined
         );
+        
+        // If signup was successful, switch to login mode
+        if (result.requiresLogin) {
+          setIsSignUp(false);
+          setError('Registration successful! Please sign in with your credentials.');
+          setFormData(prev => ({ ...prev, email: formData.email, password: '' }));
+        }
       } else {
         await signInWithEmail(formData.email, formData.password);
       }
@@ -1297,7 +1304,7 @@ function App() {
           />
         </div>
       )}
-      <Footer/>
+      {!(activeLink === 'donor-dashboard' || activeLink === 'ngo-dashboard' || (isAdmin && activeLink === 'admin-dashboard')) && <Footer/>}
       </div>
     </FormProvider>
   );

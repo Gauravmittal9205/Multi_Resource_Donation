@@ -258,34 +258,77 @@ exports.updateDonation = asyncHandler(async (req, res) => {
     const changedStatus = Boolean(status) && status !== prevStatus;
     const assignedNow = Boolean(ngoFirebaseUid) && ngoFirebaseUid !== prevNgoUid;
 
+    // Notification when NGO is assigned (donation accepted)
     if (assignedNow) {
       await Notification.create({
         recipientFirebaseUid: donorUid,
-        category: 'pickups',
-        title: 'NGO assigned for pickup',
-        message: `Your donation has been assigned to ${donation.assignedNGO?.ngoName || 'an NGO'}. Pickup will be scheduled soon.`,
+        category: 'donations',
+        title: 'Donation Accepted',
+        message: `Your ${donation.resourceType} donation has been accepted and assigned to ${donation.assignedNGO?.ngoName || 'an NGO'}. Pickup will be scheduled soon.`,
+        donationId: donation._id,
+        redirectUrl: '/donor/dashboard',
         read: false
       });
     }
 
+    // Notifications based on status changes
     if (changedStatus) {
-      const label = String(status);
-      let category = 'donations';
-      if (label === 'assigned' || label === 'picked') category = 'pickups';
-      if (label === 'completed') category = 'donations';
-
+      const newStatus = String(status);
       const ngoLabel = donation.assignedNGO?.ngoName || prevNgoName;
-      const suffix = ngoLabel ? ` (NGO: ${ngoLabel})` : '';
 
-      await Notification.create({
-        recipientFirebaseUid: donorUid,
-        category,
-        title: 'Donation status updated',
-        message: `Your donation status is now "${label}"${suffix}.`,
-        read: false
-      });
+      switch (newStatus) {
+        case 'cancelled':
+          await Notification.create({
+            recipientFirebaseUid: donorUid,
+            category: 'donations',
+            title: 'Donation Cancelled',
+            message: `Your ${donation.resourceType} donation has been cancelled${ngoLabel ? ` by ${ngoLabel}` : ''}. Please contact support if you have questions.`,
+            donationId: donation._id,
+            redirectUrl: '/donor/dashboard',
+            read: false
+          });
+          break;
+
+        case 'picked':
+          await Notification.create({
+            recipientFirebaseUid: donorUid,
+            category: 'pickups',
+            title: 'Pickup Completed',
+            message: `Your ${donation.resourceType} donation has been successfully picked up${ngoLabel ? ` by ${ngoLabel}` : ''}. Thank you for your generous contribution!`,
+            donationId: donation._id,
+            redirectUrl: '/donor/dashboard',
+            read: false
+          });
+          break;
+
+        case 'completed':
+          await Notification.create({
+            recipientFirebaseUid: donorUid,
+            category: 'donations',
+            title: 'Donation Delivered Successfully',
+            message: `Your ${donation.resourceType} donation has been successfully delivered to those in need${ngoLabel ? ` through ${ngoLabel}` : ''}. Your generosity is making a difference!`,
+            donationId: donation._id,
+            redirectUrl: '/donor/dashboard',
+            read: false
+          });
+          break;
+
+        default:
+          // Generic status update for other statuses
+          await Notification.create({
+            recipientFirebaseUid: donorUid,
+            category: newStatus === 'assigned' ? 'pickups' : 'donations',
+            title: 'Donation Status Updated',
+            message: `Your ${donation.resourceType} donation status is now "${newStatus}"${ngoLabel ? ` (NGO: ${ngoLabel})` : ''}.`,
+            donationId: donation._id,
+            redirectUrl: '/donor/dashboard',
+            read: false
+          });
+          break;
+      }
     }
-  } catch (_) {
+  } catch (error) {
+    console.error('Error creating notification:', error);
     // non-blocking
   }
 

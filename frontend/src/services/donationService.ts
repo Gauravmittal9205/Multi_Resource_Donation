@@ -122,7 +122,7 @@ export const fetchDonorProfileByUid = async (firebaseUid: string) => {
   return response.data as { success: boolean; data: DonorProfile };
 };
 
-export type NotificationCategory = 'donations' | 'pickups' | 'ngo_requests' | 'system';
+export type NotificationCategory = 'donations' | 'pickups' | 'ngo_requests' | 'impact' | 'system';
 
 export interface NotificationItem {
   _id: string;

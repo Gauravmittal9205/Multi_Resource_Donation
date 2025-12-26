@@ -77,7 +77,10 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
     // 5. Update user profile with display name
     await updateProfile(user, { displayName });
     
-    return { user, userType };
+    // 6. Sign out the user after successful registration
+    await firebaseSignOut(auth);
+    
+    return { user, userType, requiresLogin: true };
   } catch (error: any) {
     console.error("Error signing up:", error);
     throw error;
