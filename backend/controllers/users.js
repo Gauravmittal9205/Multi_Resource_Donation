@@ -2,6 +2,7 @@ const ErrorResponse = require('../utils/errorResponse');
 const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
 const Donation = require('../models/Donation');
+const Notification = require('../models/Notification');
 
 // @desc    Get all users
 // @route   GET /api/users
@@ -150,18 +151,27 @@ exports.sendNotificationToDonor = asyncHandler(async (req, res) => {
     });
   }
 
+  // Save notification to database
+  const notification = await Notification.create({
+    recipientFirebaseUid: donorFirebaseUid,
+    category: 'system',
+    title,
+    message,
+    read: false
+  });
+
   // Here you would integrate with Firebase Cloud Messaging (FCM)
-  // For now, we'll just return success
   // TODO: Implement FCM notification sending
   
   res.status(200).json({
     success: true,
     message: 'Notification sent successfully',
     data: {
+      _id: notification._id,
       donorFirebaseUid,
       title,
       message,
-      sentAt: new Date()
+      sentAt: notification.createdAt
     }
   });
 });

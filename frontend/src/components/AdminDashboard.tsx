@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { signOutUser } from '../firebase';
+import { signOutUser, subscribeToPendingNgoRequests, subscribeToPendingReports } from '../firebase';
 import { getAllNgoRequests, updateNgoRequestStatus, getNgosWithActiveRequests, type NgoWithRequests } from '../services/ngoRequestService';
 import { getAllNgoRegistrations, updateRegistrationStatus } from '../services/ngoRegistrationService';
+import { getAllHelpMessages } from '../services/contactService';
+import { PieChart, Pie, Cell, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 declare global {
   namespace JSX {
@@ -20,7 +22,7 @@ import {
   Truck,
   AlertTriangle,
   BarChart3,
-  Megaphone,
+  Bell,
   Users,
   Settings,
   CheckCircle,
@@ -34,24 +36,22 @@ import {
   RefreshCw,
   User as UserIcon,
   ArrowUp,
-  ArrowDown,
   Activity,
   Eye,
   MapPin,
-  Target,
-  Award,
-  Flame,
   AlertCircle,
   Calendar,
   CalendarCheck,
 } from 'lucide-react';
+
+import adminIcon from '../assets/admin.jpg';
 
 interface AdminDashboardProps {
   user: FirebaseUser | null;
   onBack: () => void;
 }
 
-type TabKey = 'overview' | 'ngos' | 'donations' | 'pickups' | 'reports' | 'analytics' | 'announcements' | 'users' | 'settings';
+type TabKey = 'overview' | 'ngos' | 'donations' | 'pickups' | 'reports' | 'analytics' | 'notifications' | 'users' | 'settings';
 
 interface RequestDetailsModalProps {
   request: any;
@@ -447,19 +447,20 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
     activePickups: 0,
     mealsSaved: 0,
     openIssues: 0,
-    completedDonations: 0
+    completedDonations: 0,
+    pendingApprovals: 0, // NGOs waiting for approval
+    stuckDonations: 0,   // Donations stuck for long time
+    pendingReports: 0,   // Reports not yet resolved
+    pendingDonations: 0  // Pending donations count
+  });
+  const [chartData, setChartData] = useState({
+    categoryBreakdown: [] as Array<{ name: string; value: number; count: number }>,
+    timeline: [] as Array<{ date: string; count: number; quantity: number }>,
+    statusDistribution: [] as Array<{ name: string; count: number }>,
+    loading: true
   });
 
-  const cityDonations = [
-    { city: 'Mumbai', donations: 342, percentage: 27.4, trend: 'up', change: 15 },
-    { city: 'Delhi', donations: 289, percentage: 23.1, trend: 'up', change: 8 },
-    { city: 'Bangalore', donations: 198, percentage: 15.8, trend: 'up', change: 22 },
-    { city: 'Hyderabad', donations: 156, percentage: 12.5, trend: 'down', change: -5 },
-    { city: 'Chennai', donations: 134, percentage: 10.7, trend: 'up', change: 12 },
-    { city: 'Kolkata', donations: 98, percentage: 7.8, trend: 'up', change: 3 },
-    { city: 'Pune', donations: 87, percentage: 7.0, trend: 'down', change: -2 },
-    { city: 'Ahmedabad', donations: 65, percentage: 5.2, trend: 'up', change: 18 }
-  ];
+  
 
   const getHeatColor = (percentage: number) => {
     if (percentage >= 20) return 'bg-red-500';
@@ -469,21 +470,8 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
     return 'bg-blue-500';
   };
 
-  const getHeatBgColor = (percentage: number) => {
-    if (percentage >= 20) return 'bg-red-50 hover:bg-red-100';
-    if (percentage >= 15) return 'bg-orange-50 hover:bg-orange-100';
-    if (percentage >= 10) return 'bg-yellow-50 hover:bg-yellow-100';
-    if (percentage >= 5) return 'bg-green-50 hover:bg-green-100';
-    return 'bg-blue-50 hover:bg-blue-100';
-  };
 
-  const getHeatTextColor = (percentage: number) => {
-    if (percentage >= 20) return 'text-red-700';
-    if (percentage >= 15) return 'text-orange-700';
-    if (percentage >= 10) return 'text-yellow-700';
-    if (percentage >= 5) return 'text-green-700';
-    return 'text-blue-700';
-  };
+
 
   const recentActivities = [
     {
@@ -524,10 +512,250 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
     }
   ];
 
+  // Function to fetch active pickups count
+  const fetchActivePickupsCount = async () => {
+    try {
+      const donationService = await import('../services/donationService');
+      
+      // Fetch donations with active pickup statuses (assigned, volunteer_assigned, picked)
+      const [assignedResponse, volunteerAssignedResponse, pickedResponse] = await Promise.all([
+        donationService.fetchAllDonations({ status: 'assigned' }).catch(() => ({ success: false, count: 0, data: [] })),
+        donationService.fetchAllDonations({ status: 'volunteer_assigned' }).catch(() => ({ success: false, count: 0, data: [] })),
+        donationService.fetchAllDonations({ status: 'picked' }).catch(() => ({ success: false, count: 0, data: [] }))
+      ]);
+
+      // Count active pickups from all statuses
+      const assignedCount = assignedResponse.success 
+        ? assignedResponse.count || (Array.isArray(assignedResponse.data) ? assignedResponse.data.length : 0)
+        : 0;
+      
+      const volunteerAssignedCount = volunteerAssignedResponse.success 
+        ? volunteerAssignedResponse.count || (Array.isArray(volunteerAssignedResponse.data) ? volunteerAssignedResponse.data.length : 0)
+        : 0;
+      
+      const pickedCount = pickedResponse.success 
+        ? pickedResponse.count || (Array.isArray(pickedResponse.data) ? pickedResponse.data.length : 0)
+        : 0;
+
+      const totalActivePickups = assignedCount + volunteerAssignedCount + pickedCount;
+
+      // Update activePickups count
+      setAnimatedStats(prev => ({
+        ...prev,
+        activePickups: totalActivePickups
+      }));
+    } catch (error) {
+      console.error('Error fetching active pickups count:', error);
+    }
+  };
+
+  // Function to fetch and process chart data
+  const fetchChartData = async () => {
+    try {
+      setChartData(prev => ({ ...prev, loading: true }));
+      const donationService = await import('../services/donationService');
+      
+      // Fetch all donations for chart analysis
+      const response = await donationService.fetchAllDonations();
+      
+      if (response.success && Array.isArray(response.data)) {
+        const donations = response.data;
+        
+        // Process category breakdown
+        const categoryMap = new Map<string, { count: number; quantity: number }>();
+        
+        donations.forEach((donation: any) => {
+          const category = donation.resourceType || 'Other';
+          const current = categoryMap.get(category) || { count: 0, quantity: 0 };
+          categoryMap.set(category, {
+            count: current.count + 1,
+            quantity: current.quantity + (donation.quantity || 0)
+          });
+        });
+        
+        // Convert to array format for pie chart
+        const categoryBreakdown = Array.from(categoryMap.entries()).map(([name, data]) => ({
+          name,
+          value: data.quantity,
+          count: data.count
+        }));
+        
+        // Process timeline data - group by date
+        const timelineMap = new Map<string, { count: number; quantity: number }>();
+        
+        donations.forEach((donation: any) => {
+          if (donation.createdAt) {
+            const date = new Date(donation.createdAt);
+            const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+            
+            const current = timelineMap.get(dateKey) || { count: 0, quantity: 0 };
+            timelineMap.set(dateKey, {
+              count: current.count + 1,
+              quantity: current.quantity + (donation.quantity || 0)
+            });
+          }
+        });
+        
+        // Convert to array and sort by date
+        const timeline = Array.from(timelineMap.entries())
+          .map(([date, data]) => ({
+            date,
+            count: data.count,
+            quantity: data.quantity
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date));
+        
+        // Process status distribution
+        // Posted: pending + assigned + volunteer_assigned
+        // Picked: picked
+        // Delivered: completed
+        const statusCounts = {
+          Posted: 0,
+          Picked: 0,
+          Delivered: 0
+        };
+        
+        donations.forEach((donation: any) => {
+          const status = donation.status || 'pending';
+          if (status === 'pending' || status === 'assigned' || status === 'volunteer_assigned') {
+            statusCounts.Posted += 1;
+          } else if (status === 'picked') {
+            statusCounts.Picked += 1;
+          } else if (status === 'completed') {
+            statusCounts.Delivered += 1;
+          }
+        });
+        
+        // Convert to array format for bar chart
+        const statusDistribution = [
+          { name: 'Posted', count: statusCounts.Posted },
+          { name: 'Picked', count: statusCounts.Picked },
+          { name: 'Delivered', count: statusCounts.Delivered }
+        ];
+        
+        setChartData({
+          categoryBreakdown,
+          timeline,
+          statusDistribution,
+          loading: false
+        });
+      } else {
+        setChartData(prev => ({ ...prev, loading: false }));
+      }
+    } catch (error) {
+      console.error('Error fetching chart data:', error);
+      setChartData(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  // Function to calculate total food in kg from donations
+  const calculateTotalFoodKg = async () => {
+    try {
+      const donationService = await import('../services/donationService');
+      
+      // Fetch all donations (or just completed ones for food saved)
+      const response = await donationService.fetchAllDonations();
+      
+      if (response.success && Array.isArray(response.data)) {
+        let totalFoodKg = 0;
+        
+        response.data.forEach((donation: any) => {
+          // Only count Food donations
+          if (donation.resourceType === 'Food') {
+            // If unit is kg, use quantity directly
+            if (donation.unit === 'kg') {
+              totalFoodKg += donation.quantity || 0;
+            } 
+            // If unit is items/packets/boxes, try to get weight from details
+            else if (donation.details && donation.details.approxWeight) {
+              const weight = typeof donation.details.approxWeight === 'number' 
+                ? donation.details.approxWeight 
+                : Number(donation.details.approxWeight) || 0;
+              totalFoodKg += weight;
+            }
+            // If no weight in details, estimate based on quantity (rough estimate: 1 item = 0.5kg)
+            else {
+              totalFoodKg += (donation.quantity || 0) * 0.5;
+            }
+          }
+        });
+        
+        // Update mealsSaved with total food in kg
+        setAnimatedStats(prev => ({
+          ...prev,
+          mealsSaved: Math.round(totalFoodKg)
+        }));
+      }
+    } catch (error) {
+      console.error('Error calculating total food kg:', error);
+    }
+  };
+
+  // Function to fetch all pending counts from backend
+  const fetchPendingCounts = async () => {
+    try {
+      const donationService = await import('../services/donationService');
+      
+      // Fetch all pending data in parallel
+      const [
+        pendingDonationsResponse,
+        pendingNgoRegistrations,
+        allHelpMessages
+      ] = await Promise.all([
+        donationService.fetchAllDonations({ status: 'pending' }).catch(() => ({ success: false, count: 0, data: [] })),
+        getAllNgoRegistrations('pending').catch(() => []),
+        getAllHelpMessages().catch(() => ({ success: false, data: [] }))
+      ]);
+
+      // Count pending donations
+      const pendingDonationsCount = pendingDonationsResponse.success 
+        ? pendingDonationsResponse.count || (Array.isArray(pendingDonationsResponse.data) ? pendingDonationsResponse.data.length : 0)
+        : 0;
+
+      // Count pending NGO verifications (registrations with status 'pending')
+      const pendingNgoVerificationsCount = Array.isArray(pendingNgoRegistrations)
+        ? pendingNgoRegistrations.length
+        : 0;
+
+      // Count pending reports (help messages with status 'new' only - not read yet)
+      const pendingReportsCount = allHelpMessages.success && Array.isArray(allHelpMessages.data)
+        ? allHelpMessages.data.filter((msg: any) => msg.status === 'new').length
+        : 0;
+
+      // Update stats with real-time counts
+      setAnimatedStats(prev => ({
+        ...prev,
+        pendingDonations: pendingDonationsCount,
+        pendingApprovals: pendingNgoVerificationsCount,
+        pendingNGOs: pendingNgoVerificationsCount,
+        pendingReports: pendingReportsCount,
+        openIssues: pendingReportsCount // Update openIssues with new reports count
+      }));
+    } catch (error) {
+      console.error('Error fetching pending counts:', error);
+    }
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1000);
     
-    // Fetch initial data
+    // Subscribe to all real-time updates (keeping for backward compatibility)
+    const unsubscribePendingNgos = subscribeToPendingNgoRequests((count) => {
+      setAnimatedStats(prev => ({
+        ...prev,
+        pendingApprovals: count,
+        pendingNGOs: count // Also update the pendingNGOs count for consistency
+      }));
+    });
+
+    const unsubscribePendingReports = subscribeToPendingReports((count) => {
+      setAnimatedStats(prev => ({
+        ...prev,
+        pendingReports: count
+      }));
+    });
+    
+    // Fetch initial data and pending counts
     (async () => {
       try {
         // Fetch completed donations
@@ -560,16 +788,38 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
             verifiedNGOs: verifiedNgosCount,
             activePickups: 0,
             mealsSaved: 0,
-            openIssues: 0
+            openIssues: 0,
+            pendingApprovals: pendingRequestsCount,
+            stuckDonations: 0,
+            pendingReports: 0  // Will be updated by real-time subscription
           }));
         }
+
+        // Fetch real-time pending counts, active pickups, chart data, and calculate food kg
+        await Promise.all([
+          fetchPendingCounts(),
+          fetchActivePickupsCount(),
+          fetchChartData(),
+          calculateTotalFoodKg()
+        ]);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       }
     })();
+
+    // Set up interval to refresh pending counts, active pickups, chart data, and food kg every 30 seconds
+    const intervalId = setInterval(() => {
+      fetchPendingCounts();
+      fetchActivePickupsCount();
+      fetchChartData();
+      calculateTotalFoodKg();
+    }, 30000);
     
     return () => {
       clearTimeout(timer);
+      clearInterval(intervalId);
+      unsubscribePendingNgos();
+      unsubscribePendingReports();
     };
   }, []);
 
@@ -612,7 +862,7 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
     { id: 'pickups' as TabKey, label: 'Pickups', icon: Truck },
     { id: 'reports' as TabKey, label: 'Reports & Support', icon: AlertTriangle },
     { id: 'analytics' as TabKey, label: 'Analytics', icon: BarChart3 },
-    { id: 'announcements' as TabKey, label: 'Announcements', icon: Megaphone },
+    { id: 'notifications' as TabKey, label: 'Notifications', icon: Bell },
     { id: 'users' as TabKey, label: 'Users', icon: Users },
     { id: 'settings' as TabKey, label: 'Settings', icon: Settings },
   ];
@@ -624,15 +874,26 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
         sidebarCollapsed ? 'w-20' : 'w-64'
       }`}>
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+        <div className="p-6 border-b border-gray-200 relative">
           {!sidebarCollapsed ? (
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Admin Panel</h1>
-              <p className="text-sm text-gray-500 mt-1 truncate">{user?.email}</p>
+            <div className="flex flex-col items-center text-center">
+              <div className="relative w-20 h-20 mb-3">
+                <img
+                  src={adminIcon}
+                  alt="Admin"
+                  className="w-20 h-20 rounded-full object-cover shadow-lg border-2 border-blue-100 bg-white"
+                />
+              </div>
+              <div className="font-semibold text-gray-900 text-lg">{user?.displayName || 'Admin'}</div>
+              <div className="text-sm text-gray-600 mt-1 truncate w-full">{user?.email}</div>
             </div>
           ) : (
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
-              <LayoutDashboard className="w-5 h-5 text-white" />
+            <div className="flex items-center justify-center w-full">
+              <img
+                src={adminIcon}
+                alt="Admin"
+                className="w-10 h-10 rounded-full object-cover shadow-md border border-blue-100 bg-white"
+              />
             </div>
           )}
           <button
@@ -648,7 +909,8 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
           </button>
         </div>
         
-        <nav className="flex-1 p-4 space-y-1 overflow-hidden">
+        
+        <nav className="flex-1 min-h-0 p-4 space-y-1 overflow-y-auto scrollbar-hide">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -794,7 +1056,7 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
                       </p>
                       <div className="flex items-center mt-2 text-xs text-purple-600">
                         <Activity className="w-3 h-3 mr-1" />
-                        <span>3 in progress</span>
+                        <span>{animatedStats.activePickups} in progress</span>
                       </div>
                     </div>
                     <Truck className="w-12 h-12 text-purple-500 group-hover:scale-110 transition-transform duration-300" />
@@ -808,13 +1070,13 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
                   <div className="absolute inset-0 bg-gradient-to-r from-orange-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   <div className="relative flex items-center justify-between">
                     <div className="text-left">
-                      <p className="text-sm font-medium text-gray-600 group-hover:text-orange-700 transition-colors">Meals Saved</p>
+                      <p className="text-sm font-medium text-gray-600 group-hover:text-orange-700 transition-colors">Total Food Donated</p>
                       <p className="text-3xl font-bold text-gray-900 mt-2 group-hover:text-orange-800 transition-colors">
-                        {animatedStats.mealsSaved.toLocaleString()}
+                        {animatedStats.mealsSaved.toLocaleString()} kg
                       </p>
                       <div className="flex items-center mt-2 text-xs text-orange-600">
                         <TrendingUp className="w-3 h-3 mr-1" />
-                        <span>+25% impact</span>
+                        <span>Total food donated</span>
                       </div>
                     </div>
                     <BarChart3 className="w-12 h-12 text-orange-500 group-hover:scale-110 transition-transform duration-300" />
@@ -829,13 +1091,13 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
                   <div className="absolute inset-0 bg-gradient-to-r from-red-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   <div className="relative flex items-center justify-between">
                     <div className="text-left">
-                      <p className="text-sm font-medium text-gray-600 group-hover:text-red-700 transition-colors">Open Issues</p>
+                      <p className="text-sm font-medium text-gray-600 group-hover:text-red-700 transition-colors">New Reports</p>
                       <p className="text-3xl font-bold text-gray-900 mt-2 group-hover:text-red-800 transition-colors">
                         {animatedStats.openIssues}
                       </p>
                       <div className="flex items-center mt-2 text-xs text-red-600">
-                        <ArrowDown className="w-3 h-3 mr-1" />
-                        <span>-40% from last week</span>
+                        <AlertTriangle className="w-3 h-3 mr-1" />
+                        <span>Unread support tickets</span>
                       </div>
                     </div>
                     <AlertTriangle className="w-12 h-12 text-red-500 group-hover:scale-110 transition-transform duration-300" />
@@ -843,9 +1105,276 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
                 </button>
               </div>
 
-             
+              {/* Pending Actions Box */}
+              <div className="bg-white rounded-xl shadow-md p-6 border border-red-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                    <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                    Pending Actions (Admin To-Do)
+                  </h3>
+                  <span className="px-3 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
+                    Action Required
+                  </span>
+                </div>
+                
+                <div className="space-y-4">
+                  <button 
+                    onClick={() => setActiveTab('ngos')}
+                    className="w-full flex items-center justify-between p-4 bg-red-50 hover:bg-red-100 rounded-lg transition-colors duration-200 group"
+                  >
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center mr-4 group-hover:bg-red-200 transition-colors">
+                        <Users className="w-5 h-5 text-red-600" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-medium text-gray-900">NGOs Waiting for Approval</h4>
+                        <p className="text-sm text-gray-500">Review and verify new NGO registrations</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <span className={`text-sm font-medium px-2.5 py-0.5 rounded-full ${
+                        animatedStats.pendingApprovals > 0 
+                          ? 'bg-red-500 text-white' 
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {animatedStats.pendingApprovals}
+                      </span>
+                      <ChevronDown className="w-5 h-5 ml-2 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                    </div>
+                  </button>
 
-              
+                  <button 
+                    onClick={() => setActiveTab('donations')}
+                    className="w-full flex items-center justify-between p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors duration-200 group"
+                  >
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center mr-4 group-hover:bg-green-200 transition-colors">
+                        <Package className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-medium text-gray-900">Pending Donations</h4>
+                        <p className="text-sm text-gray-500">Review and assign pending donations</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <span className={`text-sm font-medium px-2.5 py-0.5 rounded-full ${
+                        animatedStats.pendingDonations > 0 
+                          ? 'bg-green-500 text-white' 
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {animatedStats.pendingDonations}
+                      </span>
+                      <ChevronDown className="w-5 h-5 ml-2 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                    </div>
+                  </button>
+
+                  <button 
+                    onClick={() => setActiveTab('reports')}
+                    className="w-full flex items-center justify-between p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200 group"
+                  >
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-4 group-hover:bg-blue-200 transition-colors">
+                        <AlertTriangle className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-medium text-gray-900">Reports Not Yet Resolved</h4>
+                        <p className="text-sm text-gray-500">Address open issues and support tickets</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <span className={`text-sm font-medium px-2.5 py-0.5 rounded-full ${
+                        animatedStats.pendingReports > 0 
+                          ? 'bg-blue-500 text-white' 
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {animatedStats.pendingReports}
+                      </span>
+                      <ChevronDown className="w-5 h-5 ml-2 text-gray-400 group-hover:text-gray-600 transition-colors" />
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Charts Section */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                {/* Donation Category Breakdown - Pie/Donut Chart */}
+                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                      <BarChart3 className="w-5 h-5 text-blue-500 mr-2" />
+                      Donation Category Breakdown
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">Distribution by resource type</p>
+                  </div>
+                  {chartData.loading ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                    </div>
+                  ) : chartData.categoryBreakdown.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={chartData.categoryBreakdown}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          innerRadius={40}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {chartData.categoryBreakdown.map((entry, index) => {
+                            const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+                            return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                          })}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: any, name: any, props: any) => {
+                            const numValue = typeof value === 'number' ? value : 0;
+                            return [
+                              `${numValue} ${props.payload?.unit || 'items'}`,
+                              `${props.payload?.count || 0} donations`
+                            ];
+                          }}
+                        />
+                        <Legend 
+                          formatter={(value, entry: any) => `${value} (${entry.payload?.count || 0})`}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex justify-center items-center h-64 text-gray-500">
+                      <p>No donation data available</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Donation Timeline - Line Chart */}
+                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                      <TrendingUp className="w-5 h-5 text-green-500 mr-2" />
+                      Donation Timeline
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">Donor consistency and donation trends</p>
+                  </div>
+                  {chartData.loading ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
+                    </div>
+                  ) : chartData.timeline.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={chartData.timeline}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis 
+                          dataKey="date" 
+                          stroke="#6b7280"
+                          tick={{ fontSize: 12 }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                        />
+                        <YAxis 
+                          yAxisId="left"
+                          stroke="#6b7280"
+                          label={{ value: 'Count', angle: -90, position: 'insideLeft' }}
+                        />
+                        <YAxis 
+                          yAxisId="right"
+                          orientation="right"
+                          stroke="#6b7280"
+                          label={{ value: 'Quantity', angle: 90, position: 'insideRight' }}
+                        />
+                        <Tooltip 
+                          formatter={(value: any, name: any) => {
+                            const numValue = typeof value === 'number' ? value : 0;
+                            if (name === 'count') return [`${numValue} donations`, 'Count'];
+                            if (name === 'quantity') return [`${numValue} items`, 'Quantity'];
+                            return numValue;
+                          }}
+                          labelFormatter={(label) => `Date: ${new Date(label).toLocaleDateString()}`}
+                        />
+                        <Legend />
+                        <Line 
+                          yAxisId="left"
+                          type="monotone" 
+                          dataKey="count" 
+                          stroke="#3B82F6" 
+                          strokeWidth={2}
+                          name="Donation Count"
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                        <Line 
+                          yAxisId="right"
+                          type="monotone" 
+                          dataKey="quantity" 
+                          stroke="#10B981" 
+                          strokeWidth={2}
+                          name="Total Quantity"
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex justify-center items-center h-64 text-gray-500">
+                      <p>No timeline data available</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Donation Status Distribution - Bar Chart */}
+                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                      <BarChart3 className="w-5 h-5 text-purple-500 mr-2" />
+                      Donation Status Distribution
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">Distribution by donation status</p>
+                  </div>
+                  {chartData.loading ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+                    </div>
+                  ) : chartData.statusDistribution.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={chartData.statusDistribution}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="#6b7280"
+                          tick={{ fontSize: 12 }}
+                        />
+                        <YAxis 
+                          stroke="#6b7280"
+                          label={{ value: 'Count', angle: -90, position: 'insideLeft' }}
+                        />
+                        <Tooltip 
+                          formatter={(value: any) => [`${value} donations`, 'Count']}
+                        />
+                        <Legend />
+                        <Bar 
+                          dataKey="count" 
+                          name="Donations"
+                          radius={[8, 8, 0, 0]}
+                        >
+                          {chartData.statusDistribution.map((entry, index) => {
+                            const colors = ['#3B82F6', '#10B981', '#F59E0B'];
+                            return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                          })}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex justify-center items-center h-64 text-gray-500">
+                      <p>No status data available</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               
               <style dangerouslySetInnerHTML={{
                 __html: `
@@ -879,7 +1408,7 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
           {activeTab === 'ngos' && <NGOVerificationPanel onViewRequest={setSelectedRequest} />}
 
           {/* Donations Tab */}
-          {activeTab === 'donations' && <DonationMonitoring />}
+          {activeTab === 'donations' && <DonationsManagement />}
 
           {/* Pickups Tab */}
           {activeTab === 'pickups' && <PickupTracking />}
@@ -890,8 +1419,8 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
           {/* Analytics Tab */}
           {activeTab === 'analytics' && <ImpactAnalytics />}
 
-          {/* Announcements Tab */}
-          {activeTab === 'announcements' && <AnnouncementsPanel />}
+          {/* Notifications Tab */}
+          {activeTab === 'notifications' && <NotificationsPanel />}
 
           {/* Users Tab */}
           {activeTab === 'users' && <UserManagement />}
@@ -1586,9 +2115,12 @@ function NGOVerificationPanel({ onViewRequest }: NGOVerificationPanelProps) {
 }
 
 // Donation Monitoring Component
-function DonationMonitoring() {
+function DonationsManagement() {
   const [donations, setDonations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastDonationCount, setLastDonationCount] = useState(0);
+  const [showNotification, setShowNotification] = useState(false);
+  const [newDonation, setNewDonation] = useState<any>(null);
   const [filters, setFilters] = useState({
     status: '',
     resourceType: '',
@@ -1596,23 +2128,74 @@ function DonationMonitoring() {
     startDate: '',
     endDate: ''
   });
-  const [lastDonationCount, setLastDonationCount] = useState(0);
-  const [showNotification, setShowNotification] = useState(false);
-  const [newDonation, setNewDonation] = useState<any>(null);
-  const [selectedDonation, setSelectedDonation] = useState<any>(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [ngos, setNgos] = useState<NgoWithRequests[]>([]);
   const [loadingNGOs, setLoadingNGOs] = useState(true);
   const [expandedNgos, setExpandedNgos] = useState<Set<string>>(new Set());
+  const [selectedDonation, setSelectedDonation] = useState<any>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [assigningNGO, setAssigningNGO] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<{ngoId: string, requestId: string} | null>(null);
-  const [formData, setFormData] = useState<{
-    selectedNGO: string;
-    status: string;
-  }>({
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
     selectedNGO: '',
     status: ''
   });
+
+  // Function to handle image click
+  const handleImageClick = (image: string) => {
+    setSelectedImage(image);
+    document.body.style.overflow = 'hidden'; // Prevent scrolling when modal is open
+  };
+
+  // Function to close the image viewer
+  const closeImageViewer = () => {
+    setSelectedImage(null);
+    document.body.style.overflow = 'auto'; // Re-enable scrolling
+  };
+
+  // Effect to handle escape key press to close the image viewer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedImage) {
+        closeImageViewer();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'auto'; // Cleanup on unmount
+    };
+  }, [selectedImage]);
+
+  const ImageViewerModal = () => (
+    <div 
+      className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4"
+      onClick={closeImageViewer}
+    >
+      <div className="relative max-w-4xl w-full max-h-[90vh]">
+        <button 
+          className="absolute -top-10 right-0 text-white hover:text-gray-300"
+          onClick={(e) => {
+            e.stopPropagation();
+            closeImageViewer();
+          }}
+        >
+          <X className="w-8 h-8" />
+        </button>
+        <img 
+          src={selectedImage || ''} 
+          alt="Fullscreen" 
+          className="max-w-full max-h-[80vh] mx-auto object-contain"
+          onClick={(e) => e.stopPropagation()}
+        />
+        <div className="text-white text-center mt-2">
+          Click anywhere to close
+        </div>
+      </div>
+    </div>
+  );
 
   const fetchDonations = async () => {
     try {
@@ -1744,8 +2327,49 @@ function DonationMonitoring() {
         selectedNGO: selectedDonation.assignedNGO?.ngoFirebaseUid || '',
         status: selectedDonation.status || ''
       });
+      setCancelReason(selectedDonation.cancelReason || '');
     }
   }, [showDetailsModal, selectedDonation]);
+
+  useEffect(() => {
+    if (!showDetailsModal) {
+      setCancelReason('');
+    }
+  }, [showDetailsModal]);
+
+  const cancelDonationNow = async () => {
+    if (!selectedDonation?._id) return;
+    const reason = cancelReason.trim();
+    if (!reason) {
+      alert('Please enter a cancellation reason.');
+      return;
+    }
+
+    setAssigningNGO(true);
+    try {
+      const donationService = await import('../services/donationService');
+      await donationService.updateDonation(selectedDonation._id, {
+        status: 'cancelled',
+        cancelReason: reason
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await fetchDonations();
+      setNgos([]);
+      await fetchNGOs();
+
+      setShowDetailsModal(false);
+      setFormData({ selectedNGO: '', status: '' });
+      setSelectedRequest(null);
+      setCancelReason('');
+      alert('Donation cancelled successfully!');
+    } catch (error: any) {
+      console.error('Error cancelling donation:', error);
+      alert(error.response?.data?.error || 'Failed to cancel donation');
+    } finally {
+      setAssigningNGO(false);
+    }
+  };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -1920,6 +2544,8 @@ function DonationMonitoring() {
       </div>
     );
   };
+
+ 
 
   return (
     <div className="space-y-6">
@@ -2193,6 +2819,45 @@ function DonationMonitoring() {
                       </div>
                     </div>
 
+                    {/* Donation Images */}
+                    {selectedDonation.images?.length > 0 && (
+                      <div className="bg-purple-50 rounded-lg p-4 mb-4">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-3">Donation Images</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          {selectedDonation.images.map((image: string, index: number) => (
+                            <div key={index} className="relative group">
+                              <img
+                                src={image}
+                                alt={`Donation ${index + 1}`}
+                                className="w-full h-40 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleImageClick(image);
+                                }}
+                              />
+<div 
+                                className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleImageClick(image);
+                                }}
+                              >
+                                <span 
+                                  className="text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleImageClick(image);
+                                  }}
+                                >
+                                  Click to view
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Pickup Address */}
                     <div className="bg-green-50 rounded-lg p-4 mb-4">
                       <h4 className="text-lg font-semibold text-gray-900 mb-3">Pickup Address</h4>
@@ -2280,6 +2945,11 @@ function DonationMonitoring() {
                           return;
                         }
 
+                        if (formData.status === 'cancelled') {
+                          alert('Use the Cancel Donation button to cancel with a reason.');
+                          return;
+                        }
+
                         setAssigningNGO(true);
                         try {
                           const donationService = await import('../services/donationService');
@@ -2295,7 +2965,8 @@ function DonationMonitoring() {
                           await donationService.updateDonation(selectedDonation._id, {
                             ngoFirebaseUid: formData.selectedNGO || undefined,
                             status: formData.status ? (formData.status as DonationStatus) : undefined,
-                            requestId: requestIdToAssign
+                            requestId: requestIdToAssign,
+                            cancelReason: formData.status === 'cancelled' ? cancelReason.trim() : undefined
                           });
                           
                           // Wait a bit for backend to process
@@ -2310,6 +2981,7 @@ function DonationMonitoring() {
                           setShowDetailsModal(false);
                           setFormData({ selectedNGO: '', status: '' });
                           setSelectedRequest(null);
+                          setCancelReason('');
                           alert('Donation updated successfully! The assigned request has been removed from the list.');
                         } catch (error: any) {
                           console.error('Error updating donation:', error);
@@ -2365,7 +3037,9 @@ function DonationMonitoring() {
                                 <button
                                   key={status.value}
                                   type="button"
-                                  onClick={() => setFormData({ ...formData, status: status.value })}
+                                  onClick={() => {
+                                    setFormData({ ...formData, status: status.value });
+                                  }}
                                   className={`flex items-center justify-center px-3 py-2 rounded-lg border ${
                                     formData.status === status.value
                                       ? `bg-${status.color}-100 border-${status.color}-500 text-${status.color}-800 font-medium`
@@ -2380,23 +3054,44 @@ function DonationMonitoring() {
 
                           {/* Submit Button */}
                           <div className="flex space-x-3">
-                            <button
-                              type="submit"
-                              disabled={assigningNGO || (!formData.selectedNGO && !formData.status)}
-                              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 shadow-sm"
-                            >
-                              {assigningNGO ? (
-                                <>
-                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                  <span>Updating...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <CheckCircle className="w-4 h-4" />
-                                  <span>Approve & Assign</span>
-                                </>
-                              )}
-                            </button>
+                            {formData.status !== 'cancelled' ? (
+                              <button
+                                type="submit"
+                                disabled={assigningNGO || (!formData.selectedNGO && !formData.status)}
+                                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 shadow-sm"
+                              >
+                                {assigningNGO ? (
+                                  <>
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    <span>Updating...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle className="w-4 h-4" />
+                                    <span>Approve & Assign</span>
+                                  </>
+                                )}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={cancelDonationNow}
+                                disabled={assigningNGO || !cancelReason.trim()}
+                                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 shadow-sm"
+                              >
+                                {assigningNGO ? (
+                                  <>
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    <span>Cancelling...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <XCircle className="w-4 h-4" />
+                                    <span>Cancel Donation</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => {
@@ -2411,6 +3106,28 @@ function DonationMonitoring() {
                         </div>
                       </form>
                     </div>
+
+                    {(formData.status === 'cancelled' || selectedDonation.status === 'cancelled') && (
+                      <div className="bg-red-50 rounded-lg p-6 mb-4 border-2 border-red-200">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                          <XCircle className="w-5 h-5 mr-2 text-red-600" />
+                          Cancellation Reason
+                        </h4>
+                        <div className="space-y-3">
+                          <textarea
+                            value={cancelReason}
+                            onChange={(e) => setCancelReason(e.target.value)}
+                            rows={4}
+                            className="w-full px-3 py-2 border border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                            placeholder="Write a short reason for cancellation..."
+                            disabled={assigningNGO}
+                          />
+                          {formData.status === 'cancelled' && !cancelReason.trim() && (
+                            <p className="text-sm text-red-700">Cancellation reason is required.</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2422,6 +3139,17 @@ function DonationMonitoring() {
                 >
                   Close
                 </button>
+                {selectedDonation.status !== 'completed' && selectedDonation.status !== 'cancelled' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, status: 'cancelled' }));
+                    }}
+                    className="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:mt-0 sm:w-auto sm:text-sm"
+                  >
+                    Cancel Donation
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -2454,6 +3182,10 @@ function PickupTracking() {
   const [donations, setDonations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [requestDetails, setRequestDetails] = useState<Map<string, any>>(new Map());
+  const [showCancelReasonModal, setShowCancelReasonModal] = useState(false);
+  const [cancelTargetDonation, setCancelTargetDonation] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
   const [filters, setFilters] = useState({
     status: 'assigned',
     search: ''
@@ -2530,6 +3262,34 @@ function PickupTracking() {
     } catch (error: any) {
       console.error('Error updating status:', error);
       alert(error.response?.data?.error || 'Failed to update status');
+    }
+  };
+
+  const submitPickupCancellation = async () => {
+    if (!cancelTargetDonation?._id) return;
+    const reason = cancelReason.trim();
+    if (!reason) {
+      alert('Please enter a cancellation reason.');
+      return;
+    }
+
+    setCancelling(true);
+    try {
+      const donationService = await import('../services/donationService');
+      await donationService.updateDonation(cancelTargetDonation._id, {
+        status: 'cancelled',
+        cancelReason: reason
+      });
+      await fetchPickupDonations();
+      setShowCancelReasonModal(false);
+      setCancelTargetDonation(null);
+      setCancelReason('');
+      alert('Donation cancelled successfully!');
+    } catch (error: any) {
+      console.error('Error cancelling donation:', error);
+      alert(error.response?.data?.error || 'Failed to cancel donation');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -2949,9 +3709,9 @@ function PickupTracking() {
                           {donation.status !== 'completed' && donation.status !== 'cancelled' && (
                             <button
                               onClick={() => {
-                                if (confirm('Are you sure you want to cancel this donation?')) {
-                                  updateDonationStatus(donation._id, 'cancelled');
-                                }
+                                setCancelTargetDonation(donation);
+                                setCancelReason('');
+                                setShowCancelReasonModal(true);
                               }}
                               className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
                             >
@@ -2962,18 +3722,78 @@ function PickupTracking() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Additional Notes */}
-                  {donation.notes && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <p className="text-xs font-medium text-gray-500 mb-1">Additional Notes</p>
-                      <p className="text-sm text-gray-700">{donation.notes}</p>
-                    </div>
-                  )}
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {showCancelReasonModal && cancelTargetDonation && (
+        <div className="fixed inset-0 z-[70] overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0 w-full">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div
+                className="absolute inset-0 bg-gray-900 opacity-50"
+                onClick={() => !cancelling && setShowCancelReasonModal(false)}
+              ></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Cancel Donation</h3>
+                <button
+                  onClick={() => setShowCancelReasonModal(false)}
+                  disabled={cancelling}
+                  className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-800">
+                    Donation ID:{' '}
+                    <span className="font-mono">{cancelTargetDonation._id?.substring(0, 8).toUpperCase()}</span>
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cancellation Reason <span className="text-red-600">*</span>
+                  </label>
+                  <textarea
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                    placeholder="Write a short reason for cancellation..."
+                    disabled={cancelling}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCancelReasonModal(false)}
+                  disabled={cancelling}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={submitPickupCancellation}
+                  disabled={cancelling || !cancelReason.trim()}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {cancelling ? 'Cancelling...' : 'Confirm Cancel'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -3420,182 +4240,170 @@ function ReportsManagement() {
 
 // Impact Analytics Component
 function ImpactAnalytics() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Impact Analytics</h2>
-        <p className="text-gray-600">View detailed impact metrics and charts</p>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Total Food Saved</h3>
-          <p className="text-3xl font-bold text-gray-900">31,235 kg</p>
-          <p className="text-sm text-gray-500 mt-2">= 124,940 meals (1kg = 4 meals)</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Clothes Donated</h3>
-          <p className="text-3xl font-bold text-gray-900">89,201</p>
-          <p className="text-sm text-gray-500 mt-2">Items distributed</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Books Distributed</h3>
-          <p className="text-3xl font-bold text-gray-900">34,892</p>
-          <p className="text-sm text-gray-500 mt-2">Books to schools</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">City-wise Impact</h3>
-          <p className="text-gray-500">City breakdown will appear here</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Announcements Panel Component
-function AnnouncementsPanel() {
-  const [requests, setRequests] = useState<any[]>([]);
-  const [registrations, setRegistrations] = useState<any[]>([]);
-  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [metrics, setMetrics] = useState({
+    successRate: 0,
+    expiredFailedRate: 0,
+    avgTimePerStage: 0
+  });
+  const [chartData, setChartData] = useState({
+    mealsServed: 0,
+    clothesDistributed: 0,
+    booksDonated: 0
+  });
+  const [ngoTableData, setNgoTableData] = useState<Array<{
+    ngoName: string;
+    donationsHandled: number;
+    successRate: number;
+    avgPickupTime: number;
+    complaintsCount: number;
+  }>>([]);
 
   useEffect(() => {
-    fetchData();
+    fetchAnalyticsData();
     // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchAnalyticsData, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const fetchData = async () => {
+  const fetchAnalyticsData = async () => {
     try {
       setLoading(true);
-      setError(null);
-      
-      // Fetch NGO requests, registrations, and announcements
-      const [requestsResponse, registrationsResponse, announcementsResponse] = await Promise.all([
-        getAllNgoRequests(),
-        getAllNgoRegistrations(),
-        fetchAnnouncements()
+      const donationService = await import('../services/donationService');
+      const contactService = await import('../services/contactService');
+      const { fetchAllNGOs } = donationService;
+
+      // Fetch all donations, NGOs, and help messages
+      const [donationsResponse, ngosResponse, helpMessagesResponse] = await Promise.all([
+        donationService.fetchAllDonations(),
+        fetchAllNGOs(),
+        contactService.getAllHelpMessages()
       ]);
-      
-      const requestData = requestsResponse.success ? requestsResponse.data || [] : [];
-      const registrationData = registrationsResponse.success ? registrationsResponse.data || [] : [];
-      const announcementData = announcementsResponse.success ? announcementsResponse.data || [] : [];
-      
-      setRequests(requestData);
-      setRegistrations(registrationData);
-      setAnnouncements(announcementData);
-      
-      // Count unread items (requests, registrations, and announcements)
-      const unreadRequests = requestData.filter((req: any) => !req.isRead).length;
-      const unreadRegistrations = registrationData.filter((reg: any) => !reg.isRead).length;
-      const unreadAnnouncements = announcementData.filter((ann: any) => !ann.isRead).length;
-      setUnreadCount(unreadRequests + unreadRegistrations + unreadAnnouncements);
-      
-    } catch (err) {
-      setError('An error occurred while fetching data');
-      console.error(err);
+
+      if (donationsResponse.success && Array.isArray(donationsResponse.data)) {
+        const donations = donationsResponse.data;
+        const totalDonations = donations.length;
+        
+        // Calculate metrics
+        const completed = donations.filter((d: any) => d.status === 'completed').length;
+        const cancelled = donations.filter((d: any) => d.status === 'cancelled').length;
+        const successRate = totalDonations > 0 ? (completed / totalDonations) * 100 : 0;
+        const expiredFailedRate = totalDonations > 0 ? (cancelled / totalDonations) * 100 : 0;
+
+        // Calculate average time per stage
+        let totalTime = 0;
+        let stageCount = 0;
+        donations.forEach((donation: any) => {
+          if (donation.createdAt && donation.updatedAt) {
+            const created = new Date(donation.createdAt);
+            const updated = new Date(donation.updatedAt);
+            const diffHours = (updated.getTime() - created.getTime()) / (1000 * 60 * 60);
+            if (diffHours > 0) {
+              totalTime += diffHours;
+              stageCount++;
+            }
+          }
+        });
+        const avgTimePerStage = stageCount > 0 ? totalTime / stageCount : 0;
+
+        setMetrics({
+          successRate: Math.round(successRate * 10) / 10,
+          expiredFailedRate: Math.round(expiredFailedRate * 10) / 10,
+          avgTimePerStage: Math.round(avgTimePerStage * 10) / 10
+        });
+
+        // Calculate chart data
+        let mealsServed = 0;
+        let clothesDistributed = 0;
+        let booksDonated = 0;
+
+        donations.forEach((donation: any) => {
+          if (donation.status === 'completed') {
+            if (donation.resourceType === 'Food') {
+              if (donation.unit === 'kg') {
+                mealsServed += donation.quantity || 0;
+              } else if (donation.details?.approxWeight) {
+                mealsServed += Number(donation.details.approxWeight) || 0;
+              }
+            } else if (donation.resourceType === 'Clothes') {
+              clothesDistributed += donation.quantity || 0;
+            } else if (donation.resourceType === 'Books') {
+              booksDonated += donation.quantity || 0;
+            }
+          }
+        });
+
+        setChartData({
+          mealsServed: Math.round(mealsServed),
+          clothesDistributed,
+          booksDonated
+        });
+
+        // Calculate NGO table data
+        if (ngosResponse.success && Array.isArray(ngosResponse.data)) {
+          const ngos = ngosResponse.data;
+          const helpMessages = helpMessagesResponse.success && Array.isArray(helpMessagesResponse.data) 
+            ? helpMessagesResponse.data 
+            : [];
+
+          const ngoStats = ngos.map((ngo: any) => {
+            const ngoDonations = donations.filter((d: any) => 
+              d.assignedNGO?.ngoFirebaseUid === ngo.firebaseUid
+            );
+            const completedDonations = ngoDonations.filter((d: any) => d.status === 'completed');
+            const donationsHandled = ngoDonations.length;
+            const successRate = donationsHandled > 0 
+              ? (completedDonations.length / donationsHandled) * 100 
+              : 0;
+
+            // Calculate average pickup time
+            let totalPickupTime = 0;
+            let pickupCount = 0;
+            ngoDonations.forEach((donation: any) => {
+              if (donation.assignedNGO?.assignedAt && donation.updatedAt) {
+                const assigned = new Date(donation.assignedNGO.assignedAt);
+                const updated = new Date(donation.updatedAt);
+                const diffHours = (updated.getTime() - assigned.getTime()) / (1000 * 60 * 60);
+                if (diffHours > 0 && donation.status === 'completed') {
+                  totalPickupTime += diffHours;
+                  pickupCount++;
+                }
+              }
+            });
+            const avgPickupTime = pickupCount > 0 ? totalPickupTime / pickupCount : 0;
+
+            // Count complaints (help messages from this NGO)
+            const complaintsCount = helpMessages.filter((msg: any) => 
+              msg.userType === 'ngo' && 
+              (msg.organizationName?.toLowerCase().includes(ngo.organizationName?.toLowerCase() || '') ||
+               msg.firebaseUid === ngo.firebaseUid)
+            ).length;
+
+            return {
+              ngoName: ngo.organizationName || ngo.name || 'Unknown NGO',
+              donationsHandled,
+              successRate: Math.round(successRate * 10) / 10,
+              avgPickupTime: Math.round(avgPickupTime * 10) / 10,
+              complaintsCount
+            };
+          });
+
+          setNgoTableData(ngoStats.sort((a, b) => b.donationsHandled - a.donationsHandled));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching analytics data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchAnnouncements = async () => {
-    try {
-      const { auth } = await import('../firebase');
-      const axios = await import('axios');
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error('No auth token');
-      
-      const response = await axios.default.get('http://localhost:5000/api/v1/announcements', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching announcements:', error);
-      return { success: false, data: [] };
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'N/A';
-    try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffTime = Math.abs(now.getTime() - date.getTime());
-      const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
-      
-      if (diffHours < 1) {
-        return 'Just now';
-      } else if (diffHours < 24) {
-        return `${diffHours}h ago`;
-      } else {
-        return date.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric'
-        });
-      }
-    } catch (e) {
-      console.error('Invalid date string:', dateString);
-      return 'Invalid date';
-    }
-  };
-
-  const markAsRead = async (itemId: string, type: 'request' | 'registration' | 'announcement') => {
-    if (type === 'request') {
-      setRequests(prev => 
-        prev.map(item => 
-          item._id === itemId 
-            ? { ...item, isRead: true }
-            : item
-        )
-      );
-    } else if (type === 'registration') {
-      setRegistrations(prev => 
-        prev.map(item => 
-          item._id === itemId 
-            ? { ...item, isRead: true }
-            : item
-        )
-      );
-    } else if (type === 'announcement') {
-      try {
-        const { auth } = await import('../firebase');
-        const axios = await import('axios');
-        const token = await auth.currentUser?.getIdToken();
-        if (token) {
-          await axios.default.put(`http://localhost:5000/api/v1/announcements/${itemId}/read`, {}, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-        }
-        setAnnouncements(prev => 
-          prev.map(item => 
-            item._id === itemId 
-              ? { ...item, isRead: true }
-              : item
-          )
-        );
-      } catch (error) {
-        console.error('Error marking announcement as read:', error);
-      }
-    }
-    setUnreadCount(prev => Math.max(0, prev - 1));
-  };
-
-  // Combine requests, registrations, and announcements for display
-  const allItems = [
-    ...requests.map(req => ({ ...req, type: 'request' })),
-    ...registrations.map(reg => ({ ...reg, type: 'registration' })),
-    ...announcements.map(ann => ({ ...ann, type: 'announcement' }))
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
   if (loading) {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Announcements & Alerts</h2>
-          <p className="text-gray-600">NGO Requests & Registrations</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Analytics Dashboard</h2>
+          <p className="text-gray-600">Real-time analytics and performance metrics</p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-center items-center py-12">
@@ -3609,8 +4417,304 @@ function AnnouncementsPanel() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Announcements & Alerts</h2>
-        <p className="text-gray-600">NGO Requests & Registrations</p>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Analytics Dashboard</h2>
+        <p className="text-gray-600">Real-time analytics and performance metrics</p>
+      </div>
+
+      {/* Metrics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Successfully Distributed</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{metrics.successRate}%</p>
+              <p className="text-xs text-gray-500 mt-1">Completed donations</p>
+            </div>
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Expired / Failed</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{metrics.expiredFailedRate}%</p>
+              <p className="text-xs text-gray-500 mt-1">Cancelled donations</p>
+            </div>
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+              <XCircle className="w-6 h-6 text-red-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Avg Time Per Stage</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{metrics.avgTimePerStage}h</p>
+              <p className="text-xs text-gray-500 mt-1">Average processing time</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+              <Clock className="w-6 h-6 text-blue-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Total Meals Served */}
+        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <span className="text-2xl mr-2">🍽️</span>
+              Total Meals Served
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">Food distributed (in kg)</p>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={[{ name: 'Meals', value: chartData.mealsServed }]}>
+              <Bar dataKey="value" fill="#10B981" radius={[8, 8, 0, 0]}>
+                <Cell fill="#10B981" />
+              </Bar>
+              <Tooltip formatter={(value: any) => [`${value} kg`, 'Food']} />
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="text-2xl font-bold text-gray-900 mt-4 text-center">{chartData.mealsServed.toLocaleString()} kg</p>
+        </div>
+
+        {/* Clothes Distributed */}
+        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <span className="text-2xl mr-2">👕</span>
+              Clothes Distributed
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">Items distributed</p>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={[{ name: 'Clothes', value: chartData.clothesDistributed }]}>
+              <Bar dataKey="value" fill="#3B82F6" radius={[8, 8, 0, 0]}>
+                <Cell fill="#3B82F6" />
+              </Bar>
+              <Tooltip formatter={(value: any) => [`${value} items`, 'Clothes']} />
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="text-2xl font-bold text-gray-900 mt-4 text-center">{chartData.clothesDistributed.toLocaleString()}</p>
+        </div>
+
+        {/* Books Donated */}
+        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <span className="text-2xl mr-2">📚</span>
+              Books Donated
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">Books distributed</p>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={[{ name: 'Books', value: chartData.booksDonated }]}>
+              <Bar dataKey="value" fill="#F59E0B" radius={[8, 8, 0, 0]}>
+                <Cell fill="#F59E0B" />
+              </Bar>
+              <Tooltip formatter={(value: any) => [`${value} books`, 'Books']} />
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="text-2xl font-bold text-gray-900 mt-4 text-center">{chartData.booksDonated.toLocaleString()}</p>
+        </div>
+      </div>
+
+      {/* NGO Performance Table */}
+      <div className="bg-white rounded-xl shadow-md border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">NGO Performance</h3>
+          <p className="text-sm text-gray-500 mt-1">Detailed metrics for each NGO</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NGO Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Donations Handled</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Success Rate</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Pickup Time</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Complaints Count</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {ngoTableData.length > 0 ? (
+                ngoTableData.map((ngo, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{ngo.ngoName}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{ngo.donationsHandled}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="text-sm font-medium text-gray-900">{ngo.successRate}%</div>
+                        <div className={`ml-2 w-16 h-2 bg-gray-200 rounded-full overflow-hidden`}>
+                          <div 
+                            className={`h-full ${ngo.successRate >= 80 ? 'bg-green-500' : ngo.successRate >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                            style={{ width: `${Math.min(ngo.successRate, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{ngo.avgPickupTime.toFixed(1)}h</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        ngo.complaintsCount === 0 
+                          ? 'bg-green-100 text-green-800' 
+                          : ngo.complaintsCount <= 2 
+                          ? 'bg-yellow-100 text-yellow-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {ngo.complaintsCount}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
+                    No NGO data available
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Notifications Panel Component
+function NotificationsPanel() {
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  useEffect(() => {
+    fetchNotifications();
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [filter, categoryFilter]);
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const { auth } = await import('../firebase');
+      const axios = await import('axios');
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('No auth token');
+      
+      const params: any = {};
+      if (filter === 'unread') params.read = 'false';
+      else if (filter === 'read') params.read = 'true';
+      if (categoryFilter !== 'all') params.category = categoryFilter;
+      
+      const response = await axios.default.get('http://localhost:5000/api/v1/notifications/admin/all', {
+        headers: { Authorization: `Bearer ${token}` },
+        params
+      });
+      
+      if (response.data.success) {
+        setNotifications(response.data.data || []);
+      } else {
+        setError('Failed to fetch notifications');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'An error occurred while fetching notifications');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - date.getTime());
+      const diffMinutes = Math.floor(diffTime / (1000 * 60));
+      const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffMinutes < 1) {
+        return 'Just now';
+      } else if (diffMinutes < 60) {
+        return `${diffMinutes}m ago`;
+      } else if (diffHours < 24) {
+        return `${diffHours}h ago`;
+      } else if (diffDays < 7) {
+        return `${diffDays}d ago`;
+      } else {
+        return date.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        });
+      }
+    } catch (e) {
+      console.error('Invalid date string:', dateString);
+      return 'Invalid date';
+    }
+  };
+
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case 'donations':
+        return 'bg-blue-100 text-blue-800';
+      case 'pickups':
+        return 'bg-green-100 text-green-800';
+      case 'system':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const filteredNotifications = notifications.filter(notif => {
+    if (filter === 'unread' && notif.read) return false;
+    if (filter === 'read' && !notif.read) return false;
+    if (categoryFilter !== 'all' && notif.category !== categoryFilter) return false;
+    return true;
+  });
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Notifications</h2>
+          <p className="text-gray-600">View all notifications sent to donors</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Notifications</h2>
+        <p className="text-gray-600">View all notifications sent to donors</p>
       </div>
 
       {error && (
@@ -3619,173 +4723,113 @@ function AnnouncementsPanel() {
         </div>
       )}
 
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex items-center space-x-2">
+            <label className="text-sm font-medium text-gray-700">Status:</label>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as 'all' | 'unread' | 'read')}
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All</option>
+              <option value="unread">Unread</option>
+              <option value="read">Read</option>
+            </select>
+          </div>
+          <div className="flex items-center space-x-2">
+            <label className="text-sm font-medium text-gray-700">Category:</label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All</option>
+              <option value="donations">Donations</option>
+              <option value="pickups">Pickups</option>
+              <option value="system">System</option>
+            </select>
+          </div>
+          <button
+            onClick={fetchNotifications}
+            className="ml-auto px-4 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* Notifications List */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <h3 className="text-lg font-medium text-gray-900">Recent Activity</h3>
-              {unreadCount > 0 && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 animate-pulse">
-                  {unreadCount} new
-                </span>
-              )}
-            </div>
+            <h3 className="text-lg font-medium text-gray-900">All Notifications</h3>
             <span className="text-sm text-gray-500">
-              {allItems.length} total
+              {filteredNotifications.length} notification{filteredNotifications.length !== 1 ? 's' : ''}
             </span>
           </div>
         </div>
         
         <div className="p-6 overflow-x-auto">
-          {allItems.length === 0 ? (
+          {filteredNotifications.length === 0 ? (
             <div className="text-center py-12 min-w-full">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-gray-100">
-                <svg className="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
+                <Bell className="h-6 w-6 text-gray-400" />
               </div>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No activity yet</h3>
-              <p className="mt-1 text-sm text-gray-500">When NGOs create requests or register, they'll appear here as alerts.</p>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No notifications found</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                {filter === 'all' 
+                  ? "No notifications have been sent yet." 
+                  : `No ${filter} notifications found.`}
+              </p>
             </div>
           ) : (
-            <div className="space-y-2 min-w-full">
-              {allItems.map((item) => (
+            <div className="space-y-3 min-w-full">
+              {filteredNotifications.map((notification) => (
                 <div
-                  key={item._id}
-                  className={`p-4 rounded-lg border transition-all cursor-pointer min-w-full ${
-                    !item.isRead 
-                      ? 'bg-green-50 border-green-200 hover:bg-green-100' 
-                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                  key={notification._id}
+                  className={`p-4 rounded-lg border transition-all min-w-full ${
+                    !notification.read 
+                      ? 'bg-blue-50 border-blue-200' 
+                      : 'bg-gray-50 border-gray-200'
                   }`}
-                  onClick={() => {
-                    markAsRead(item._id, item.type);
-                    if (item.type === 'announcement') {
-                      // Navigate to pickups tab for volunteer assignment announcements
-                      if (item.type === 'volunteer_assigned') {
-                        const pickupsTab = document.querySelector('[data-tab="pickups"]') as HTMLElement;
-                        if (pickupsTab) {
-                          pickupsTab.click();
-                        }
-                      }
-                    } else {
-                      // Navigate to NGO tab and specific section
-                      const ngoTab = document.querySelector('[data-tab="ngos"]') as HTMLElement;
-                      if (ngoTab) {
-                        ngoTab.click();
-                        
-                        // After tab switch, navigate to specific section
-                        setTimeout(() => {
-                          if (item.type === 'registration') {
-                            // Switch to registrations section
-                            const registrationTab = document.querySelector('[data-ngo-tab="registrations"]') as HTMLElement;
-                            if (registrationTab) {
-                              registrationTab.click();
-                            }
-                          } else {
-                            // Switch to requests section
-                            const requestTab = document.querySelector('[data-ngo-tab="requests"]') as HTMLElement;
-                            if (requestTab) {
-                              requestTab.click();
-                            }
-                          }
-                        }, 100);
-                      }
-                    }
-                  }}
                 >
-                  <div className="flex items-start justify-between flex-wrap">
+                  <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2 mb-2 flex-wrap">
-                        {!item.isRead && (
-                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse flex-shrink-0"></div>
+                        {!notification.read && (
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse flex-shrink-0"></div>
                         )}
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                          item.type === 'registration' 
-                            ? 'bg-blue-100 text-blue-800' 
-                            : item.type === 'announcement'
-                            ? 'bg-orange-100 text-orange-800'
-                            : 'bg-purple-100 text-purple-800'
-                        }`}>
-                          {item.type === 'registration' ? 'Registration' : 
-                           item.type === 'announcement' ? 'Announcement' : 'Request'}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getCategoryColor(notification.category)}`}>
+                          {notification.category || 'System'}
                         </span>
                         <span className="text-xs text-gray-500 whitespace-nowrap">
-                          {formatDate(item.createdAt)}
+                          {formatDate(notification.createdAt)}
                         </span>
-                      </div>
-                      
-                      <h4 className="text-sm font-semibold text-gray-900 mb-1 truncate">
-                        {item.type === 'registration' 
-                          ? `New NGO Registration: ${item.ngoName || 'Unknown NGO'}`
-                          : item.type === 'announcement'
-                          ? item.title || 'Announcement'
-                          : item.requestTitle || 'New Request'
-                        }
-                      </h4>
-                      {item.type === 'announcement' && item.message && (
-                        <p className="text-sm text-gray-600 mb-2">{item.message}</p>
-                      )}
-                      
-                      <div className="flex items-center space-x-4 text-xs text-gray-600 mb-2 flex-wrap">
-                        {item.type === 'registration' ? (
-                          <>
-                            <span className="flex items-center whitespace-nowrap">
-                              <svg className="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                              </svg>
-                              NGO Registration
-                            </span>
-                            <span className="flex items-center whitespace-nowrap">
-                              <svg className="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                              </svg>
-                              {item.ngoName || 'Unknown NGO'}
-                            </span>
-                            {item.city && (
-                              <span className="flex items-center whitespace-nowrap">
-                                <svg className="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                {item.city}
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <span className="flex items-center whitespace-nowrap">
-                              <svg className="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                              </svg>
-                              {item.category || 'General'}
-                            </span>
-                            <span className="flex items-center whitespace-nowrap">
-                              <svg className="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                              </svg>
-                              {item.ngoName || 'NGO'}
-                            </span>
-                            <span className="flex items-center whitespace-nowrap">
-                              <svg className="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                              </svg>
-                              Qty: {item.quantity || '1'}
-                            </span>
-                          </>
+                        {notification.read && (
+                          <span className="text-xs text-gray-400">• Read</span>
                         )}
                       </div>
                       
-                      <p className="text-xs text-gray-600 line-clamp-2">
-                        {item.type === 'registration' 
-                          ? `New NGO registration request from ${item.ngoName || 'Unknown NGO'}${item.city ? ` in ${item.city}` : ''}. Registration number: ${item.registrationNumber || 'N/A'}`
-                          : item.description || 'No description provided'
-                        }
+                      <h4 className="text-sm font-semibold text-gray-900 mb-1">
+                        {notification.title}
+                      </h4>
+                      
+                      <p className="text-sm text-gray-600 mb-2">
+                        {notification.message}
                       </p>
-                    </div>
-                    
-                    <div className="ml-4 flex-shrink-0">
-                      <div className="text-xs text-gray-500 whitespace-nowrap">
-                        Click to view →
+                      
+                      <div className="flex items-center space-x-4 text-xs text-gray-600">
+                        <span className="flex items-center">
+                          <UserIcon className="w-3 h-3 mr-1" />
+                          {notification.donor?.name || 'Unknown Donor'}
+                        </span>
+                        <span className="flex items-center">
+                          <MessageSquare className="w-3 h-3 mr-1" />
+                          {notification.donor?.email || 'N/A'}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -4129,28 +5173,596 @@ function UserManagement() {
 
 // Settings Panel Component
 function SettingsPanel() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Settings & Configuration</h2>
-        <p className="text-gray-600">Configure platform settings</p>
+  const [activeTab, setActiveTab] = useState('platform');
+  const [settings, setSettings] = useState({
+    // Platform Settings
+    pickupRadius: 5,
+    maxActiveDonations: 5,
+    foodExpiryHours: 4,
+    clothesExpiryDays: 7,
+    booksExpiryDays: 30,
+    enabledCategories: ['food', 'clothes', 'books', 'other'] as string[],
+    
+    // Impact Settings
+    foodToMealsRatio: 4,
+    clothesToFamiliesRatio: 1,
+    booksToChildrenRatio: 3,
+    
+    // Verification
+    requireDocuments: true,
+    autoApproveNGOs: false,
+    requiredDocuments: ['Registration Certificate', 'PAN Card', 'Address Proof'] as string[],
+    
+    // User Management
+    allowNewNgoRegistrations: true,
+    allowProfileEdits: true,
+    allowDonorSelfEdit: true,
+    
+    // Notifications
+    notifyOnDonation: true,
+    notifyFoodExpiry: true,
+    notifyNgoStatus: true,
+    enableAnnouncements: true,
+    
+    // Safety
+    requireQualityChecklist: true,
+    minPhotosRequired: 2,
+    allowNgoRejection: true,
+    
+    // Reports
+    autoEscalationHours: 24,
+    reportCategories: ['Poor Quality', 'No Show', 'Inappropriate', 'Other'] as string[],
+    blacklistedEmails: [] as string[],
+  });
+
+  const [newReportCategory, setNewReportCategory] = useState('');
+  const [newBlacklistedEmail, setNewBlacklistedEmail] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveSettings = async () => {
+    setIsSaving(true);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Here you would typically make an API call to save the settings
+      // await saveSettings(settings);
+      alert('Settings saved successfully!');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      alert('Failed to save settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const addReportCategory = () => {
+    if (newReportCategory && !settings.reportCategories.includes(newReportCategory)) {
+      setSettings({
+        ...settings,
+        reportCategories: [...settings.reportCategories, newReportCategory]
+      });
+      setNewReportCategory('');
+    }
+  };
+
+  const removeReportCategory = (category: string) => {
+    setSettings({
+      ...settings,
+      reportCategories: settings.reportCategories.filter(c => c !== category)
+    });
+  };
+
+  const addBlacklistedEmail = () => {
+    if (newBlacklistedEmail && !settings.blacklistedEmails.includes(newBlacklistedEmail)) {
+      setSettings({
+        ...settings,
+        blacklistedEmails: [...settings.blacklistedEmails, newBlacklistedEmail]
+      });
+      setNewBlacklistedEmail('');
+    }
+  };
+
+  const removeBlacklistedEmail = (email: string) => {
+    setSettings({
+      ...settings,
+      blacklistedEmails: settings.blacklistedEmails.filter(e => e !== email)
+    });
+  };
+
+  const toggleCategory = (category: string) => {
+    setSettings({
+      ...settings,
+      enabledCategories: settings.enabledCategories.includes(category)
+        ? settings.enabledCategories.filter(c => c !== category)
+        : [...settings.enabledCategories, category]
+    });
+  };
+
+  const toggleDocument = (doc: string) => {
+    setSettings({
+      ...settings,
+      requiredDocuments: settings.requiredDocuments.includes(doc)
+        ? settings.requiredDocuments.filter(d => d !== doc)
+        : [...settings.requiredDocuments, doc]
+    });
+  };
+
+  const renderSettingItem = (label: string, description: string, control: React.ReactNode, className: string = "flex items-center justify-between") => (
+    <div className={className}>
+      <div className="space-y-0.5">
+        <label className="block text-sm font-medium text-gray-700">{label}</label>
+        <p className="text-xs text-gray-500">{description}</p>
       </div>
-      <div className="bg-white rounded-lg shadow p-6 space-y-6">
+      {control}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6 p-4">
+      <div className="flex items-center justify-between">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Meal Conversion (1kg = ? meals)</label>
-          <input type="number" defaultValue={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+          <h2 className="text-2xl font-bold text-gray-900">Admin Settings</h2>
+          <p className="text-sm text-gray-600">Configure platform settings and behavior</p>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Pickup Radius (km)</label>
-          <input type="number" defaultValue={10} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Auto-expiry Time for Food (hours)</label>
-          <input type="number" defaultValue={24} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-        </div>
-        <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-          Save Settings
+        <button 
+          onClick={handleSaveSettings}
+          disabled={isSaving}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
+        >
+          {isSaving ? 'Saving...' : 'Save Settings'}
         </button>
+      </div>
+
+      <div className="flex space-x-2 overflow-x-auto pb-2">
+        {['Platform', 'Impact', 'Verification', 'Users', 'Notifications', 'Safety', 'Reports'].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab.toLowerCase())}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              activeTab === tab.toLowerCase() 
+                ? 'bg-blue-100 text-blue-700' 
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-xl shadow p-6 space-y-6">
+        {activeTab === 'platform' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold">Platform Configuration</h3>
+            
+            <div className="space-y-4">
+              <h4 className="font-medium">Donation Settings</h4>
+              {renderSettingItem(
+                "Default Pickup Radius (km)",
+                "Maximum distance for donors to see available donations",
+                <input
+                  type="number"
+                  className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
+                  value={settings.pickupRadius}
+                  onChange={(e) => setSettings({...settings, pickupRadius: Number(e.target.value)})}
+                  min={1}
+                  max={50}
+                />
+              )}
+
+              {renderSettingItem(
+                "Max Active Donations per Donor",
+                "Maximum number of active donations per donor",
+                <input
+                  type="number"
+                  className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
+                  value={settings.maxActiveDonations}
+                  onChange={(e) => setSettings({...settings, maxActiveDonations: Number(e.target.value)})}
+                  min={1}
+                />
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="font-medium">Donation Expiry</h4>
+              {renderSettingItem(
+                "Food Expiry (hours)",
+                "Time after which food donations expire",
+                <input
+                  type="number"
+                  className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
+                  value={settings.foodExpiryHours}
+                  onChange={(e) => setSettings({...settings, foodExpiryHours: Number(e.target.value)})}
+                  min={1}
+                />
+              )}
+
+              {renderSettingItem(
+                "Clothes Expiry (days)",
+                "Time after which clothing donations expire",
+                <input
+                  type="number"
+                  className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
+                  value={settings.clothesExpiryDays}
+                  onChange={(e) => setSettings({...settings, clothesExpiryDays: Number(e.target.value)})}
+                  min={1}
+                />
+              )}
+
+              {renderSettingItem(
+                "Books Expiry (days)",
+                "Time after which book donations expire",
+                <input
+                  type="number"
+                  className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
+                  value={settings.booksExpiryDays}
+                  onChange={(e) => setSettings({...settings, booksExpiryDays: Number(e.target.value)})}
+                  min={1}
+                />
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="font-medium">Enabled Categories</h4>
+              <div className="grid grid-cols-2 gap-4">
+                {['food', 'clothes', 'books', 'other'].map((category) => (
+                  <div key={category} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={`category-${category}`}
+                      checked={settings.enabledCategories.includes(category)}
+                      onChange={() => toggleCategory(category)}
+                      className="h-4 w-4 text-blue-600 rounded"
+                    />
+                    <label htmlFor={`category-${category}`} className="text-sm font-medium text-gray-700">
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'impact' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold">Impact Calculation</h3>
+            
+            {renderSettingItem(
+              "1 kg of Food = Meals",
+              "Number of meals per kg of food",
+              <input
+                type="number"
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
+                value={settings.foodToMealsRatio}
+                onChange={(e) => setSettings({...settings, foodToMealsRatio: Number(e.target.value)})}
+                min={1}
+              />
+            )}
+
+            {renderSettingItem(
+              "1 kg of Clothes = Families Helped",
+              "Number of families helped per kg of clothes",
+              <input
+                type="number"
+                step="0.1"
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
+                value={settings.clothesToFamiliesRatio}
+                onChange={(e) => setSettings({...settings, clothesToFamiliesRatio: Number(e.target.value)})}
+                min={0.1}
+              />
+            )}
+
+            {renderSettingItem(
+              "1 Book = Children Benefited",
+              "Number of children benefited per book",
+              <input
+                type="number"
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
+                value={settings.booksToChildrenRatio}
+                onChange={(e) => setSettings({...settings, booksToChildrenRatio: Number(e.target.value)})}
+                min={1}
+              />
+            )}
+          </div>
+        )}
+
+        {activeTab === 'verification' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold">NGO Verification Rules</h3>
+            
+            {renderSettingItem(
+              "Require Documents for Verification",
+              "NGOs must upload required documents for verification",
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings.requireDocuments}
+                  onChange={(e) => setSettings({...settings, requireDocuments: e.target.checked})}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            )}
+
+            {renderSettingItem(
+              "Auto-approve NGOs",
+              "Automatically approve NGOs after document submission",
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings.autoApproveNGOs}
+                  onChange={(e) => setSettings({...settings, autoApproveNGOs: e.target.checked})}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            )}
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Required Documents</label>
+              <div className="space-y-2">
+                {['Registration Certificate', 'PAN Card', 'Address Proof', 'Bank Details'].map((doc) => (
+                  <div key={doc} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={`doc-${doc}`}
+                      checked={settings.requiredDocuments.includes(doc)}
+                      onChange={() => toggleDocument(doc)}
+                      className="h-4 w-4 text-blue-600 rounded"
+                    />
+                    <label htmlFor={`doc-${doc}`} className="text-sm text-gray-700">
+                      {doc}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'users' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold">User Management</h3>
+            
+            {renderSettingItem(
+              "Allow New NGO Registrations",
+              "Enable/disable new NGO signups",
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings.allowNewNgoRegistrations}
+                  onChange={(e) => setSettings({...settings, allowNewNgoRegistrations: e.target.checked})}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            )}
+
+            {renderSettingItem(
+              "Allow Profile Edits by Admins",
+              "Allow admins to edit user profiles",
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings.allowProfileEdits}
+                  onChange={(e) => setSettings({...settings, allowProfileEdits: e.target.checked})}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            )}
+
+            {renderSettingItem(
+              "Allow Donor Self-Edit",
+              "Allow donors to edit their own profiles",
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings.allowDonorSelfEdit}
+                  onChange={(e) => setSettings({...settings, allowDonorSelfEdit: e.target.checked})}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'notifications' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold">Notification Settings</h3>
+            
+            {renderSettingItem(
+              "Notify on New Donation",
+              "Send notification when a new donation is posted",
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings.notifyOnDonation}
+                  onChange={(e) => setSettings({...settings, notifyOnDonation: e.target.checked})}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            )}
+
+            {renderSettingItem(
+              "Notify on Food Expiry",
+              "Send notification when food is about to expire",
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings.notifyFoodExpiry}
+                  onChange={(e) => setSettings({...settings, notifyFoodExpiry: e.target.checked})}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            )}
+
+            {renderSettingItem(
+              "Notify on NGO Status Change",
+              "Send notification when NGO verification status changes",
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings.notifyNgoStatus}
+                  onChange={(e) => setSettings({...settings, notifyNgoStatus: e.target.checked})}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            )}
+
+            {renderSettingItem(
+              "Enable Announcements",
+              "Allow sending broadcast announcements to users",
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings.enableAnnouncements}
+                  onChange={(e) => setSettings({...settings, enableAnnouncements: e.target.checked})}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'safety' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold">Safety & Quality Controls</h3>
+            
+            {renderSettingItem(
+              "Require Quality Checklist",
+              "Donors must complete quality checklist before posting",
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings.requireQualityChecklist}
+                  onChange={(e) => setSettings({...settings, requireQualityChecklist: e.target.checked})}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            )}
+
+            {renderSettingItem(
+              "Minimum Photos Required",
+              "Minimum number of photos required for donation",
+              <select
+                className="border border-gray-300 rounded-lg px-3 py-2"
+                value={settings.minPhotosRequired}
+                onChange={(e) => setSettings({...settings, minPhotosRequired: Number(e.target.value)})}
+              >
+                {[0, 1, 2, 3, 4, 5].map(num => (
+                  <option key={num} value={num}>{num} {num === 1 ? 'photo' : 'photos'}</option>
+                ))}
+              </select>
+            )}
+
+            {renderSettingItem(
+              "Allow NGO to Reject Donations",
+              "Allow NGOs to reject donations with valid reasons",
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings.allowNgoRejection}
+                  onChange={(e) => setSettings({...settings, allowNgoRejection: e.target.checked})}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'reports' && (
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold">Report & Complaint Settings</h3>
+            
+            {renderSettingItem(
+              "Auto-escalation Time (hours)",
+              "Time after which unresolved reports are escalated",
+              <input
+                type="number"
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
+                value={settings.autoEscalationHours}
+                onChange={(e) => setSettings({...settings, autoEscalationHours: Number(e.target.value)})}
+                min={1}
+              />
+            )}
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Report Categories</label>
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                  value={newReportCategory}
+                  onChange={(e) => setNewReportCategory(e.target.value)}
+                  placeholder="Add new category"
+                  onKeyPress={(e) => e.key === 'Enter' && addReportCategory()}
+                />
+                <button
+                  onClick={addReportCategory}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Add
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {settings.reportCategories.map((category) => (
+                  <div key={category} className="flex items-center bg-gray-100 rounded-full px-3 py-1 text-sm">
+                    {category}
+                    <button
+                      onClick={() => removeReportCategory(category)}
+                      className="ml-2 text-gray-500 hover:text-red-500"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">Blacklisted Emails</label>
+              <div className="flex space-x-2">
+                <input
+                  type="email"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                  value={newBlacklistedEmail}
+                  onChange={(e) => setNewBlacklistedEmail(e.target.value)}
+                  placeholder="Add email to blacklist"
+                  onKeyPress={(e) => e.key === 'Enter' && addBlacklistedEmail()}
+                />
+                <button
+                  onClick={addBlacklistedEmail}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  Block
+                </button>
+              </div>
+              {settings.blacklistedEmails.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {settings.blacklistedEmails.map((email) => (
+                    <div key={email} className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2 text-sm">
+                      <span>{email}</span>
+                      <button
+                        onClick={() => removeBlacklistedEmail(email)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
