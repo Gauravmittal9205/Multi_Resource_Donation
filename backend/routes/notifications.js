@@ -8,7 +8,8 @@ const { firebaseProtect } = require('../middleware/firebaseAuth');
 const {
   getMyNotifications,
   markAsRead,
-  markAllAsRead
+  markAllAsRead,
+  getAllNotifications
 } = require('../controllers/notifications');
 
 const router = express.Router();
@@ -18,6 +19,7 @@ router.use(firebaseProtect);
 
 router.route('/').get(getMyNotifications);
 router.route('/read-all').put(markAllAsRead);
+router.route('/admin/all').get(getAllNotifications);
 router.route('/:id/read').put(markAsRead);
 
 module.exports = router;

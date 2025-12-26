@@ -1,6 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import type { User as FirebaseUser } from 'firebase/auth';
+import { getDatabase, ref, onValue, off, DataSnapshot, type Unsubscribe } from 'firebase/database';
 import { 
   getAuth, 
   createUserWithEmailAndPassword,
@@ -38,6 +39,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const database = getDatabase(app);
 
 // Sign up with email and password
 export const signUpWithEmail = async (email: string, password: string, displayName: string, userType: UserType, organizationName?: string) => {
@@ -235,5 +237,36 @@ export const onAuthStateChanged = (
   return firebaseOnAuthStateChanged(auth, callback);
 };
 
-export { auth };
+// Subscribe to real-time updates for pending NGO requests
+export const subscribeToPendingNgoRequests = (callback: (count: number) => void): Unsubscribe => {
+  const pendingNgosRef = ref(database, 'counters/pendingNgos');
+  const handleValue = (snapshot: DataSnapshot) => {
+    const count = snapshot.val() || 0;
+    callback(count);
+  };
+  onValue(pendingNgosRef, handleValue);
+  return () => off(pendingNgosRef, 'value', handleValue);
+};
+
+export const subscribeToStuckDonations = (callback: (count: number) => void): Unsubscribe => {
+  const stuckDonationsRef = ref(database, 'counters/stuckDonations');
+  const handleValue = (snapshot: DataSnapshot) => {
+    const count = snapshot.val() || 0;
+    callback(count);
+  };
+  onValue(stuckDonationsRef, handleValue);
+  return () => off(stuckDonationsRef, 'value', handleValue);
+};
+
+export const subscribeToPendingReports = (callback: (count: number) => void): Unsubscribe => {
+  const pendingReportsRef = ref(database, 'counters/pendingReports');
+  const handleValue = (snapshot: DataSnapshot) => {
+    const count = snapshot.val() || 0;
+    callback(count);
+  };
+  onValue(pendingReportsRef, handleValue);
+  return () => off(pendingReportsRef, 'value', handleValue);
+};
+
+export { auth, database };
 export type { FirebaseUser };

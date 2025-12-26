@@ -13,16 +13,22 @@
     "@heroicons/react": "^2.2.0",
     "@react-firebase/auth": "^0.2.10",
     "@types/react-router-dom": "^5.3.3",
+    "@types/recharts": "^1.8.29",
     "axios": "^1.13.2",
+    "chart.js": "^4.5.1",
+    "date-fns": "^4.1.0",
     "firebase": "^12.7.0",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.0",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.11.0",
     "react-toastify": "^11.0.5",
-    "socket.io-client": "^4.8.3"
+    "recharts": "^3.6.0",
+    "socket.io-client": "^4.8.3",
+    "tailwind-scrollbar-hide": "^4.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
