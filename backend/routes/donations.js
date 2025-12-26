@@ -7,7 +7,10 @@ const {
   listMyDonations,
   getAllDonations,
   getAllNGOs,
-  updateDonation
+  updateDonation,
+  getNgoAssignedDonations,
+  assignVolunteer,
+  updateNgoDonationStatus
 } = require('../controllers/donations');
 
 const router = express.Router();
@@ -23,5 +26,10 @@ router.use(firebaseProtect);
 router.route('/dashboard').get(getDonorDashboard);
 
 router.route('/').post(createDonation).get(listMyDonations);
+
+// NGO routes
+router.route('/ngo/assigned').get(getNgoAssignedDonations);
+router.route('/ngo/:id/assign-volunteer').put(assignVolunteer);
+router.route('/ngo/:id/status').put(updateNgoDonationStatus);
 
 module.exports = router;

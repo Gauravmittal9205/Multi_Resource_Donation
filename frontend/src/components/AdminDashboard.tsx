@@ -2657,7 +2657,7 @@ function PickupTracking() {
     try {
       setLoading(true);
       const donationService = await import('../services/donationService');
-      type DonationStatus = 'pending' | 'assigned' | 'picked' | 'completed' | 'cancelled';
+      type DonationStatus = 'pending' | 'assigned' | 'volunteer_assigned' | 'picked' | 'completed' | 'cancelled';
       const response = await donationService.fetchAllDonations({
         status: (filters.status || 'assigned') as DonationStatus
       });
@@ -2736,8 +2736,10 @@ function PickupTracking() {
     switch (status) {
       case 'assigned':
         return 'bg-blue-100 text-blue-800';
-      case 'picked':
+      case 'volunteer_assigned':
         return 'bg-purple-100 text-purple-800';
+      case 'picked':
+        return 'bg-yellow-100 text-yellow-800';
       case 'completed':
         return 'bg-green-100 text-green-800';
       case 'cancelled':
@@ -2750,8 +2752,18 @@ function PickupTracking() {
   const getTrackingSteps = (status: string) => {
     const steps = [
       { id: 1, name: 'Assigned', status: 'completed' },
-      { id: 2, name: 'Pickup Scheduled', status: status === 'assigned' ? 'current' : status === 'picked' || status === 'completed' ? 'completed' : 'pending' },
-      { id: 3, name: 'Picked Up', status: status === 'picked' ? 'current' : status === 'completed' ? 'completed' : 'pending' },
+      { 
+        id: 2, 
+        name: 'Volunteer Assigned', 
+        status: status === 'assigned' ? 'pending' : 
+                status === 'volunteer_assigned' || status === 'picked' || status === 'completed' ? 'completed' : 
+                status === 'volunteer_assigned' ? 'current' : 'pending'
+      },
+      { 
+        id: 3, 
+        name: 'Picked Up', 
+        status: status === 'picked' ? 'current' : status === 'completed' ? 'completed' : 'pending' 
+      },
       { id: 4, name: 'Delivered', status: status === 'completed' ? 'completed' : 'pending' }
     ];
     return steps;
@@ -2812,6 +2824,7 @@ function PickupTracking() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             >
               <option value="assigned">Assigned</option>
+              <option value="volunteer_assigned">Volunteer Assigned</option>
               <option value="picked">Picked</option>
               <option value="completed">Completed</option>
               <option value="">All Status</option>
@@ -3060,6 +3073,40 @@ function PickupTracking() {
                               <div>
                                 <p className="text-xs font-medium text-gray-500">Description</p>
                                 <p className="text-sm text-gray-700 mt-1">{request.description}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Volunteer Assignment Details */}
+                      {donation.assignedVolunteer && (
+                        <div className="bg-purple-50 rounded-lg p-4">
+                          <div className="flex items-center space-x-2 mb-3">
+                            <UserIcon className="w-4 h-4 text-purple-600" />
+                            <h4 className="text-sm font-semibold text-gray-900">Assigned Volunteer</h4>
+                          </div>
+                          <div className="space-y-2">
+                            <div>
+                              <p className="text-xs font-medium text-gray-500">Volunteer Name</p>
+                              <p className="text-sm text-gray-900 font-medium">
+                                {donation.assignedVolunteer.volunteerName}
+                              </p>
+                            </div>
+                            {donation.assignedVolunteer.volunteerPhone && (
+                              <div>
+                                <p className="text-xs font-medium text-gray-500">Phone</p>
+                                <p className="text-sm text-gray-700">
+                                  {donation.assignedVolunteer.volunteerPhone}
+                                </p>
+                              </div>
+                            )}
+                            {donation.assignedVolunteer.assignedAt && (
+                              <div>
+                                <p className="text-xs font-medium text-gray-500">Assigned At</p>
+                                <p className="text-sm text-gray-700">
+                                  {formatDate(donation.assignedVolunteer.assignedAt)}
+                                </p>
                               </div>
                             )}
                           </div>
@@ -3595,12 +3642,16 @@ function ImpactAnalytics() {
 function AnnouncementsPanel() {
   const [requests, setRequests] = useState<any[]>([]);
   const [registrations, setRegistrations] = useState<any[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     fetchData();
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchData = async () => {
@@ -3608,28 +3659,49 @@ function AnnouncementsPanel() {
       setLoading(true);
       setError(null);
       
-      // Fetch both NGO requests and NGO registrations
-      const [requestsResponse, registrationsResponse] = await Promise.all([
+      // Fetch NGO requests, registrations, and announcements
+      const [requestsResponse, registrationsResponse, announcementsResponse] = await Promise.all([
         getAllNgoRequests(),
-        getAllNgoRegistrations()
+        getAllNgoRegistrations(),
+        fetchAnnouncements()
       ]);
       
       const requestData = requestsResponse.success ? requestsResponse.data || [] : [];
       const registrationData = registrationsResponse.success ? registrationsResponse.data || [] : [];
+      const announcementData = announcementsResponse.success ? announcementsResponse.data || [] : [];
       
       setRequests(requestData);
       setRegistrations(registrationData);
+      setAnnouncements(announcementData);
       
-      // Count unread items (both requests and registrations)
+      // Count unread items (requests, registrations, and announcements)
       const unreadRequests = requestData.filter((req: any) => !req.isRead).length;
       const unreadRegistrations = registrationData.filter((reg: any) => !reg.isRead).length;
-      setUnreadCount(unreadRequests + unreadRegistrations);
+      const unreadAnnouncements = announcementData.filter((ann: any) => !ann.isRead).length;
+      setUnreadCount(unreadRequests + unreadRegistrations + unreadAnnouncements);
       
     } catch (err) {
       setError('An error occurred while fetching data');
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAnnouncements = async () => {
+    try {
+      const { auth } = await import('../firebase');
+      const axios = await import('axios');
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('No auth token');
+      
+      const response = await axios.default.get('http://localhost:5000/api/v1/announcements', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching announcements:', error);
+      return { success: false, data: [] };
     }
   };
 
@@ -3657,7 +3729,7 @@ function AnnouncementsPanel() {
     }
   };
 
-  const markAsRead = (itemId: string, type: 'request' | 'registration') => {
+  const markAsRead = async (itemId: string, type: 'request' | 'registration' | 'announcement') => {
     if (type === 'request') {
       setRequests(prev => 
         prev.map(item => 
@@ -3666,7 +3738,7 @@ function AnnouncementsPanel() {
             : item
         )
       );
-    } else {
+    } else if (type === 'registration') {
       setRegistrations(prev => 
         prev.map(item => 
           item._id === itemId 
@@ -3674,14 +3746,35 @@ function AnnouncementsPanel() {
             : item
         )
       );
+    } else if (type === 'announcement') {
+      try {
+        const { auth } = await import('../firebase');
+        const axios = await import('axios');
+        const token = await auth.currentUser?.getIdToken();
+        if (token) {
+          await axios.default.put(`http://localhost:5000/api/v1/announcements/${itemId}/read`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        }
+        setAnnouncements(prev => 
+          prev.map(item => 
+            item._id === itemId 
+              ? { ...item, isRead: true }
+              : item
+          )
+        );
+      } catch (error) {
+        console.error('Error marking announcement as read:', error);
+      }
     }
     setUnreadCount(prev => Math.max(0, prev - 1));
   };
 
-  // Combine both requests and registrations for display
+  // Combine requests, registrations, and announcements for display
   const allItems = [
     ...requests.map(req => ({ ...req, type: 'request' })),
-    ...registrations.map(reg => ({ ...reg, type: 'registration' }))
+    ...registrations.map(reg => ({ ...reg, type: 'registration' })),
+    ...announcements.map(ann => ({ ...ann, type: 'announcement' }))
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   if (loading) {
@@ -3753,27 +3846,37 @@ function AnnouncementsPanel() {
                   }`}
                   onClick={() => {
                     markAsRead(item._id, item.type);
-                    // Navigate to NGO tab and specific section
-                    const ngoTab = document.querySelector('[data-tab="ngos"]') as HTMLElement;
-                    if (ngoTab) {
-                      ngoTab.click();
-                      
-                      // After tab switch, navigate to specific section
-                      setTimeout(() => {
-                        if (item.type === 'registration') {
-                          // Switch to registrations section
-                          const registrationTab = document.querySelector('[data-ngo-tab="registrations"]') as HTMLElement;
-                          if (registrationTab) {
-                            registrationTab.click();
-                          }
-                        } else {
-                          // Switch to requests section
-                          const requestTab = document.querySelector('[data-ngo-tab="requests"]') as HTMLElement;
-                          if (requestTab) {
-                            requestTab.click();
-                          }
+                    if (item.type === 'announcement') {
+                      // Navigate to pickups tab for volunteer assignment announcements
+                      if (item.type === 'volunteer_assigned') {
+                        const pickupsTab = document.querySelector('[data-tab="pickups"]') as HTMLElement;
+                        if (pickupsTab) {
+                          pickupsTab.click();
                         }
-                      }, 100);
+                      }
+                    } else {
+                      // Navigate to NGO tab and specific section
+                      const ngoTab = document.querySelector('[data-tab="ngos"]') as HTMLElement;
+                      if (ngoTab) {
+                        ngoTab.click();
+                        
+                        // After tab switch, navigate to specific section
+                        setTimeout(() => {
+                          if (item.type === 'registration') {
+                            // Switch to registrations section
+                            const registrationTab = document.querySelector('[data-ngo-tab="registrations"]') as HTMLElement;
+                            if (registrationTab) {
+                              registrationTab.click();
+                            }
+                          } else {
+                            // Switch to requests section
+                            const requestTab = document.querySelector('[data-ngo-tab="requests"]') as HTMLElement;
+                            if (requestTab) {
+                              requestTab.click();
+                            }
+                          }
+                        }, 100);
+                      }
                     }
                   }}
                 >
@@ -3786,9 +3889,12 @@ function AnnouncementsPanel() {
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                           item.type === 'registration' 
                             ? 'bg-blue-100 text-blue-800' 
+                            : item.type === 'announcement'
+                            ? 'bg-orange-100 text-orange-800'
                             : 'bg-purple-100 text-purple-800'
                         }`}>
-                          {item.type === 'registration' ? 'Registration' : 'Request'}
+                          {item.type === 'registration' ? 'Registration' : 
+                           item.type === 'announcement' ? 'Announcement' : 'Request'}
                         </span>
                         <span className="text-xs text-gray-500 whitespace-nowrap">
                           {formatDate(item.createdAt)}
@@ -3798,9 +3904,14 @@ function AnnouncementsPanel() {
                       <h4 className="text-sm font-semibold text-gray-900 mb-1 truncate">
                         {item.type === 'registration' 
                           ? `New NGO Registration: ${item.ngoName || 'Unknown NGO'}`
+                          : item.type === 'announcement'
+                          ? item.title || 'Announcement'
                           : item.requestTitle || 'New Request'
                         }
                       </h4>
+                      {item.type === 'announcement' && item.message && (
+                        <p className="text-sm text-gray-600 mb-2">{item.message}</p>
+                      )}
                       
                       <div className="flex items-center space-x-4 text-xs text-gray-600 mb-2 flex-wrap">
                         {item.type === 'registration' ? (
