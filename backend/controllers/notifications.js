@@ -51,7 +51,6 @@ exports.markAllRead = asyncHandler(async (req, res) => {
 
   res.status(200).json({ success: true, data: {} });
 });
-const asyncHandler = require('../middleware/async');
 
 // @desc    Get all notifications for logged in NGO
 // @route   GET /api/v1/notifications
