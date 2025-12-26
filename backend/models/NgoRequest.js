@@ -42,7 +42,7 @@ const NgoRequestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'approved', 'fulfilled', 'cancelled'],
+      enum: ['pending', 'approved', 'fulfilled', 'cancelled', 'rejected'],
       default: 'pending',
       index: true
     },

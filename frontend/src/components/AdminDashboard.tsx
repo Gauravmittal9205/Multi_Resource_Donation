@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { signOutUser } from '../firebase';
-import { getAllNgoRequests } from '../services/ngoRequestService';
+import { getAllNgoRequests, updateNgoRequestStatus } from '../services/ngoRequestService';
 import { getAllNgoRegistrations, updateRegistrationStatus } from '../services/ngoRegistrationService';
 
 declare global {
@@ -55,9 +55,10 @@ type TabKey = 'overview' | 'ngos' | 'donations' | 'pickups' | 'reports' | 'analy
 interface RequestDetailsModalProps {
   request: any;
   onClose: () => void;
+  onReject?: (requestId: string) => void;
 }
 
-const RequestDetailsModal = ({ request, onClose }: RequestDetailsModalProps) => {
+const RequestDetailsModal = ({ request, onClose, onReject }: RequestDetailsModalProps) => {
   if (!request) return null;
 
   const getStatusColor = (status: string) => {
@@ -412,28 +413,19 @@ const RequestDetailsModal = ({ request, onClose }: RequestDetailsModalProps) => 
               Close
             </button>
             {request.status === 'pending' && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Handle approve action
-                    onClose();
-                  }}
-                  className="px-6 py-2.5 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
-                >
-                  Approve
-                </button>
                 <button
                   type="button"
                   onClick={() => {
                     // Handle reject action
+                    if (onReject) {
+                      onReject(request._id);
+                    }
                     onClose();
                   }}
                   className="px-6 py-2.5 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
                 >
                   Reject
                 </button>
-              </>
             )}
           </div>
         </div>
@@ -1116,6 +1108,72 @@ function NGORequests({ onViewRequest }: NGORequestsProps) {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+
+  // Handle request approval
+  const handleApproveRequest = async (requestId: string) => {
+    try {
+      // Call backend API to update status
+      const response = await updateNgoRequestStatus(requestId, 'approved');
+      
+      if (response.success) {
+        // Update the request status in local state
+        setRequests(prev => 
+          prev.map(request => 
+            request._id === requestId 
+              ? { ...request, status: 'approved' }
+              : request
+          )
+        );
+        
+        // Show success message
+        setSuccessMessage('Request approved successfully!');
+        
+        // Hide success message after 3 seconds
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 3000);
+      } else {
+        setError('Failed to approve request');
+      }
+    } catch (error) {
+      console.error('Error approving request:', error);
+      setError('Failed to approve request');
+    }
+  };
+
+  // Handle request rejection
+  const handleRejectRequest = async (requestId: string) => {
+    try {
+      // Call backend API to update status
+      const response = await updateNgoRequestStatus(requestId, 'rejected');
+      
+      if (response.success) {
+        // Update the request status in local state
+        setRequests(prev => 
+          prev.map(request => 
+            request._id === requestId 
+              ? { ...request, status: 'rejected' }
+              : request
+          )
+        );
+        
+        // Show success message
+        setSuccessMessage('Request rejected successfully!');
+        
+        // Hide success message after 3 seconds
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 3000);
+      } else {
+        setError('Failed to reject request');
+      }
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      setError('Failed to reject request');
+    }
+  };
 
   // Fetch all NGO requests from backend (admin only)
   const fetchRequests = async () => {
@@ -1186,6 +1244,21 @@ function NGORequests({ onViewRequest }: NGORequestsProps) {
             >
               Retry
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (successMessage) {
+    return (
+      <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-6">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <CheckCircle className="h-5 w-5 text-green-500" />
+          </div>
+          <div className="ml-3">
+            <p className="text-sm text-green-700">{successMessage}</p>
           </div>
         </div>
       </div>
@@ -1398,11 +1471,20 @@ function NGORequests({ onViewRequest }: NGORequestsProps) {
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto mt-4 sm:mt-0">
                           <button 
                             className="px-4 py-2 bg-white border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-2 font-medium"
-                            onClick={() => onViewRequest(request)}
+                            onClick={() => setSelectedRequest(request)}
                           >
                             <Eye className="w-4 h-4" />
                             <span>View</span>
                           </button>
+                          {request.status === 'pending' && (
+                            <button 
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 font-medium"
+                              onClick={() => handleApproveRequest(request._id)}
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                              <span>Approve</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                       
@@ -1445,6 +1527,15 @@ function NGORequests({ onViewRequest }: NGORequestsProps) {
           )}
         </div>
       </div>
+
+      {/* Request Details Modal */}
+      {selectedRequest && (
+        <RequestDetailsModal 
+          request={selectedRequest} 
+          onClose={() => setSelectedRequest(null)}
+          onReject={handleRejectRequest}
+        />
+      )}
     </div>
   );
 }
@@ -2361,18 +2452,282 @@ function ImpactAnalytics() {
 
 // Announcements Panel Component
 function AnnouncementsPanel() {
+  const [requests, setRequests] = useState<any[]>([]);
+  const [registrations, setRegistrations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch both NGO requests and NGO registrations
+      const [requestsResponse, registrationsResponse] = await Promise.all([
+        getAllNgoRequests(),
+        getAllNgoRegistrations()
+      ]);
+      
+      const requestData = requestsResponse.success ? requestsResponse.data || [] : [];
+      const registrationData = registrationsResponse.success ? registrationsResponse.data || [] : [];
+      
+      setRequests(requestData);
+      setRegistrations(registrationData);
+      
+      // Count unread items (both requests and registrations)
+      const unreadRequests = requestData.filter((req: any) => !req.isRead).length;
+      const unreadRegistrations = registrationData.filter((reg: any) => !reg.isRead).length;
+      setUnreadCount(unreadRequests + unreadRegistrations);
+      
+    } catch (err) {
+      setError('An error occurred while fetching data');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - date.getTime());
+      const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
+      
+      if (diffHours < 1) {
+        return 'Just now';
+      } else if (diffHours < 24) {
+        return `${diffHours}h ago`;
+      } else {
+        return date.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+    } catch (e) {
+      console.error('Invalid date string:', dateString);
+      return 'Invalid date';
+    }
+  };
+
+  const markAsRead = (itemId: string, type: 'request' | 'registration') => {
+    if (type === 'request') {
+      setRequests(prev => 
+        prev.map(item => 
+          item._id === itemId 
+            ? { ...item, isRead: true }
+            : item
+        )
+      );
+    } else {
+      setRegistrations(prev => 
+        prev.map(item => 
+          item._id === itemId 
+            ? { ...item, isRead: true }
+            : item
+        )
+      );
+    }
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  };
+
+  // Combine both requests and registrations for display
+  const allItems = [
+    ...requests.map(req => ({ ...req, type: 'request' })),
+    ...registrations.map(reg => ({ ...reg, type: 'registration' }))
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Announcements & Alerts</h2>
+          <p className="text-gray-600">NGO Requests & Registrations</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Announcements & Alerts</h2>
-        <p className="text-gray-600">Post and manage platform announcements</p>
+        <p className="text-gray-600">NGO Requests & Registrations</p>
       </div>
-      <div className="bg-white rounded-lg shadow p-6">
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-          Create New Announcement
-        </button>
-        <div className="mt-6">
-          <p className="text-gray-500 text-center py-8">Announcements will appear here</p>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800">{error}</p>
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <h3 className="text-lg font-medium text-gray-900">Recent Activity</h3>
+              {unreadCount > 0 && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 animate-pulse">
+                  {unreadCount} new
+                </span>
+              )}
+            </div>
+            <span className="text-sm text-gray-500">
+              {allItems.length} total
+            </span>
+          </div>
+        </div>
+        
+        <div className="p-6 overflow-x-auto">
+          {allItems.length === 0 ? (
+            <div className="text-center py-12 min-w-full">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-gray-100">
+                <svg className="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No activity yet</h3>
+              <p className="mt-1 text-sm text-gray-500">When NGOs create requests or register, they'll appear here as alerts.</p>
+            </div>
+          ) : (
+            <div className="space-y-2 min-w-full">
+              {allItems.map((item) => (
+                <div
+                  key={item._id}
+                  className={`p-4 rounded-lg border transition-all cursor-pointer min-w-full ${
+                    !item.isRead 
+                      ? 'bg-green-50 border-green-200 hover:bg-green-100' 
+                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                  }`}
+                  onClick={() => {
+                    markAsRead(item._id, item.type);
+                    // Navigate to NGO tab and specific section
+                    const ngoTab = document.querySelector('[data-tab="ngos"]') as HTMLElement;
+                    if (ngoTab) {
+                      ngoTab.click();
+                      
+                      // After tab switch, navigate to specific section
+                      setTimeout(() => {
+                        if (item.type === 'registration') {
+                          // Switch to registrations section
+                          const registrationTab = document.querySelector('[data-ngo-tab="registrations"]') as HTMLElement;
+                          if (registrationTab) {
+                            registrationTab.click();
+                          }
+                        } else {
+                          // Switch to requests section
+                          const requestTab = document.querySelector('[data-ngo-tab="requests"]') as HTMLElement;
+                          if (requestTab) {
+                            requestTab.click();
+                          }
+                        }
+                      }, 100);
+                    }
+                  }}
+                >
+                  <div className="flex items-start justify-between flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2 mb-2 flex-wrap">
+                        {!item.isRead && (
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse flex-shrink-0"></div>
+                        )}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                          item.type === 'registration' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-purple-100 text-purple-800'
+                        }`}>
+                          {item.type === 'registration' ? 'Registration' : 'Request'}
+                        </span>
+                        <span className="text-xs text-gray-500 whitespace-nowrap">
+                          {formatDate(item.createdAt)}
+                        </span>
+                      </div>
+                      
+                      <h4 className="text-sm font-semibold text-gray-900 mb-1 truncate">
+                        {item.type === 'registration' 
+                          ? `New NGO Registration: ${item.ngoName || 'Unknown NGO'}`
+                          : item.requestTitle || 'New Request'
+                        }
+                      </h4>
+                      
+                      <div className="flex items-center space-x-4 text-xs text-gray-600 mb-2 flex-wrap">
+                        {item.type === 'registration' ? (
+                          <>
+                            <span className="flex items-center whitespace-nowrap">
+                              <svg className="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                              </svg>
+                              NGO Registration
+                            </span>
+                            <span className="flex items-center whitespace-nowrap">
+                              <svg className="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                              </svg>
+                              {item.ngoName || 'Unknown NGO'}
+                            </span>
+                            {item.city && (
+                              <span className="flex items-center whitespace-nowrap">
+                                <svg className="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                {item.city}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <span className="flex items-center whitespace-nowrap">
+                              <svg className="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                              </svg>
+                              {item.category || 'General'}
+                            </span>
+                            <span className="flex items-center whitespace-nowrap">
+                              <svg className="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                              </svg>
+                              {item.ngoName || 'NGO'}
+                            </span>
+                            <span className="flex items-center whitespace-nowrap">
+                              <svg className="w-3 h-3 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                              </svg>
+                              Qty: {item.quantity || '1'}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      
+                      <p className="text-xs text-gray-600 line-clamp-2">
+                        {item.type === 'registration' 
+                          ? `New NGO registration request from ${item.ngoName || 'Unknown NGO'}${item.city ? ` in ${item.city}` : ''}. Registration number: ${item.registrationNumber || 'N/A'}`
+                          : item.description || 'No description provided'
+                        }
+                      </p>
+                    </div>
+                    
+                    <div className="ml-4 flex-shrink-0">
+                      <div className="text-xs text-gray-500 whitespace-nowrap">
+                        Click to view →
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -2381,15 +2736,328 @@ function AnnouncementsPanel() {
 
 // User Management Component
 function UserManagement() {
+  const [donors, setDonors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedDonor, setSelectedDonor] = useState<any>(null);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notificationData, setNotificationData] = useState({
+    title: '',
+    message: ''
+  });
+  const [sendingNotification, setSendingNotification] = useState(false);
+  const [notificationSuccess, setNotificationSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchDonors();
+  }, []);
+
+  const fetchDonors = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const userService = await import('../services/userService');
+      const response = await userService.getAllDonors();
+      if (response.success) {
+        setDonors(response.data || []);
+      } else {
+        setError('Failed to fetch donors');
+      }
+    } catch (err: any) {
+      console.error('Error fetching donors:', err);
+      setError(err.response?.data?.error || 'Failed to fetch donors');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendNotification = async () => {
+    if (!selectedDonor || !notificationData.title || !notificationData.message) {
+      alert('Please fill in both title and message');
+      return;
+    }
+
+    try {
+      setSendingNotification(true);
+      const userService = await import('../services/userService');
+      const response = await userService.sendNotificationToDonor({
+        donorFirebaseUid: selectedDonor.firebaseUid,
+        title: notificationData.title,
+        message: notificationData.message
+      });
+
+      if (response.success) {
+        setNotificationSuccess('Notification sent successfully!');
+        setNotificationData({ title: '', message: '' });
+        setShowNotificationModal(false);
+        setTimeout(() => {
+          setNotificationSuccess(null);
+        }, 3000);
+      }
+    } catch (err: any) {
+      console.error('Error sending notification:', err);
+      alert(err.response?.data?.error || 'Failed to send notification');
+    } finally {
+      setSendingNotification(false);
+    }
+  };
+
+  const openNotificationModal = (donor: any) => {
+    setSelectedDonor(donor);
+    setNotificationData({ title: '', message: '' });
+    setShowNotificationModal(true);
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">User Management</h2>
+          <p className="text-gray-600">Manage donors and volunteers</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">User Management</h2>
         <p className="text-gray-600">Manage donors and volunteers</p>
       </div>
-      <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-500 text-center py-8">User management will appear here</p>
+
+      {notificationSuccess && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <p className="text-green-800">{notificationSuccess}</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800">{error}</p>
+        </div>
+      )}
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Total Donors</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">{donors.length}</p>
+            </div>
+            <div className="flex-shrink-0 bg-blue-100 rounded-lg p-3">
+              <Users className="w-8 h-8 text-blue-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Total Donations</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {donors.reduce((sum, donor) => sum + (donor.stats?.totalDonations || 0), 0)}
+              </p>
+            </div>
+            <div className="flex-shrink-0 bg-green-100 rounded-lg p-3">
+              <Package className="w-8 h-8 text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Completed Donations</p>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                {donors.reduce((sum, donor) => sum + (donor.stats?.completedDonations || 0), 0)}
+              </p>
+            </div>
+            <div className="flex-shrink-0 bg-emerald-100 rounded-lg p-3">
+              <CheckCircle className="w-8 h-8 text-emerald-600" />
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Donors List */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <h3 className="text-lg font-medium text-gray-900">All Donors</h3>
+        </div>
+        <div className="p-6">
+          {donors.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No donors found</h3>
+              <p className="mt-1 text-sm text-gray-500">No donors have registered yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {donors.map((donor) => (
+                <div
+                  key={donor._id}
+                  className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <div className="flex-shrink-0">
+                          <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                            <span className="text-blue-600 font-semibold text-lg">
+                              {donor.name?.charAt(0)?.toUpperCase() || 'D'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-lg font-semibold text-gray-900">{donor.name}</h4>
+                          <p className="text-sm text-gray-500">{donor.email}</p>
+                        </div>
+                        {donor.isVerified && (
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                            Verified
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                        {donor.phone && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Phone</p>
+                            <p className="text-sm text-gray-900">{donor.phone}</p>
+                          </div>
+                        )}
+                        {donor.address?.city && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">City</p>
+                            <p className="text-sm text-gray-900">{donor.address.city}</p>
+                          </div>
+                        )}
+                        {donor.address?.state && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">State</p>
+                            <p className="text-sm text-gray-900">{donor.address.state}</p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Joined</p>
+                          <p className="text-sm text-gray-900">
+                            {new Date(donor.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Donation Stats */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Total Donations</p>
+                          <p className="text-lg font-semibold text-gray-900">
+                            {donor.stats?.totalDonations || 0}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Completed</p>
+                          <p className="text-lg font-semibold text-green-600">
+                            {donor.stats?.completedDonations || 0}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Pending</p>
+                          <p className="text-lg font-semibold text-yellow-600">
+                            {donor.stats?.pendingDonations || 0}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="ml-4 flex-shrink-0">
+                      <button
+                        onClick={() => openNotificationModal(donor)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        <span>Send Notification</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Notification Modal */}
+      {showNotificationModal && selectedDonor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Send Notification to {selectedDonor.name}
+                </h3>
+                <button
+                  onClick={() => setShowNotificationModal(false)}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Title *
+                </label>
+                <input
+                  type="text"
+                  value={notificationData.title}
+                  onChange={(e) =>
+                    setNotificationData({ ...notificationData, title: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter notification title"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Message *
+                </label>
+                <textarea
+                  value={notificationData.message}
+                  onChange={(e) =>
+                    setNotificationData({ ...notificationData, message: e.target.value })
+                  }
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter notification message"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowNotificationModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendNotification}
+                disabled={sendingNotification || !notificationData.title || !notificationData.message}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {sendingNotification ? 'Sending...' : 'Send Notification'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

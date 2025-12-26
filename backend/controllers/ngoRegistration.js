@@ -1,4 +1,6 @@
 const NgoRegistration = require('../models/NgoRegistration');
+const User = require('../models/User');
+const Notification = require('../models/Notification');
 const asyncHandler = require('../middleware/async');
 
 // Function to generate a random 12-digit number as string
@@ -181,10 +183,31 @@ exports.updateRegistrationStatus = asyncHandler(async (req, res) => {
 
   await registration.save();
 
+  // Create notification for NGO
+  if (status === 'approved' || status === 'rejected') {
+    const notificationType = status === 'approved' ? 'registration_approved' : 'registration_rejected';
+    const title = status === 'approved' 
+      ? 'Registration Approved' 
+      : 'Registration Rejected';
+    const message = status === 'approved'
+      ? `Congratulations! Your NGO registration for "${registration.ngoName}" has been approved. You can now create requests.`
+      : `Your NGO registration for "${registration.ngoName}" has been rejected.${rejectionReason ? ` Reason: ${rejectionReason}` : ''}`;
+
+    await Notification.create({
+      ngoFirebaseUid: registration.firebaseUid,
+      type: notificationType,
+      title,
+      message,
+      relatedId: registration._id.toString(),
+      relatedType: 'registration'
+    });
+  }
+
   res.status(200).json({
     success: true,
     message: 'Registration status updated successfully',
     data: registration
   });
 });
+
 
