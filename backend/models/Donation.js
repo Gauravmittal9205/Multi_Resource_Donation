@@ -109,12 +109,4 @@ const DonationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Add compound indexes for common queries
-DonationSchema.index({ createdAt: -1 });
-DonationSchema.index({ status: 1, createdAt: -1 });
-DonationSchema.index({ resourceType: 1, createdAt: -1 });
-DonationSchema.index({ 'address.city': 1, createdAt: -1 });
-DonationSchema.index({ donorFirebaseUid: 1, createdAt: -1 });
-DonationSchema.index({ 'assignedNGO.ngoFirebaseUid': 1, createdAt: -1 });
-
 module.exports = mongoose.model('Donation', DonationSchema);
