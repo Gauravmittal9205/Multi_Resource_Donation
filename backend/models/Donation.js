@@ -10,7 +10,7 @@ const DonationSchema = new mongoose.Schema(
     resourceType: {
       type: String,
       required: true,
-      enum: ['Food', 'Clothes', 'Books', 'Medical Supplies', 'Other Essentials']
+      enum: ['Food', 'Clothes', 'Books', 'Medical Supplies', 'Other Essentials', 'Blood', 'Funds', 'Devices']
     },
     quantity: {
       type: Number,
@@ -19,7 +19,7 @@ const DonationSchema = new mongoose.Schema(
     unit: {
       type: String,
       required: true,
-      enum: ['kg', 'items', 'packets', 'boxes']
+      enum: ['kg', 'items', 'packets', 'boxes', 'units', 'inr']
     },
     address: {
       addressLine: { type: String, required: true },

@@ -13,9 +13,9 @@ const getAuthToken = async (): Promise<string> => {
 export type DonationStatus = 'pending' | 'assigned' | 'volunteer_assigned' | 'picked' | 'completed' | 'cancelled';
 
 export interface DonationPayload {
-  resourceType: 'Food' | 'Clothes' | 'Books' | 'Medical Supplies' | 'Other Essentials';
+  resourceType: 'Food' | 'Clothes' | 'Books' | 'Medical Supplies' | 'Other Essentials' | 'Blood' | 'Funds' | 'Devices';
   quantity: number;
-  unit: 'kg' | 'items' | 'packets' | 'boxes';
+  unit: 'kg' | 'items' | 'packets' | 'boxes' | 'units' | 'inr';
   address: {
     addressLine: string;
     city: string;
@@ -61,6 +61,9 @@ export interface DonorDashboardResponse {
   };
   activity: { label: string; count: number }[];
   recentDonations: DonationItem[];
+  lastDonationDate?: string | null;
+  activeDonations?: number;
+  donationsByType?: { resourceType: DonationPayload['resourceType']; count: number; totalQuantity: number }[];
 }
 
 export interface DonorProfile {
@@ -93,6 +96,13 @@ export const createDonation = async (payload: DonationPayload) => {
       }
     }
   );
+
+  try {
+    window.dispatchEvent(new CustomEvent('donationCreated'));
+  } catch {
+    // ignore
+  }
+
   return response.data as { success: boolean; data: DonationItem };
 };
 
@@ -115,6 +125,36 @@ export const fetchMyDonations = async (status?: DonationStatus) => {
     }
   });
   return response.data as { success: boolean; count: number; data: DonationItem[] };
+};
+
+export const fetchMyDonationsPaged = async (params?: {
+  status?: DonationStatus;
+  resourceType?: DonationPayload['resourceType'] | '';
+  page?: number;
+  limit?: number;
+}) => {
+  const token = await getAuthToken();
+  const response = await axios.get(API_URL, {
+    params: {
+      ...(params?.status ? { status: params.status } : {}),
+      ...(params?.resourceType ? { resourceType: params.resourceType } : {}),
+      ...(params?.page ? { page: params.page } : {}),
+      ...(params?.limit ? { limit: params.limit } : {}),
+    },
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  return response.data as {
+    success: boolean;
+    count: number;
+    total?: number;
+    page?: number;
+    pages?: number;
+    limit?: number;
+    data: DonationItem[];
+  };
 };
 
 export const fetchDonorProfileByUid = async (firebaseUid: string) => {

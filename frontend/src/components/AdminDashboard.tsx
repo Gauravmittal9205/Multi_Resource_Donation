@@ -28,7 +28,6 @@ import {
   Clock,
   FileText,
   MessageSquare,
-  Menu,
   X,
   TrendingUp,
   RefreshCw,
@@ -38,9 +37,6 @@ import {
   Activity,
   Eye,
   MapPin,
-  Target,
-  Award,
-  Flame,
   AlertCircle,
   Calendar,
   CalendarCheck,
@@ -450,17 +446,8 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
     completedDonations: 0
   });
 
-  const cityDonations = [
-    { city: 'Mumbai', donations: 342, percentage: 27.4, trend: 'up', change: 15 },
-    { city: 'Delhi', donations: 289, percentage: 23.1, trend: 'up', change: 8 },
-    { city: 'Bangalore', donations: 198, percentage: 15.8, trend: 'up', change: 22 },
-    { city: 'Hyderabad', donations: 156, percentage: 12.5, trend: 'down', change: -5 },
-    { city: 'Chennai', donations: 134, percentage: 10.7, trend: 'up', change: 12 },
-    { city: 'Kolkata', donations: 98, percentage: 7.8, trend: 'up', change: 3 },
-    { city: 'Pune', donations: 87, percentage: 7.0, trend: 'down', change: -2 },
-    { city: 'Ahmedabad', donations: 65, percentage: 5.2, trend: 'up', change: 18 }
-  ];
-
+  // Heat map helper functions (commented out as unused)
+  /*
   const getHeatColor = (percentage: number) => {
     if (percentage >= 20) return 'bg-red-500';
     if (percentage >= 15) return 'bg-orange-500';
@@ -484,45 +471,7 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
     if (percentage >= 5) return 'text-green-700';
     return 'text-blue-700';
   };
-
-  const recentActivities = [
-    {
-      id: 1,
-      type: 'donation',
-      title: 'New donation received',
-      description: '50kg of food items donated by John Doe',
-      time: '2 minutes ago',
-      icon: Package,
-      color: 'text-blue-500'
-    },
-    {
-      id: 2,
-      type: 'pickup',
-      title: 'Pickup completed',
-      description: 'Food items delivered to Feed India NGO',
-      time: '15 minutes ago',
-      icon: Truck,
-      color: 'text-green-500'
-    },
-    {
-      id: 3,
-      type: 'registration',
-      title: 'New NGO registration',
-      description: 'Help Foundation applied for verification',
-      time: '1 hour ago',
-      icon: Building2,
-      color: 'text-purple-500'
-    },
-    {
-      id: 4,
-      type: 'issue',
-      title: 'Issue resolved',
-      description: 'Delivery delay issue marked as resolved',
-      time: '2 hours ago',
-      icon: CheckCircle,
-      color: 'text-green-500'
-    }
-  ];
+  */
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1000);
@@ -1974,6 +1923,9 @@ function DonationMonitoring() {
               <option value="Books">Books</option>
               <option value="Medical Supplies">Medical Supplies</option>
               <option value="Other Essentials">Other Essentials</option>
+              <option value="Blood">Blood</option>
+              <option value="Funds">Funds</option>
+              <option value="Devices">Devices</option>
             </select>
           </div>
           <div>
