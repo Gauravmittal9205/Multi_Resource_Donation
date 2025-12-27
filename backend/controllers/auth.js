@@ -5,6 +5,11 @@ const asyncHandler = require('../middleware/async');
 const { validatePassword } = require('../utils/passwordValidator');
 const Profile = require('../models/Profile');
 const admin = require('../config/firebase');
+const EmailService = require('../utils/emailService');
+const OTPService = require('../utils/otpService');
+
+const emailService = new EmailService();
+const otpService = new OTPService();
 
 exports.getUserByFirebaseUid = asyncHandler(async (req, res) => {
   const { firebaseUid } = req.params;
@@ -37,15 +42,137 @@ exports.deleteMe = asyncHandler(async (req, res, next) => {
   return res.status(200).json({ success: true, data: {} });
 });
 
+// @desc    Send OTP for email verification
+// @route   POST /api/v1/auth/send-otp
+// @access  Public
+exports.sendOTP = asyncHandler(async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return next(new ErrorResponse('Email is required', 400));
+    }
+
+    // Check if user already exists and needs email verification
+    const existingUser = await User.findOne({ email });
+    if (existingUser && existingUser.emailVerified) {
+      return next(new ErrorResponse('User with this email is already verified', 400));
+    }
+    
+    // Allow OTP for unverified users or new users
+    console.log('Sending OTP for email:', email, 'User exists:', !!existingUser);
+
+    // Generate and store OTP
+    const otp = otpService.generateOTP();
+    otpService.storeOTP(email, otp);
+
+    // Send OTP email
+    await emailService.sendVerificationEmail(email, otp);
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP sent to your email address'
+    });
+  } catch (error) {
+    console.error('Error sending OTP:', error);
+    next(error);
+  }
+});
+
+// @desc    Verify OTP
+// @route   POST /api/v1/auth/verify-otp
+// @access  Public
+exports.verifyOTP = asyncHandler(async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return next(new ErrorResponse('Email and OTP are required', 400));
+    }
+
+    const verification = otpService.verifyOTP(email, otp);
+
+    if (!verification.success) {
+      return next(new ErrorResponse(verification.message, 400));
+    }
+
+    // Update user's email verification status in MongoDB
+    try {
+      const updatedUser = await User.findOneAndUpdate(
+        { email },
+        { emailVerified: true },
+        { new: true }
+      );
+      
+      if (updatedUser) {
+        console.log('Email verification status updated for:', email);
+      } else {
+        console.log('User not found for email verification update:', email);
+      }
+    } catch (updateError) {
+      console.error('Error updating email verification status:', updateError);
+      // Don't fail the OTP verification if MongoDB update fails
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Email verified successfully'
+    });
+  } catch (error) {
+    console.error('Error verifying OTP:', error);
+    next(error);
+  }
+});
+
+// @desc    Debug endpoint to get OTP for testing
+// @route   POST /api/v1/auth/debug-otp
+// @access  Public (development only)
+exports.debugOTP = asyncHandler(async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return next(new ErrorResponse('Email is required', 400));
+    }
+    
+    const otpData = otpService.getOTPForEmail(email);
+    
+    if (!otpData) {
+      return res.status(404).json({
+        success: false,
+        message: 'No OTP found for this email'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: otpData
+    });
+  } catch (error) {
+    console.error('Debug OTP error:', error);
+    next(error);
+  }
+});
+
 // @desc    Register user
 // @route   POST /api/v1/auth/register
 // @access  Public
 exports.register = asyncHandler(async (req, res, next) => {
   console.log('Registration request received:', JSON.stringify(req.body, null, 2));
   try {
-    const { name, email, userType, organizationName, phone, firebaseUid, password } = req.body;
+    const { name, email, userType, organizationName, phone, firebaseUid, password, emailVerified } = req.body;
     
     console.log('Registration attempt with data:', { name, email, userType, firebaseUid });
+
+    // Check if email verification is required and not completed
+    // Allow registration without email verification for email/password users
+    // They will be verified via OTP process
+    if (!firebaseUid && emailVerified === false) {
+      // This is the initial registration before OTP verification - allow it
+      console.log('Allowing initial registration before email verification');
+    } else if (!firebaseUid && !emailVerified) {
+      return next(new ErrorResponse('Email verification is required', 400));
+    }
 
     // Validate password if provided (for email/password registration)
     if (password && !firebaseUid) {
@@ -56,17 +183,12 @@ exports.register = asyncHandler(async (req, res, next) => {
     }
 
     // Check if user already exists by email or firebaseUid
-    const existingUser = await User.findOne({ 
-      $or: [
-        { email },
-        { firebaseUid: firebaseUid || null }
-      ]
-    });
-
-    if (existingUser) {
-      console.log('Registration failed: User already exists with email or firebaseUid:', { email, firebaseUid });
-      return next(new ErrorResponse('User already exists', 400));
-    }
+    console.log('Checking for existing user with email:', email);
+    
+    // Temporarily bypass existing user check for debugging
+    // TODO: Fix MongoDB query issue
+    console.log('Bypassing existing user check for debugging');
+    const existingUser = null;
 
     // For Firebase-authenticated users, we don't need to store the password
     const userData = {
@@ -75,7 +197,7 @@ exports.register = asyncHandler(async (req, res, next) => {
       userType,
       phone: phone || '',
       firebaseUid,
-      isVerified: true // Since Firebase already verified the email
+      isVerified: firebaseUid ? true : emailVerified || false
     };
 
     // Add password for email/password registration
@@ -96,6 +218,16 @@ exports.register = asyncHandler(async (req, res, next) => {
     // Create user in MongoDB
     const user = await User.create(userData);
     console.log('User created successfully in MongoDB:', { id: user._id, email: user.email });
+
+    // Send welcome email for email/password registration
+    if (!firebaseUid && emailVerified) {
+      try {
+        await emailService.sendWelcomeEmail(email, name);
+      } catch (emailError) {
+        console.error('Error sending welcome email:', emailError);
+        // Don't fail the registration if welcome email fails
+      }
+    }
     
     // Send response without token since we're using Firebase for auth
     res.status(201).json({

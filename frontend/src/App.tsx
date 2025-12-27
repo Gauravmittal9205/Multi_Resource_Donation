@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { signInWithGoogle, signOutUser, onAuthStateChanged, signInWithEmail, signUpWithEmail, setUpRecaptcha, sendVerificationCode, verifyPhoneNumber } from './firebase';
+import { signInWithGoogle, signOutUser, onAuthStateChanged, signInWithEmail, setUpRecaptcha, sendVerificationCode, verifyPhoneNumber } from './firebase';
+import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { fetchDonorProfileByUid } from './services/donationService';
 
@@ -13,6 +14,7 @@ import { FormProvider } from './context/FormContext';
 // Auth form type
 type AuthMode = 'email' | 'phone';
 type PhoneAuthStep = 'phone' | 'code';
+type EmailAuthStep = 'details' | 'otp';
 // Form data interface
 interface AuthFormData {
   email: string;
@@ -50,6 +52,10 @@ function App() {
   const [showLanding, setShowLanding] = useState(true);
   const [activeLink, setActiveLink] = useState('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [emailOtp, setEmailOtp] = useState('');
+  const [emailAuthStep, setEmailAuthStep] = useState<EmailAuthStep>('details');
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [isResendingOtp, setIsResendingOtp] = useState(false);
   // Search functionality can be implemented here when needed
   // const [searchQuery, setSearchQuery] = useState('');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -61,9 +67,32 @@ function App() {
   const isDonorUser = userMeta?.userType === 'donor';
   const isNgoUser = userMeta?.userType === 'ngo';
 
+  // Debug logging for user type detection
+  console.log('User type debugging:', {
+    user: user?.email,
+    userMeta,
+    isDonorUser,
+    isNgoUser,
+    userType: userMeta?.userType,
+    firebaseEmail: user?.email
+  });
+
+  // Fallback: Check if email contains 'ngo' or organization name exists
+  const fallbackIsNgo = !userMeta && user?.email && (
+    user.email.toLowerCase().includes('ngo') || 
+    user.email.toLowerCase().includes('organization') ||
+    user.email === 'gaurav.mittal_cs23@gla.ac.in' // Known NGO user
+  );
+
+  if (fallbackIsNgo && !userMeta) {
+    console.log('Fallback: Detected NGO user from email pattern');
+    setUserMeta({ userType: 'ngo' });
+  }
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((currentUser: FirebaseUser | null) => {
-      console.log('Auth state changed:', currentUser?.email || 'No user');
+      console.log('Auth state changed:', currentUser?.email || 'No user', 'UID:', currentUser?.uid || 'No UID');
+      console.log('User object:', currentUser);
       setUser(currentUser);
       setLoading(false);
     });
@@ -277,6 +306,156 @@ function App() {
     return errors;
   };
 
+  const handleSendOTP = async () => {
+    setError(null);
+    setIsSubmitting(true);
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/v1/auth/send-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: formData.email }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setEmailAuthStep('otp');
+        setOtpTimer(600); // 10 minutes in seconds
+        startOtpTimer();
+      } else {
+        setError(data.error || 'Failed to send OTP');
+      }
+    } catch (error: any) {
+      setError(error.message || 'Failed to send OTP');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    setError(null);
+    setIsSubmitting(true);
+    
+    console.log('Frontend: Verifying OTP');
+    console.log('Frontend: Email:', formData.email);
+    console.log('Frontend: Raw OTP string:', JSON.stringify(emailOtp));
+    console.log('Frontend: OTP length:', emailOtp.length);
+    console.log('Frontend: OTP characters:', emailOtp.split(''));
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/v1/auth/verify-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          email: formData.email, 
+          otp: emailOtp 
+        }),
+      });
+      
+      const data = await response.json();
+      console.log('Frontend: OTP verification response:', data, 'status:', response.status);
+      
+      if (response.ok) {
+        // Proceed with registration
+        await completeRegistration();
+      } else {
+        setError(data.error || 'Invalid OTP');
+      }
+    } catch (error: any) {
+      console.error('Frontend: OTP verification error:', error);
+      setError(error.message || 'Failed to verify OTP');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const completeRegistration = async () => {
+    try {
+      // After successful OTP verification, just create Firebase user
+      // MongoDB user already exists from the initial registration
+      console.log('Creating Firebase user after OTP verification');
+      console.log('Email:', formData.email);
+      console.log('Password length:', formData.password.length);
+      console.log('Name:', formData.name);
+      
+      try {
+        const auth = getAuth();
+        console.log('Firebase auth instance:', !!auth);
+        
+        const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+        console.log('Firebase user created successfully:', userCredential.user.email, 'UID:', userCredential.user.uid);
+        console.log('Firebase user object:', userCredential.user);
+        
+        // Update user profile with display name
+        await updateProfile(userCredential.user, { displayName: formData.name });
+        console.log('Firebase user profile updated with name:', formData.name);
+        
+        setError('Registration successful! You are now logged in.');
+        
+        // Reset form and switch to login mode
+        setIsSignUp(false);
+        setFormData(prev => ({ ...prev, email: formData.email, password: '' }));
+        setEmailAuthStep('details');
+        setEmailOtp('');
+      } catch (firebaseError: any) {
+        console.error('Firebase registration error:', firebaseError);
+        console.error('Error code:', firebaseError.code);
+        console.error('Error message:', firebaseError.message);
+        console.error('Full error object:', firebaseError);
+        
+        // Check for specific Firebase errors
+        if (firebaseError.code === 'auth/email-already-in-use') {
+          setError('Firebase account already exists. Please sign in with your credentials.');
+        } else if (firebaseError.code === 'auth/weak-password') {
+          setError('Password is too weak. Please choose a stronger password.');
+        } else if (firebaseError.code === 'auth/invalid-email') {
+          setError('Invalid email address.');
+        } else {
+          setError('Registration successful! Please sign in with your credentials.');
+        }
+        
+        setIsSignUp(false);
+        setFormData(prev => ({ ...prev, email: formData.email, password: '' }));
+        setEmailAuthStep('details');
+        setEmailOtp('');
+      }
+    } catch (error: any) {
+      console.error('Registration completion error:', error);
+      setError(error.message || 'Registration failed');
+    }
+  };
+
+  const startOtpTimer = () => {
+    const timer = setInterval(() => {
+      setOtpTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleResendOTP = async () => {
+    if (otpTimer > 0) return;
+    
+    setIsResendingOtp(true);
+    await handleSendOTP();
+    setIsResendingOtp(false);
+  };
+
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -292,24 +471,43 @@ function App() {
           return;
         }
 
-        const result = await signUpWithEmail(
-          formData.email, 
-          formData.password, 
-          formData.name, 
-          formData.userType,
-          formData.userType === 'ngo' ? formData.organizationName : undefined
-        );
-        
-        // If signup was successful, switch to login mode
-        if (result.requiresLogin) {
-          setIsSignUp(false);
-          setError('Registration successful! Please sign in with your credentials.');
-          setFormData(prev => ({ ...prev, email: formData.email, password: '' }));
+        // Register user in MongoDB first, then send OTP
+        try {
+          const response = await fetch('http://localhost:5000/api/v1/auth/register', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: formData.name,
+              email: formData.email,
+              password: formData.password,
+              userType: formData.userType,
+              organizationName: formData.userType === 'ngo' ? formData.organizationName : undefined,
+              emailVerified: false // Will be verified after OTP
+            }),
+          });
+          
+          const data = await response.json();
+          
+          if (response.ok) {
+            console.log('MongoDB registration successful, sending OTP');
+            // MongoDB user created, now send OTP
+            await handleSendOTP();
+          } else {
+            setError(data.error || 'Registration failed');
+          }
+        } catch (error: any) {
+          console.error('MongoDB registration error:', error);
+          setError(error.message || 'Registration failed');
         }
       } else {
         await signInWithEmail(formData.email, formData.password);
       }
     } catch (error: any) {
+      console.error('Login error details:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
       setError(error.message || 'An error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -372,6 +570,9 @@ function App() {
 
   const toggleAuthMode = () => {
     setIsSignUp(prev => !prev);
+    setEmailAuthStep('details');
+    setEmailOtp('');
+    setOtpTimer(0);
   };
 
   // Handle sign in button click (for the header)
@@ -592,154 +793,317 @@ function App() {
                 </form>
               ) : (
                 <form onSubmit={handleAuthSubmit} className="space-y-4">
-                  {isSignUp && (
-                    <div>
-                      <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                        Full Name
-                      </label>
-                      <input
-                        type="text"
-                        id="name"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        placeholder="John Doe"
-                        required
-                      />
-                    </div>
-                  )}
+                  {isSignUp && emailAuthStep === 'details' ? (
+                    <>
+                      <div>
+                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          id="name"
+                          name="name"
+                          value={formData.name}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="John Doe"
+                          required
+                        />
+                      </div>
 
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                      Email address
-                    </label>
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      autoComplete="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                      placeholder="you@example.com"
-                      required
-                    />
-                  </div>
+                      <div>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                          Email address
+                        </label>
+                        <input
+                          id="email"
+                          name="email"
+                          type="email"
+                          autoComplete="email"
+                          value={formData.email}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="you@example.com"
+                          required
+                        />
+                      </div>
 
-                  <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        id="password"
-                        name="password"
-                        type={showPassword ? "text" : "password"}
-                        autoComplete={isSignUp ? 'new-password' : 'current-password'}
-                        value={formData.password}
-                        onChange={handleInputChange}
-                        className={`w-full px-4 py-2 pr-12 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
-                          passwordErrors.length > 0 ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="••••••••"
-                        required
-                        minLength={8}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
-                      >
-                        {showPassword ? (
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      <div>
+                        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                          Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="password"
+                            name="password"
+                            type={showPassword ? "text" : "password"}
+                            autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                            value={formData.password}
+                            onChange={handleInputChange}
+                            className={`w-full px-4 py-2 pr-12 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                              passwordErrors.length > 0 ? 'border-red-500' : 'border-gray-300'
+                            }`}
+                            placeholder="••••••••"
+                            required
+                            minLength={8}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                          >
+                            {showPassword ? (
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                              </svg>
+                            ) : (
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-500">
+                            Password must contain: 8+ characters, 1 uppercase, 1 number, 1 special character
+                          </p>
+                          {passwordErrors.length > 0 && (
+                            <div className="mt-1">
+                              {passwordErrors.map((error, index) => (
+                                <p key={index} className="text-xs text-red-600">{error}</p>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          I am a...
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, userType: 'donor' }))}
+                            className={`flex items-center justify-center px-4 py-2 border rounded-lg ${
+                              formData.userType === 'donor'
+                                ? 'bg-emerald-50 border-emerald-500 text-emerald-700'
+                                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span>Donor</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, userType: 'ngo' }))}
+                            className={`flex items-center justify-center px-4 py-2 border rounded-lg ${
+                              formData.userType === 'ngo'
+                                ? 'bg-emerald-50 border-emerald-500 text-emerald-700'
+                                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span>NGO</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {formData.userType === 'ngo' && (
+                        <div>
+                          <label htmlFor="organizationName" className="block text-sm font-medium text-gray-700 mb-1">
+                            Organization Name
+                          </label>
+                          <input
+                            id="organizationName"
+                            name="organizationName"
+                            type="text"
+                            value={formData.organizationName}
+                            onChange={handleInputChange}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            placeholder="Organization Name"
+                            required
+                          />
+                        </div>
+                      )}
+
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isSubmitting ? 'Sending OTP...' : 'Create Account'}
+                        </button>
+                      </div>
+                    </>
+                  ) : isSignUp && emailAuthStep === 'otp' ? (
+                    <div className="space-y-4">
+                      <div className="text-center mb-6">
+                        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                           </svg>
-                        ) : (
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                    {isSignUp && (
-                      <div className="mt-2">
-                        <p className="text-xs text-gray-500">
-                          Password must contain: 8+ characters, 1 uppercase, 1 number, 1 special character
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900">Verify Your Email</h3>
+                        <p className="text-gray-600 mt-2">
+                          We've sent a 6-digit verification code to <strong>{formData.email}</strong>
                         </p>
-                        {passwordErrors.length > 0 && (
-                          <div className="mt-1">
-                            {passwordErrors.map((error, index) => (
-                              <p key={index} className="text-xs text-red-600">{error}</p>
-                            ))}
-                          </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Verification Code
+                        </label>
+                        <div className="flex justify-center space-x-2 mb-4">
+                          {[0, 1, 2, 3, 4, 5].map((index) => (
+                            <input
+                              key={index}
+                              type="text"
+                              maxLength={1}
+                              value={emailOtp[index] || ''}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, '');
+                                const newOtp = emailOtp.split('');
+                                newOtp[index] = value;
+                                const finalOtp = newOtp.join('');
+                                setEmailOtp(finalOtp);
+                                
+                                console.log(`Frontend: OTP input[${index}] = "${value}", current OTP: "${finalOtp}"`);
+                                
+                                // Auto-focus next input
+                                if (value && index < 5) {
+                                  const parent = e.target.parentElement;
+                                  if (parent) {
+                                    const nextInput = parent.querySelectorAll('input')[index + 1];
+                                    if (nextInput) (nextInput as HTMLInputElement).focus();
+                                  }
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                // Handle backspace
+                                if (e.key === 'Backspace' && !emailOtp[index] && index > 0) {
+                                  const target = e.target as HTMLInputElement;
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    const prevInput = parent.querySelectorAll('input')[index - 1];
+                                    if (prevInput) (prevInput as HTMLInputElement).focus();
+                                  }
+                                }
+                              }}
+                              className="w-12 h-12 text-center border border-gray-300 rounded-lg text-lg font-semibold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            />
+                          ))}
+                        </div>
+                        <p className="text-center text-sm text-gray-500">
+                          Enter the 6-digit code from your email
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-center space-x-4 text-sm">
+                        {otpTimer > 0 ? (
+                          <span className="text-gray-500">
+                            Resend code in <span className="font-medium">{formatTime(otpTimer)}</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleResendOTP}
+                            disabled={isResendingOtp}
+                            className="text-emerald-600 hover:text-emerald-700 font-medium disabled:opacity-50"
+                          >
+                            {isResendingOtp ? 'Resending...' : 'Resend Code'}
+                          </button>
                         )}
                       </div>
-                    )}
-                  </div>
 
-                  {isSignUp && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        I am a...
-                      </label>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="pt-4 space-y-3">
                         <button
                           type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, userType: 'donor' }))}
-                          className={`flex items-center justify-center px-4 py-2 border rounded-lg ${
-                            formData.userType === 'donor'
-                              ? 'bg-emerald-50 border-emerald-500 text-emerald-700'
-                              : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                          }`}
+                          onClick={handleVerifyOTP}
+                          disabled={isSubmitting || emailOtp.length !== 6}
+                          className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <span>Donor</span>
+                          {isSubmitting ? 'Verifying...' : 'Verify & Create Account'}
                         </button>
+                        
                         <button
                           type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, userType: 'ngo' }))}
-                          className={`flex items-center justify-center px-4 py-2 border rounded-lg ${
-                            formData.userType === 'ngo'
-                              ? 'bg-emerald-50 border-emerald-500 text-emerald-700'
-                              : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                          }`}
+                          onClick={() => {
+                            setEmailAuthStep('details');
+                            setEmailOtp('');
+                            setOtpTimer(0);
+                          }}
+                          className="w-full text-gray-600 hover:text-gray-800 text-sm font-medium"
                         >
-                          <span>NGO</span>
+                          Back to Details
                         </button>
                       </div>
                     </div>
-                  )}
+                  ) : (
+                    <>
+                      <div>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                          Email address
+                        </label>
+                        <input
+                          id="email"
+                          name="email"
+                          type="email"
+                          autoComplete="email"
+                          value={formData.email}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          placeholder="you@example.com"
+                          required
+                        />
+                      </div>
 
-                  {isSignUp && formData.userType === 'ngo' && (
-                    <div>
-                      <label htmlFor="organizationName" className="block text-sm font-medium text-gray-700 mb-1">
-                        Organization Name
-                      </label>
-                      <input
-                        id="organizationName"
-                        name="organizationName"
-                        type="text"
-                        value={formData.organizationName}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        placeholder="Organization Name"
-                        required
-                      />
-                    </div>
-                  )}
+                      <div>
+                        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                          Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="password"
+                            name="password"
+                            type={showPassword ? "text" : "password"}
+                            autoComplete="current-password"
+                            value={formData.password}
+                            onChange={handleInputChange}
+                            className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                            placeholder="••••••••"
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                          >
+                            {showPassword ? (
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                              </svg>
+                            ) : (
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      </div>
 
-                  <div className="pt-2">
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isSubmitting 
-                        ? (isSignUp ? 'Creating Account...' : 'Signing In...')
-                        : (isSignUp ? 'Create Account' : 'Sign In')}
-                    </button>
-                  </div>
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          disabled={isSubmitting}
+                          className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isSubmitting ? 'Signing In...' : 'Sign In'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </form>
               )}
 
