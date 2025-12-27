@@ -64,6 +64,24 @@ app.use('/api/v1/announcements', announcementsRoutes);
 // Set static folder
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Database health check middleware
+app.use('/api/v1/health', (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  const dbStatus = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting'
+  };
+  
+  res.status(dbState === 1 ? 200 : 503).json({
+    success: dbState === 1,
+    database: dbStatus[dbState],
+    host: mongoose.connection.host,
+    port: mongoose.connection.port
+  });
+});
+
 // Error handler
 app.use((err, req, res, next) => {
   console.error(err);
@@ -106,10 +124,18 @@ const connectDB = async () => {
   const options = {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000,
-    socketTimeoutMS: 45000,
+    serverSelectionTimeoutMS: 60000,
+    socketTimeoutMS: 120000,
+    connectTimeoutMS: 60000,
+    heartbeatFrequencyMS: 30000,
+    retryWrites: true,
+    w: 'majority',
+    readPreference: 'secondaryPreferred',
     family: 4,
-    maxPoolSize: 10
+    maxPoolSize: 50,
+    minPoolSize: 10,
+    maxIdleTimeMS: 60000,
+    waitQueueTimeoutMS: 60000
   };
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -134,10 +160,17 @@ const connectDB = async () => {
 
       mongoose.connection.on('error', (err) => {
         console.error('Mongoose connection error:', err);
+        if (err.name === 'MongoNetworkTimeoutError' || err.name === 'MongoTimeoutError') {
+          console.log('Network timeout detected, will retry...');
+        }
       });
 
       mongoose.connection.on('disconnected', () => {
         console.log('Mongoose disconnected');
+      });
+
+      mongoose.connection.on('reconnected', () => {
+        console.log('Mongoose reconnected');
       });
 
       // Handle process termination

@@ -626,47 +626,61 @@ exports.getNgoDashboard = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/ngo-requests/admin/all
 // @access  Private (Admin)
 exports.getAllRequests = asyncHandler(async (req, res) => {
-  const { status, category, urgencyLevel } = req.query;
+  const { status, category, urgencyLevel, page = 1, limit = 50 } = req.query;
 
   const query = {};
   if (status) query.status = status;
   if (category) query.category = category;
   if (urgencyLevel) query.urgencyLevel = urgencyLevel;
 
-  // First get all the requests
-  let requests = await NgoRequest.find(query)
-    .sort({ createdAt: -1 })
-    .lean();
+  const skip = (page - 1) * limit;
+  const limitNum = parseInt(limit) > 100 ? 100 : parseInt(limit);
 
-  // Get all unique NGO Firebase UIDs
-  const ngoFirebaseUids = [...new Set(requests.map(r => r.ngoFirebaseUid))];
-  
-  // Get NGO details in one query
-  const ngos = await User.find({ 
-    firebaseUid: { $in: ngoFirebaseUids },
-    userType: 'ngo'  // Only get NGO users
-  })
-  .select('firebaseUid name organizationName')
-  .lean();
-  
-  // Create a map for quick lookup
-  const ngoMap = {};
-  ngos.forEach(ngo => {
-    // Log the ngo object for debugging
-    console.log('NGO data:', ngo);
-    // Use organizationName if available, otherwise fall back to name
-    ngoMap[ngo.firebaseUid] = ngo.organizationName || ngo.name || 'NGO';
-  });
-  
-  // Add NGO name to each request
-  requests = requests.map(request => ({
-    ...request,
-    ngoName: ngoMap[request.ngoFirebaseUid] || 'NGO'
-  }));
+  // Use aggregation pipeline for better performance
+  const requests = await NgoRequest.aggregate([
+    { $match: query },
+    { $sort: { createdAt: -1 } },
+    { $skip: skip },
+    { $limit: limitNum },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'ngoFirebaseUid',
+        foreignField: 'firebaseUid',
+        as: 'ngo',
+        pipeline: [
+          { $match: { userType: 'ngo' } },
+          { $project: { firebaseUid: 1, name: 1, organizationName: 1 } }
+        ]
+      }
+    },
+    {
+      $addFields: {
+        ngoName: {
+          $ifNull: [
+            { $arrayElemAt: ['$ngo.organizationName', 0] },
+            { $arrayElemAt: ['$ngo.name', 0] },
+            'NGO'
+          ]
+        }
+      }
+    },
+    {
+      $project: {
+        ngo: 0
+      }
+    }
+  ]);
+
+  // Get total count for pagination
+  const totalCount = await NgoRequest.countDocuments(query);
 
   res.status(200).json({
     success: true,
     count: requests.length,
+    totalCount,
+    currentPage: parseInt(page),
+    totalPages: Math.ceil(totalCount / limitNum),
     data: requests
   });
 });
