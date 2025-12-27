@@ -106,7 +106,19 @@ const DonationSchema = new mongoose.Schema(
       }
     }
   },
-  { timestamps: true }
+  { 
+    timestamps: true,
+    indexes: [
+      { donorFirebaseUid: 1 },
+      { status: 1 },
+      { resourceType: 1 },
+      { 'address.city': 1 },
+      { createdAt: -1 },
+      { donorFirebaseUid: 1, status: 1 },
+      { 'assignedNGO.ngoFirebaseUid': 1 },
+      { status: 1, createdAt: -1 }
+    ]
+  }
 );
 
 module.exports = mongoose.model('Donation', DonationSchema);

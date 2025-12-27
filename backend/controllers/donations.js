@@ -523,7 +523,7 @@ exports.updateDonation = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/donations/admin/all
 // @access  Private (Admin)
 exports.getAllDonations = asyncHandler(async (req, res) => {
-  const { status, resourceType, city, startDate, endDate } = req.query;
+  const { status, resourceType, city, startDate, endDate, page = 1, limit = 50 } = req.query;
 
   // Build query
   const query = {};
@@ -536,47 +536,80 @@ exports.getAllDonations = asyncHandler(async (req, res) => {
     if (endDate) query.createdAt.$lte = new Date(endDate);
   }
 
-  // Fetch donations with donor information
-  const donations = await Donation.find(query)
-    .sort({ createdAt: -1 })
-    .lean();
+  const skip = (page - 1) * limit;
+  const limitNum = parseInt(limit) > 100 ? 100 : parseInt(limit);
 
-  // Get donor information for each donation
-  const donationsWithDonorInfo = await Promise.all(
-    donations.map(async (donation) => {
-      // Try to get donor name from User model
-      let donorName = 'Unknown Donor';
-      let donorEmail = '';
-      let donorPhone = '';
-
-      const user = await User.findOne({ firebaseUid: donation.donorFirebaseUid });
-      if (user) {
-        donorName = user.name;
-        donorEmail = user.email;
-        donorPhone = user.phone || '';
-      } else {
-        // Try Profile model
-        const profile = await Profile.findOne({ firebaseUid: donation.donorFirebaseUid });
-        if (profile && profile.basic) {
-          donorName = profile.basic.name || donorName;
-          donorEmail = profile.basic.email || donorEmail;
-          donorPhone = profile.basic.phone || donorPhone;
+  // Fetch donations with donor information using aggregation pipeline
+  const donations = await Donation.aggregate([
+    { $match: query },
+    { $sort: { createdAt: -1 } },
+    { $skip: skip },
+    { $limit: limitNum },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'donorFirebaseUid',
+        foreignField: 'firebaseUid',
+        as: 'user',
+        pipeline: [
+          { $project: { name: 1, email: 1, phone: 1 } }
+        ]
+      }
+    },
+    {
+      $lookup: {
+        from: 'profiles',
+        localField: 'donorFirebaseUid',
+        foreignField: 'firebaseUid',
+        as: 'profile',
+        pipeline: [
+          { $project: { 'basic.name': 1, 'basic.email': 1, 'basic.phone': 1 } }
+        ]
+      }
+    },
+    {
+      $addFields: {
+        donorName: {
+          $ifNull: [
+            { $arrayElemAt: ['$user.name', 0] },
+            { $arrayElemAt: ['$profile.basic.name', 0] },
+            'Unknown Donor'
+          ]
+        },
+        donorEmail: {
+          $ifNull: [
+            { $arrayElemAt: ['$user.email', 0] },
+            { $arrayElemAt: ['$profile.basic.email', 0] },
+            ''
+          ]
+        },
+        donorPhone: {
+          $ifNull: [
+            { $arrayElemAt: ['$user.phone', 0] },
+            { $arrayElemAt: ['$profile.basic.phone', 0] },
+            ''
+          ]
         }
       }
+    },
+    {
+      $project: {
+        user: 0,
+        profile: 0
+      }
+    }
+  ]);
 
-      return {
-        ...donation,
-        donorName,
-        donorEmail,
-        donorPhone
-      };
-    })
-  );
+  // Get total count for pagination
+  const totalCount = await Donation.countDocuments(query);
 
   res.status(200).json({
     success: true,
-    count: donationsWithDonorInfo.length,
-    data: donationsWithDonorInfo
+    count: donations.length,
+    totalCount,
+    currentPage: parseInt(page),
+    totalPages: Math.ceil(totalCount / limitNum),
+    data: donations
   });
 });
 
