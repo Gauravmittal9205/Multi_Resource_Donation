@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { signInWithGoogle, signOutUser, onAuthStateChanged, signInWithEmail, setUpRecaptcha, sendVerificationCode, verifyPhoneNumber } from './firebase';
 import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
+// Import donation service
 import { fetchDonorProfileByUid } from './services/donationService';
 
 import AboutUs from './components/AboutUs';

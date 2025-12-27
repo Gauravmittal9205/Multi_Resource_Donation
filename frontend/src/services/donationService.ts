@@ -152,6 +152,13 @@ export const fetchMyDonationsPaged = async (params?: {
       ...(params?.page ? { page: params.page } : {}),
       ...(params?.limit ? { limit: params.limit } : {}),
     },
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+  return response.data as { success: boolean; count: number; data: DonationItem[] };
+};
+
 export const fetchNgoLiveDonationsPool = async (params?: { limit?: number }) => {
   const token = await getAuthToken();
   const response = await axios.get(`${API_URL}/ngo/live-pool`, {
