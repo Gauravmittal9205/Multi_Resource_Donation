@@ -185,53 +185,63 @@ export const getNgosWithActiveRequests = async (): Promise<NgoWithRequests[]> =>
       },
       timeout: 10000 // 10 second timeout
     });
-    
-    console.log('API Response Status:', response.status, response.statusText);
-    
-    if (!response.data) {
-      console.error('Empty response received');
-      throw new Error('Received empty response from server');
-    }
-    
-    if (response.status !== 200) {
-      console.error('Unexpected status code:', response.status);
-      throw new Error(`Server responded with status: ${response.status}`);
-    }
-    
+
     if (!response.data.success) {
-      console.error('API response indicates failure:', response.data);
-      throw new Error(response.data.error || 'Failed to fetch NGO requests');
+      console.error('Error in response:', response.data);
+      throw new Error(response.data.message || 'Failed to fetch NGOs with active requests');
     }
-    
-    const ngos = Array.isArray(response.data.data) ? response.data.data : [];
-    console.log(`Found ${ngos.length} NGOs with active requests`);
-    
-    return ngos;
+
+    console.log(`Successfully fetched ${response.data.data?.length || 0} NGOs with active requests`);
+    return response.data.data || [];
   } catch (error: any) {
+    // Enhanced error logging
     const errorDetails = {
       name: error.name,
       message: error.message,
-      stack: error.stack,
-      response: error.response ? {
-        status: error.response.status,
-        statusText: error.response.statusText,
-        data: error.response.data,
-        headers: error.response.headers
-      } : 'No response',
-      request: error.request ? 'Request was made but no response received' : 'No request was made',
+      code: error.code,
+      status: error.response?.status,
+      responseData: error.response?.data,
       config: {
         url: error.config?.url,
         method: error.config?.method,
-        headers: error.config?.headers,
+        timeout: error.config?.timeout,
+        headers: Object.keys(error.config?.headers || {}).reduce((acc, key) => {
+          if (key.toLowerCase() !== 'authorization') {
+            acc[key] = error.config?.headers[key];
+          } else {
+            acc[key] = 'Bearer [REDACTED]';
+          }
+          return acc;
+        }, {} as Record<string, any>),
         params: error.config?.params
       }
     };
     
     console.error('Detailed error in getNgosWithActiveRequests:', JSON.stringify(errorDetails, null, 2));
     
-    // Return empty array instead of throwing to prevent UI from breaking
-    // But log the error for debugging
-    return [];
+    // User-friendly error messages
+    if (error.code === 'ECONNABORTED') {
+      throw new Error('Request timed out. The server is taking too long to respond.');
+    } else if (error.response) {
+      // Server responded with error status
+      if (error.response.status === 401) {
+        throw new Error('Your session has expired. Please log in again.');
+      } else if (error.response.status === 403) {
+        throw new Error('You do not have permission to view this resource.');
+      } else if (error.response.status === 404) {
+        throw new Error('The requested resource was not found.');
+      } else if (error.response.status >= 500) {
+        throw new Error('Server error. Please try again later or contact support.');
+      } else {
+        throw new Error(error.response.data?.message || `Server responded with status ${error.response.status}`);
+      }
+    } else if (error.request) {
+      // No response received
+      throw new Error('Unable to connect to the server. Please check your internet connection and try again.');
+    } else {
+      // Request setup error
+      throw new Error(`Failed to process request: ${error.message}`);
+    }
   }
 };
 

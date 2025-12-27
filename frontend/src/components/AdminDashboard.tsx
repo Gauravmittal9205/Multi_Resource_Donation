@@ -2281,20 +2281,41 @@ function DonationsManagement() {
     }
   };
 
-  const fetchNGOs = async () => {
+  const fetchNGOs = async (retryCount = 0) => {
+    const maxRetries = 2;
+    
     try {
       setLoadingNGOs(true);
-      console.log('Fetching NGOs with pending requests...');
+      console.log(`Fetching NGOs with pending requests... ${retryCount > 0 ? `(Retry ${retryCount}/${maxRetries})` : ''}`);
       
       // First, fetch all NGOs with their requests
       let response;
       try {
         response = await getNgosWithActiveRequests();
         console.log('Successfully fetched NGOs with requests:', response);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error in getNgosWithActiveRequests:', error);
-        // Show error to user
-        alert('Failed to load NGO requests. Please check console for details.');
+        
+        // Retry logic for timeout errors
+        if ((error.message?.includes('timed out') || error.code === 'ECONNABORTED') && retryCount < maxRetries) {
+          console.log(`Retrying due to timeout... (${retryCount + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+          return fetchNGOs(retryCount + 1);
+        }
+        
+        // Handle specific error types
+        if (error.message?.includes('timed out') || error.code === 'ECONNABORTED') {
+          alert('Request timed out after multiple attempts. The server may be overloaded. Please try again later.');
+        } else if (error.message?.includes('session has expired') || error.message?.includes('401')) {
+          alert('Your session has expired. Please log in again.');
+        } else if (error.message?.includes('permission') || error.message?.includes('403')) {
+          alert('You do not have permission to view this resource.');
+        } else if (error.message?.includes('network') || error.message?.includes('connection')) {
+          alert('Network error. Please check your internet connection and try again.');
+        } else {
+          alert('Failed to load NGO requests. Please try again later.');
+        }
+        
         setNgos([]);
         return;
       }

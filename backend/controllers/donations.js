@@ -561,7 +561,8 @@ exports.updateDonation = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/donations/admin/all
 // @access  Private (Admin)
 exports.getAllDonations = asyncHandler(async (req, res) => {
-  const { status, resourceType, city, startDate, endDate } = req.query;
+  const startTime = Date.now();
+  const { status, resourceType, city, startDate, endDate, page = 1, limit = 50 } = req.query;
 
   // Build query
   const query = {};
@@ -574,46 +575,97 @@ exports.getAllDonations = asyncHandler(async (req, res) => {
     if (endDate) query.createdAt.$lte = new Date(endDate);
   }
 
-  // Fetch donations with donor information
-  const donations = await Donation.find(query)
-    .sort({ createdAt: -1 })
-    .lean();
+  // Limit to last 90 days by default for performance
+  if (!startDate && !endDate) {
+    query.createdAt = { $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) };
+  }
 
-  // Get donor information for each donation
-  const donationsWithDonorInfo = await Promise.all(
-    donations.map(async (donation) => {
-      // Try to get donor name from User model
-      let donorName = 'Unknown Donor';
-      let donorEmail = '';
-      let donorPhone = '';
+  // Pagination
+  const skip = (Number(page) - 1) * Number(limit);
+  const limitNum = Math.min(Number(limit), 100); // Max 100 records per request
 
-      const user = await User.findOne({ firebaseUid: donation.donorFirebaseUid });
-      if (user) {
-        donorName = user.name;
-        donorEmail = user.email;
-        donorPhone = user.phone || '';
-      } else {
-        // Try Profile model
-        const profile = await Profile.findOne({ firebaseUid: donation.donorFirebaseUid });
-        if (profile && profile.basic) {
-          donorName = profile.basic.name || donorName;
-          donorEmail = profile.basic.email || donorEmail;
-          donorPhone = profile.basic.phone || donorPhone;
-        }
-      }
+  console.log('Fetching donations with query:', query);
 
-      return {
-        ...donation,
-        donorName,
-        donorEmail,
-        donorPhone
-      };
-    })
-  );
+  // Fetch donations with pagination and timeout
+  const [donations, totalCount] = await Promise.all([
+    Donation.find(query)
+      .select('donorFirebaseUid resourceType quantity unit address pickup status createdAt details')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean()
+      .maxTimeMS(10000), // 10 second timeout
+    Donation.countDocuments(query).maxTimeMS(5000) // 5 second timeout
+  ]);
+
+  console.log(`Found ${donations.length} donations out of ${totalCount} total`);
+
+  if (donations.length === 0) {
+    return res.status(200).json({
+      success: true,
+      count: 0,
+      totalCount: 0,
+      page: Number(page),
+      pages: 0,
+      data: []
+    });
+  }
+
+  // Get unique donor Firebase UIDs
+  const donorFirebaseUids = [...new Set(donations.map(d => d.donorFirebaseUid).filter(Boolean))];
+  
+  // Fetch all donor information in parallel
+  const [users, profiles] = await Promise.all([
+    User.find({ firebaseUid: { $in: donorFirebaseUids } })
+      .select('firebaseUid name email phone')
+      .lean()
+      .maxTimeMS(5000),
+    Profile.find({ firebaseUid: { $in: donorFirebaseUids } })
+      .select('firebaseUid basic.name basic.email basic.phone')
+      .lean()
+      .maxTimeMS(5000)
+  ]);
+
+  // Create maps for quick lookup
+  const userMap = new Map(users.map(u => [u.firebaseUid, u]));
+  const profileMap = new Map(profiles.map(p => [p.firebaseUid, p]));
+
+  // Combine donation data with donor information
+  const donationsWithDonorInfo = donations.map(donation => {
+    const user = userMap.get(donation.donorFirebaseUid);
+    const profile = profileMap.get(donation.donorFirebaseUid);
+    
+    let donorName = 'Unknown Donor';
+    let donorEmail = '';
+    let donorPhone = '';
+
+    if (user) {
+      donorName = user.name || donorName;
+      donorEmail = user.email || donorEmail;
+      donorPhone = user.phone || donorPhone;
+    } else if (profile && profile.basic) {
+      donorName = profile.basic.name || donorName;
+      donorEmail = profile.basic.email || donorEmail;
+      donorPhone = profile.basic.phone || donorPhone;
+    }
+
+    return {
+      ...donation,
+      donorName,
+      donorEmail,
+      donorPhone
+    };
+  });
+
+  const totalPages = Math.ceil(totalCount / limitNum);
+  console.log(`Processed ${donationsWithDonorInfo.length} donations in ${Date.now() - startTime}ms`);
 
   res.status(200).json({
     success: true,
     count: donationsWithDonorInfo.length,
+    totalCount,
+    page: Number(page),
+    pages: totalPages,
     data: donationsWithDonorInfo
   });
 });
