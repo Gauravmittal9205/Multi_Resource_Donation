@@ -183,24 +183,6 @@ exports.updateRegistrationStatus = asyncHandler(async (req, res) => {
 
   await registration.save();
 
-  // Update User model's isVerified field when registration is approved/rejected
-  if (status === 'approved') {
-    // Set isVerified to true when registration is approved
-    await User.findOneAndUpdate(
-      { firebaseUid: registration.firebaseUid },
-      { isVerified: true },
-      { new: true }
-    );
-    console.log(`Updated User isVerified to true for NGO: ${registration.ngoName} (${registration.firebaseUid})`);
-  } else if (status === 'rejected') {
-    // Optionally set isVerified to false when rejected (or leave it as is)
-    // await User.findOneAndUpdate(
-    //   { firebaseUid: registration.firebaseUid },
-    //   { isVerified: false },
-    //   { new: true }
-    // );
-  }
-
   // Create notification for NGO
   if (status === 'approved' || status === 'rejected') {
     const notificationType = status === 'approved' ? 'registration_approved' : 'registration_rejected';

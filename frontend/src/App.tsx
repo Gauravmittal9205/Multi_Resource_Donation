@@ -3,7 +3,7 @@ import { signInWithGoogle, signOutUser, onAuthStateChanged, signInWithEmail, set
 import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
 // Import donation service
-import { fetchDonorProfileByUid, clearProfileCache } from './services/donationService';
+import { fetchDonorProfileByUid } from './services/donationService';
 
 import AboutUs from './components/AboutUs';
 import Footer from './components/Footer';
@@ -182,11 +182,6 @@ function App() {
         return;
       }
       
-      // Prevent duplicate requests - if we already have profile data for this user, don't fetch again
-      if (donorProfile && donorProfile.basic?.firebaseUid === user.uid) {
-        return;
-      }
-      
       try {
         const res = await fetchDonorProfileByUid(user.uid);
         if (res.success && res.data) {
@@ -207,8 +202,6 @@ function App() {
     
     // Listen for profile updates
     const handleProfileUpdate = () => {
-      // Force refresh on explicit profile updates
-      clearProfileCache(user?.uid); // Clear cache to force refresh
       loadDonorProfile();
     };
     

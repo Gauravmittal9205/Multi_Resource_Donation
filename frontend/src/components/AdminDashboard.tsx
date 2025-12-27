@@ -700,24 +700,6 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
     }
   };
 
-  // Function to fetch pending NGO requests count
-  const fetchPendingNgoRequests = async () => {
-    try {
-      const ngoRequestsResponse = await getAllNgoRequests();
-      const pendingRequestsCount = ngoRequestsResponse.data?.filter(
-        (req: any) => req.status === 'pending'
-      ).length || 0;
-
-      // Update pendingNGOs with requests count (not registrations)
-      setAnimatedStats(prev => ({
-        ...prev,
-        pendingNGOs: pendingRequestsCount
-      }));
-    } catch (error) {
-      console.error('Error fetching pending NGO requests:', error);
-    }
-  };
-
   // Function to fetch all pending counts from backend
   const fetchPendingCounts = async () => {
     try {
@@ -749,12 +731,12 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
         ? allHelpMessages.data.filter((msg: any) => msg.status === 'new').length
         : 0;
 
-      // Update stats with real-time counts (DO NOT overwrite pendingNGOs - that's for requests, not registrations)
+      // Update stats with real-time counts
       setAnimatedStats(prev => ({
         ...prev,
         pendingDonations: pendingDonationsCount,
         pendingApprovals: pendingNgoVerificationsCount,
-        // pendingNGOs is updated separately by fetchPendingNgoRequests()
+        pendingNGOs: pendingNgoVerificationsCount,
         pendingReports: pendingReportsCount,
         openIssues: pendingReportsCount // Update openIssues with new reports count
       }));
@@ -825,7 +807,6 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
         // Fetch real-time pending counts, active pickups, chart data, and calculate food kg
         await Promise.all([
           fetchPendingCounts(),
-          fetchPendingNgoRequests(), // Fetch pending NGO requests separately
           fetchActivePickupsCount(),
           fetchChartData(),
           calculateTotalFoodKg()
@@ -838,7 +819,6 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
     // Set up interval to refresh pending counts, active pickups, chart data, and food kg every 30 seconds
     const intervalId = setInterval(() => {
       fetchPendingCounts();
-      fetchPendingNgoRequests(); // Also refresh pending requests
       fetchActivePickupsCount();
       fetchChartData();
       calculateTotalFoodKg();
@@ -1926,10 +1906,10 @@ function NGOVerificationPanel({ onViewRequest }: NGOVerificationPanelProps) {
     loading: true,
     error: null
   });
-  const [refreshing, setRefreshing] = useState(false);
 
   // Fetch NGO registrations
-  const fetchRegistrations = async () => {
+  useEffect(() => {
+    const fetchRegistrations = async () => {
       try {
         setRegistrations(prev => ({ ...prev, loading: true, error: null }));
         
@@ -1954,19 +1934,11 @@ function NGOVerificationPanel({ onViewRequest }: NGOVerificationPanelProps) {
           loading: false,
           error: 'Failed to load NGO registrations. Please try again.'
         }));
-      } finally {
-        setRefreshing(false);
       }
-  };
+    };
 
-  useEffect(() => {
     fetchRegistrations();
   }, []);
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchRegistrations();
-  };
 
   // Handle status update
   const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected') => {
@@ -2000,19 +1972,9 @@ function NGOVerificationPanel({ onViewRequest }: NGOVerificationPanelProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">NGO Verification</h2>
-          <p className="text-gray-600">Manage NGO registrations and verifications</p>
-        </div>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          <span>Refresh</span>
-        </button>
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">NGO Verification</h2>
+        <p className="text-gray-600">Manage NGO registrations and verifications</p>
       </div>
 
       {/* Tabs */}
@@ -2188,7 +2150,6 @@ function DonationsManagement() {
     selectedNGO: '',
     status: ''
   });
-  const [assignmentError, setAssignmentError] = useState<string | null>(null);
 
   // Function to handle image click
   const handleImageClick = (image: string) => {
@@ -2248,7 +2209,7 @@ function DonationsManagement() {
   const fetchDonations = async () => {
     try {
       const donationService = await import('../services/donationService');
-      type DonationStatus = 'pending' | 'assigned' | 'cancelled';
+      type DonationStatus = 'pending' | 'assigned' | 'picked' | 'completed' | 'cancelled';
       const response = await donationService.fetchAllDonations({
         status: filters.status ? (filters.status as DonationStatus) : undefined,
         resourceType: filters.resourceType || undefined,
@@ -2627,19 +2588,9 @@ function DonationsManagement() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Donation Monitoring</h2>
-          <p className="text-gray-600">Track and manage all donations in real-time</p>
-        </div>
-        <button
-          onClick={() => { fetchDonations(); fetchNGOs(); }}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh</span>
-        </button>
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Donation Monitoring</h2>
+        <p className="text-gray-600">Track and manage all donations in real-time</p>
       </div>
 
       {/* Filters */}
@@ -2782,21 +2733,16 @@ function DonationsManagement() {
                             : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        {donation.status !== 'cancelled' && (
-                          <button 
-                            onClick={() => {
-                              setSelectedDonation(donation);
-                              setShowDetailsModal(true);
-                            }}
-                            className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
-                          >
-                            <Eye className="w-4 h-4" />
-                            <span>View</span>
-                          </button>
-                        )}
-                        {donation.status === 'cancelled' && (
-                          <span className="text-gray-400 text-sm">-</span>
-                        )}
+                        <button 
+                          onClick={() => {
+                            setSelectedDonation(donation);
+                            setShowDetailsModal(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span>View</span>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -3006,15 +2952,13 @@ function DonationsManagement() {
                       
                       <form onSubmit={async (e) => {
                         e.preventDefault();
-                        setAssignmentError(null);
-                        
                         if (!formData.selectedNGO && !formData.status) {
-                          setAssignmentError('Please select an NGO request or update status');
+                          alert('Please select an NGO request or update status');
                           return;
                         }
 
                         if (formData.status === 'cancelled') {
-                          setAssignmentError('Use the Cancel Donation button to cancel with a reason.');
+                          alert('Use the Cancel Donation button to cancel with a reason.');
                           return;
                         }
 
@@ -3050,10 +2994,10 @@ function DonationsManagement() {
                           setFormData({ selectedNGO: '', status: '' });
                           setSelectedRequest(null);
                           setCancelReason('');
-                          setAssignmentError('Donation updated successfully! The assigned request has been removed from the list.');
+                          alert('Donation updated successfully! The assigned request has been removed from the list.');
                         } catch (error: any) {
                           console.error('Error updating donation:', error);
-                          setAssignmentError(error.response?.data?.error || 'Failed to update donation');
+                          alert(error.response?.data?.error || 'Failed to update donation');
                         } finally {
                           setAssigningNGO(false);
                         }
@@ -3094,10 +3038,12 @@ function DonationsManagement() {
                             <label className="block text-sm font-medium text-gray-700">
                               Donation Status
                             </label>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                               {[
                                 { value: 'pending', label: 'Pending', color: 'yellow' },
                                 { value: 'assigned', label: 'Assigned', color: 'blue' },
+                                { value: 'picked', label: 'Picked', color: 'purple' },
+                                { value: 'completed', label: 'Completed', color: 'green' },
                                 { value: 'cancelled', label: 'Cancelled', color: 'red' },
                               ].map((status) => (
                                 <button
@@ -3106,15 +3052,13 @@ function DonationsManagement() {
                                   onClick={() => {
                                     setFormData({ ...formData, status: status.value });
                                   }}
-                                  className={`relative px-4 py-2.5 rounded-lg font-medium
-                                    ${formData.status === status.value
-                                      ? `bg-${status.color}-500 text-white shadow-lg transform transition-all duration-200 hover:translate-y-[-2px] hover:shadow-xl active:translate-y-[1px] active:shadow-sm border-b-4 border-${status.color}-700 hover:bg-${status.color}-600`
-                                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 shadow-sm hover:shadow transform transition-all duration-200 hover:translate-y-[-2px] active:translate-y-[1px]'}`}
+                                  className={`flex items-center justify-center px-3 py-2 rounded-lg border ${
+                                    formData.status === status.value
+                                      ? `bg-${status.color}-100 border-${status.color}-500 text-${status.color}-800 font-medium`
+                                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                  } transition-colors`}
                                 >
-                                  <span className="relative z-10">{status.label}</span>
-                                  {formData.status === status.value && (
-                                    <span className="absolute inset-0 rounded-lg bg-white opacity-10"></span>
-                                  )}
+                                  {status.label}
                                 </button>
                               ))}
                             </div>
@@ -3140,7 +3084,7 @@ function DonationsManagement() {
                                   </>
                                 )}
                               </button>
-                            ) : formData.status === 'cancelled' && selectedDonation.status !== 'completed' ? (
+                            ) : (
                               <button
                                 type="button"
                                 onClick={cancelDonationNow}
@@ -3159,10 +3103,6 @@ function DonationsManagement() {
                                   </>
                                 )}
                               </button>
-                            ) : (
-                              <div className="flex-1 text-center text-gray-500 text-sm">
-                                Cannot cancel completed donations
-                              </div>
                             )}
                             <button
                               type="button"
@@ -3175,19 +3115,6 @@ function DonationsManagement() {
                               Clear
                             </button>
                           </div>
-                          {assignmentError && (
-                            <div className="mt-3 p-3 rounded-md text-sm" style={assignmentError.includes('success') ? {
-                              backgroundColor: '#f0fdf4',
-                              border: '1px solid #bbf7d0',
-                              color: '#166534'
-                            } : {
-                              backgroundColor: '#fef2f2',
-                              border: '1px solid #fecaca',
-                              color: '#b91c1c'
-                            }}>
-                              {assignmentError}
-                            </div>
-                          )}
                         </div>
                       </form>
                     </div>
@@ -3287,7 +3214,7 @@ function PickupTracking() {
     try {
       setLoading(true);
       const donationService = await import('../services/donationService');
-      type DonationStatus = 'pending' | 'assigned' | 'cancelled';
+      type DonationStatus = 'pending' | 'assigned' | 'volunteer_assigned' | 'picked' | 'completed' | 'cancelled';
       const response = await donationService.fetchAllDonations({
         status: (filters.status || 'assigned') as DonationStatus
       });
@@ -3443,7 +3370,7 @@ function PickupTracking() {
     );
   }
 
-  const filteredDonations = donations.filter((donation: any) => {
+  const filteredDonations = donations.filter(donation => {
     if (!filters.search) return true;
     const search = filters.search.toLowerCase();
     return (
@@ -3464,10 +3391,9 @@ function PickupTracking() {
         </div>
         <button
           onClick={fetchPickupDonations}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className="w-4 h-4" />
           <span>Refresh</span>
         </button>
       </div>
@@ -3986,19 +3912,9 @@ function ReportsManagement() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Reports & Support</h2>
-            <p className="text-gray-600">Manage help messages and support requests</p>
-          </div>
-          <button
-            onClick={fetchHelpMessages}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Reports & Support</h2>
+          <p className="text-gray-600">Manage help messages and support requests</p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-center items-center py-12">
@@ -4011,19 +3927,9 @@ function ReportsManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Reports & Support</h2>
-          <p className="text-gray-600">Manage help messages and support requests from users</p>
-        </div>
-        <button
-          onClick={fetchHelpMessages}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh</span>
-        </button>
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Reports & Support</h2>
+        <p className="text-gray-600">Manage help messages and support requests from users</p>
       </div>
 
       {/* Stats Cards */}
@@ -4339,11 +4245,7 @@ function ImpactAnalytics() {
   const [chartData, setChartData] = useState({
     mealsServed: 0,
     clothesDistributed: 0,
-    booksDonated: 0,
-    donationsByType: [] as Array<{ name: string; value: number }>,
-    donationsByStatus: [] as Array<{ name: string; value: number }>,
-    donationsOverTime: [] as Array<{ name: string; value: number }>,
-    categoryBreakdown: [] as Array<{ name: string; value: number }>
+    booksDonated: 0
   });
   const [ngoTableData, setNgoTableData] = useState<Array<{
     ngoName: string;
@@ -4411,32 +4313,7 @@ function ImpactAnalytics() {
         let clothesDistributed = 0;
         let booksDonated = 0;
 
-        // Donations by resource type
-        const donationsByTypeMap = new Map<string, number>();
-        // Donations by status
-        const donationsByStatusMap = new Map<string, number>();
-        // Donations over time (last 12 months)
-        const donationsOverTimeMap = new Map<string, number>();
-        // Category breakdown
-        const categoryBreakdownMap = new Map<string, number>();
-
         donations.forEach((donation: any) => {
-          // Resource type breakdown
-          const resourceType = donation.resourceType || 'Other';
-          donationsByTypeMap.set(resourceType, (donationsByTypeMap.get(resourceType) || 0) + 1);
-
-          // Status breakdown
-          const status = donation.status || 'pending';
-          donationsByStatusMap.set(status, (donationsByStatusMap.get(status) || 0) + 1);
-
-          // Time-based data (group by month)
-          if (donation.createdAt) {
-            const date = new Date(donation.createdAt);
-            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-            donationsOverTimeMap.set(monthKey, (donationsOverTimeMap.get(monthKey) || 0) + 1);
-          }
-
-          // Completed donations for impact metrics
           if (donation.status === 'completed') {
             if (donation.resourceType === 'Food') {
               if (donation.unit === 'kg') {
@@ -4449,43 +4326,13 @@ function ImpactAnalytics() {
             } else if (donation.resourceType === 'Books') {
               booksDonated += donation.quantity || 0;
             }
-
-            // Category breakdown for completed donations
-            const category = donation.details?.category || donation.resourceType || 'Other';
-            categoryBreakdownMap.set(category, (categoryBreakdownMap.get(category) || 0) + 1);
           }
         });
-
-        // Convert maps to arrays for charts
-        const donationsByType = Array.from(donationsByTypeMap.entries())
-          .map(([name, value]) => ({ name, value }))
-          .sort((a, b) => b.value - a.value);
-
-        const donationsByStatus = Array.from(donationsByStatusMap.entries())
-          .map(([name, value]) => ({ 
-            name: name.charAt(0).toUpperCase() + name.slice(1).replace('_', ' '), 
-            value 
-          }))
-          .sort((a, b) => b.value - a.value);
-
-        // Sort donations over time by date
-        const donationsOverTime = Array.from(donationsOverTimeMap.entries())
-          .map(([name, value]) => ({ name, value }))
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .slice(-12); // Last 12 months
-
-        const categoryBreakdown = Array.from(categoryBreakdownMap.entries())
-          .map(([name, value]) => ({ name, value }))
-          .sort((a, b) => b.value - a.value);
 
         setChartData({
           mealsServed: Math.round(mealsServed),
           clothesDistributed,
-          booksDonated,
-          donationsByType,
-          donationsByStatus,
-          donationsOverTime,
-          categoryBreakdown
+          booksDonated
         });
 
         // Calculate NGO table data
@@ -4495,33 +4342,10 @@ function ImpactAnalytics() {
             ? helpMessagesResponse.data 
             : [];
 
-          console.log('Calculating NGO stats:', {
-            ngosCount: ngos.length,
-            donationsCount: donations.length,
-            donationsWithNGO: donations.filter((d: any) => d.assignedNGO?.ngoFirebaseUid).length
-          });
-
           const ngoStats = ngos.map((ngo: any) => {
-            // Filter donations assigned to this NGO
-            // Handle cases where assignedNGO might be null, undefined, or empty object
-            const ngoDonations = donations.filter((d: any) => {
-              if (!d.assignedNGO || !ngo.firebaseUid) return false;
-              
-              // Check if ngoFirebaseUid matches (handle both string and object cases)
-              const donationNgoUid = d.assignedNGO.ngoFirebaseUid;
-              const match = donationNgoUid && donationNgoUid === ngo.firebaseUid;
-              
-              if (match) {
-                console.log(`Donation ${d._id} matched NGO ${ngo.organizationName || ngo.name}:`, {
-                  donationNGO: donationNgoUid,
-                  ngoFirebaseUid: ngo.firebaseUid,
-                  status: d.status,
-                  assignedAt: d.assignedNGO?.assignedAt
-                });
-              }
-              return match;
-            });
-            
+            const ngoDonations = donations.filter((d: any) => 
+              d.assignedNGO?.ngoFirebaseUid === ngo.firebaseUid
+            );
             const completedDonations = ngoDonations.filter((d: any) => d.status === 'completed');
             const donationsHandled = ngoDonations.length;
             const successRate = donationsHandled > 0 
@@ -4529,24 +4353,16 @@ function ImpactAnalytics() {
               : 0;
 
             // Calculate average pickup time
-            // Calculate time from assignment to pickup/completion for donations that have been picked or completed
             let totalPickupTime = 0;
             let pickupCount = 0;
             ngoDonations.forEach((donation: any) => {
-              // Calculate time for donations that have been picked or completed
-              if (['picked', 'completed'].includes(donation.status) && donation.assignedNGO?.assignedAt) {
-                try {
-                  const assigned = new Date(donation.assignedNGO.assignedAt);
-                  // Use updatedAt as the time when status changed to picked/completed
-                  const statusChanged = new Date(donation.updatedAt);
-                  const diffHours = (statusChanged.getTime() - assigned.getTime()) / (1000 * 60 * 60);
-                  // Only count positive time differences (sanity check)
-                  if (diffHours > 0 && diffHours < 720) { // Max 30 days (720 hours) to filter out invalid data
-                    totalPickupTime += diffHours;
-                    pickupCount++;
-                  }
-                } catch (error) {
-                  console.error('Error calculating pickup time for donation:', donation._id, error);
+              if (donation.assignedNGO?.assignedAt && donation.updatedAt) {
+                const assigned = new Date(donation.assignedNGO.assignedAt);
+                const updated = new Date(donation.updatedAt);
+                const diffHours = (updated.getTime() - assigned.getTime()) / (1000 * 60 * 60);
+                if (diffHours > 0 && donation.status === 'completed') {
+                  totalPickupTime += diffHours;
+                  pickupCount++;
                 }
               }
             });
@@ -4559,33 +4375,16 @@ function ImpactAnalytics() {
                msg.firebaseUid === ngo.firebaseUid)
             ).length;
 
-            const stats = {
+            return {
               ngoName: ngo.organizationName || ngo.name || 'Unknown NGO',
               donationsHandled,
               successRate: Math.round(successRate * 10) / 10,
               avgPickupTime: Math.round(avgPickupTime * 10) / 10,
               complaintsCount
             };
-
-            console.log(`NGO ${stats.ngoName} stats:`, stats);
-            return stats;
           });
 
-          // Filter out invalid NGOs (like "ABC" or empty names) and NGOs with no data
-          const validNgoStats = ngoStats.filter(ngo => {
-            const isValidName = ngo.ngoName && 
-                                ngo.ngoName.trim() !== '' && 
-                                ngo.ngoName.toLowerCase() !== 'abc' &&
-                                ngo.ngoName.toLowerCase() !== 'unknown ngo' &&
-                                ngo.ngoName !== 'NGO';
-            return isValidName;
-          });
-
-          const sortedStats = validNgoStats.sort((a, b) => b.donationsHandled - a.donationsHandled);
-          console.log('Final NGO table data (filtered):', sortedStats);
-          setNgoTableData(sortedStats);
-        } else {
-          console.error('Failed to fetch NGOs or invalid response:', ngosResponse);
+          setNgoTableData(ngoStats.sort((a, b) => b.donationsHandled - a.donationsHandled));
         }
       }
     } catch (error) {
@@ -4614,20 +4413,8 @@ function ImpactAnalytics() {
   return (
     <div className="space-y-6">
       <div>
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Analytics Dashboard</h2>
-            <p className="text-gray-600">Real-time analytics and performance metrics</p>
-          </div>
-          <button
-            onClick={fetchAnalyticsData}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
-        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Analytics Dashboard</h2>
+        <p className="text-gray-600">Real-time analytics and performance metrics</p>
       </div>
 
       {/* Metrics Cards */}
@@ -4672,7 +4459,7 @@ function ImpactAnalytics() {
         </div>
       </div>
 
-      {/* Impact Metrics Charts */}
+      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Total Meals Served */}
         <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
@@ -4732,104 +4519,6 @@ function ImpactAnalytics() {
             </BarChart>
           </ResponsiveContainer>
           <p className="text-2xl font-bold text-gray-900 mt-4 text-center">{chartData.booksDonated.toLocaleString()}</p>
-        </div>
-      </div>
-
-      {/* Analytics Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        {/* Donations by Resource Type */}
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <BarChart3 className="w-5 h-5 mr-2 text-blue-500" />
-              Donations by Resource Type
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">Distribution across all resource types</p>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={chartData.donationsByType}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {chartData.donationsByType.map((entry, index) => {
-                  const colors = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
-                  return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
-                })}
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Donations by Status */}
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <Activity className="w-5 h-5 mr-2 text-purple-500" />
-              Donations by Status
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">Current status distribution</p>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData.donationsByStatus}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="value" fill="#8B5CF6" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Donations Over Time */}
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <TrendingUp className="w-5 h-5 mr-2 text-green-500" />
-              Donations Over Time
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">Monthly donation trends</p>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData.donationsOverTime}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="value" stroke="#10B981" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Category Breakdown */}
-        <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <Package className="w-5 h-5 mr-2 text-orange-500" />
-              Category Breakdown
-            </h3>
-            <p className="text-sm text-gray-500 mt-1">Completed donations by category</p>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData.categoryBreakdown}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="value" fill="#F59E0B" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
         </div>
       </div>
 

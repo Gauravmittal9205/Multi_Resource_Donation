@@ -16,7 +16,7 @@ import {
 } from 'react-icons/fi';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut, updatePassword } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { fetchDonorDashboard, fetchDonorProfileByUid, fetchMyDonationsPaged, clearProfileCache } from '../services/donationService';
+import { fetchDonorDashboard, fetchDonorProfileByUid, fetchMyDonations, fetchMyDonationsPaged } from '../services/donationService';
 import type { DonationItem, DonationPayload } from '../services/donationService';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts';
 
@@ -118,7 +118,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
       if (!authUser?.uid) return;
       try {
         setMyDonationsLoading(true);
-        const res = await fetchMyDonationsPaged();
+        const res = await fetchMyDonations();
         setMyDonations(res.data || []);
       } catch (e) {
         setMyDonations([]);
@@ -186,7 +186,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
       loadHistory({ page: 1, resourceType: historyResourceType });
       (async () => {
         try {
-          const [dash, list] = await Promise.all([fetchDonorDashboard(), fetchMyDonationsPaged()]);
+          const [dash, list] = await Promise.all([fetchDonorDashboard(), fetchMyDonations()]);
           setDonorDashboard(dash.data || null);
           setMyDonations(list.data || []);
         } catch {
@@ -619,8 +619,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      // Clear cache and dispatch event to notify other components to refresh profile data
-      clearProfileCache(authUser?.uid);
+      // Dispatch event to notify other components to refresh profile data
       window.dispatchEvent(new CustomEvent('profileUpdated'));
     } catch (e) {}
     setProfile(() => nextProfile);
