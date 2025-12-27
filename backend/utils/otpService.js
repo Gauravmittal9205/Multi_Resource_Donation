@@ -13,6 +13,12 @@ class OTPService {
   storeOTP(email, otp) {
     const expiryTime = Date.now() + this.OTP_EXPIRY_TIME;
     
+    // Clear any existing OTP for this email first to ensure fresh start
+    if (this.otpStore.has(email)) {
+      console.log(`Clearing existing OTP for ${email} before storing new one`);
+      this.otpStore.delete(email);
+    }
+    
     this.otpStore.set(email, {
       otp,
       attempts: 0,
@@ -20,7 +26,7 @@ class OTPService {
       expiryTime
     });
 
-    console.log(`OTP stored for ${email}, expires at: ${new Date(expiryTime)}`);
+    console.log(`OTP stored for ${email}, expires at: ${new Date(expiryTime)}, attempts reset to 0`);
   }
 
   verifyOTP(email, userOTP) {
@@ -41,11 +47,15 @@ class OTPService {
       return { success: false, message: 'OTP has expired' };
     }
 
-    // Check maximum attempts
+    // Check maximum attempts BEFORE incrementing
     if (storedData.attempts >= storedData.maxAttempts) {
-      console.log(`Maximum attempts exceeded for ${email}`);
+      console.log(`Maximum attempts exceeded for ${email} - clearing OTP`);
       this.otpStore.delete(email);
-      return { success: false, message: 'Maximum attempts exceeded. Please request a new OTP.' };
+      return { 
+        success: false, 
+        message: 'Maximum attempts exceeded. Please request a new OTP.',
+        canRequestNewOTP: true 
+      };
     }
 
     // Increment attempts
@@ -61,8 +71,13 @@ class OTPService {
       console.log(`Invalid OTP for ${email}: expected "${storedData.otp}", got "${userOTP}", ${remainingAttempts} attempts remaining`);
       
       if (remainingAttempts === 0) {
+        console.log(`Maximum attempts reached for ${email} - clearing OTP`);
         this.otpStore.delete(email);
-        return { success: false, message: 'Maximum attempts exceeded. Please request a new OTP.' };
+        return { 
+          success: false, 
+          message: 'Maximum attempts exceeded. Please request a new OTP.',
+          canRequestNewOTP: true 
+        };
       }
       
       return { 

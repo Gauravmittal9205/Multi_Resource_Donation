@@ -4,13 +4,15 @@ const {
   login, 
   getMe,
   getUserByFirebaseUid,
+  getUserByEmail,
   deleteMe,
   logout,
   adminLogin,
   checkAdmin,
   sendOTP,
   verifyOTP,
-  debugOTP
+  debugOTP,
+  updateFirebaseUid
 } = require('../controllers/auth');
 
 const router = express.Router();
@@ -23,10 +25,12 @@ router.post('/send-otp', sendOTP);
 router.post('/verify-otp', verifyOTP);
 router.post('/debug-otp', debugOTP);
 router.post('/register', register);
+router.put('/update-firebase-uid', updateFirebaseUid);
 router.post('/login', login);
 router.post('/admin/login', adminLogin);
 router.get('/admin/check', checkAdmin);
 router.get('/user/:firebaseUid', getUserByFirebaseUid);
+router.get('/user-by-email/:email', getUserByEmail);
 
 // Firebase protected route
 router.delete('/delete-me', firebaseProtect, deleteMe);
