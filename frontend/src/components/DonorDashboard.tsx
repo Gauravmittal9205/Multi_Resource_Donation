@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type * as React from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { signOutUser } from '../firebase';
-import { createDonation, fetchDonorDashboard, fetchDonorProfileByUid, fetchMyDonations, fetchMyNotifications, markAllNotificationsRead, markNotificationRead, verifyDonationOtp } from '../services/donationService';
+import { createDonation, fetchDonorDashboard, fetchDonorProfileByUid, fetchMyDonations, fetchMyNotifications, markAllNotificationsRead, markNotificationRead, verifyDonationOtp, clearProfileCache } from '../services/donationService';
 import type { DonationItem } from '../services/donationService';
 import type { NotificationItem } from '../services/donationService';
 import {
@@ -239,9 +239,9 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
   // Listen for profile updates from other components
   useEffect(() => {
     const handleProfileUpdate = () => {
+      clearProfileCache(user?.uid); // Clear cache to force refresh
       loadDonorProfile();
     };
-
     window.addEventListener('profileUpdated', handleProfileUpdate);
     return () => {
       window.removeEventListener('profileUpdated', handleProfileUpdate);
