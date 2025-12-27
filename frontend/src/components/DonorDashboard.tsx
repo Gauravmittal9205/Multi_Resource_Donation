@@ -3,8 +3,7 @@ import type * as React from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { signOutUser } from '../firebase';
 import { createDonation, fetchDonorDashboard, fetchDonorProfileByUid, fetchMyDonations, fetchMyNotifications, markAllNotificationsRead, markNotificationRead } from '../services/donationService';
-import type { DonationItem } from '../services/donationService';
-import type { NotificationItem } from '../services/donationService';
+import type { DonationItem, NotificationItem } from '../services/donationService';
 import {
   FiGrid,
   FiBox,
@@ -36,6 +35,18 @@ import {
   FiRefreshCw,
   FiEye,
   FiAlertCircle,
+  FiInfo,
+  FiUpload,
+  FiTrendingUp,
+  FiShield,
+  FiDroplet,
+  FiShoppingBag,
+  FiBook,
+  FiActivity,
+  FiLayers,
+  FiSun,
+  FiCloud,
+  FiMoon,
 } from 'react-icons/fi';
 
 type DonorDashboardProps = {
@@ -49,7 +60,7 @@ type DonorDashboardProps = {
 
 type MenuKey = 'dashboard' | 'my-donations' | 'donate-now' | 'active-pickups' | 'donation-history' | 'impact' | 'help-support' | 'notifications' | 'settings';
 
-type ResourceType = '' | 'Food' | 'Clothes' | 'Books' | 'Medical Supplies' | 'Other Essentials';
+type ResourceType = '' | 'Food' | 'Clothes' | 'Books' | 'Medical Supplies' | 'Other Essentials' | 'Blood' | 'Funds' | 'Devices';
 
 type TimeSlot = '' | 'Morning' | 'Afternoon' | 'Evening';
 
@@ -675,7 +686,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
   const DonateNowForm = () => {
     const [resourceType, setResourceType] = useState<ResourceType>('');
     const [quantity, setQuantity] = useState('');
-    const [unit, setUnit] = useState<'kg' | 'items' | 'packets' | 'boxes'>('items');
+    const [unit, setUnit] = useState<'kg' | 'items' | 'packets' | 'boxes' | 'units' | 'inr'>('items');
 
     const [addressLine, setAddressLine] = useState('');
     const [city, setCity] = useState('');
@@ -738,6 +749,15 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
     const [essentialCategory, setEssentialCategory] = useState('');
     const [essentialQuantity, setEssentialQuantity] = useState('');
     const [essentialDescription, setEssentialDescription] = useState('');
+
+    const [bloodGroup, setBloodGroup] = useState('');
+    const [bloodComponent, setBloodComponent] = useState<'Whole Blood' | 'Platelets' | 'Plasma' | ''>('');
+
+    const [fundPurpose, setFundPurpose] = useState('');
+    const [fundPaymentMethod, setFundPaymentMethod] = useState<'UPI' | 'Bank Transfer' | 'Cash' | ''>('');
+
+    const [deviceType, setDeviceType] = useState('');
+    const [deviceCondition, setDeviceCondition] = useState<'New' | 'Gently Used' | 'Needs Repair' | ''>('');
 
     const isNonEmpty = (v: string) => v.trim().length > 0;
 
@@ -857,8 +877,33 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
         return true;
       }
 
+      if (resourceType === 'Blood') {
+        return isNonEmpty(bloodGroup) && isNonEmpty(String(bloodComponent));
+      }
+
+      if (resourceType === 'Funds') {
+        return isNonEmpty(fundPurpose) && isNonEmpty(String(fundPaymentMethod));
+      }
+
+      if (resourceType === 'Devices') {
+        return isNonEmpty(deviceType) && isNonEmpty(String(deviceCondition));
+      }
+
       return isNonEmpty(essentialItemName) && isNonEmpty(essentialCategory) && isNonEmpty(essentialQuantity) && isNonEmpty(essentialDescription);
     })();
+
+    useEffect(() => {
+      if (!resourceType) return;
+      if (resourceType === 'Food') setUnit('kg');
+      if (resourceType === 'Funds') setUnit('inr');
+      if (resourceType === 'Blood') setUnit('units');
+      if (resourceType === 'Devices') setUnit('items');
+      if (resourceType === 'Clothes') setUnit('items');
+      if (resourceType === 'Books') setUnit('items');
+      if (resourceType === 'Medical Supplies') setUnit('items');
+      if (resourceType === 'Other Essentials') setUnit('items');
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resourceType]);
 
     const canSubmit = requiredCommonComplete && requiredDynamicComplete;
 
@@ -948,6 +993,15 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
       setEssentialCategory('');
       setEssentialQuantity('');
       setEssentialDescription('');
+
+      setBloodGroup('');
+      setBloodComponent('');
+
+      setFundPurpose('');
+      setFundPaymentMethod('');
+
+      setDeviceType('');
+      setDeviceCondition('');
     };
 
     const onSubmit = async (e: React.FormEvent) => {
@@ -1003,6 +1057,15 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
             details.storageCondition = storageCondition;
           }
           details.medicalQuantity = medicalQuantity;
+        } else if (resourceType === 'Blood') {
+          details.bloodGroup = bloodGroup;
+          details.bloodComponent = bloodComponent;
+        } else if (resourceType === 'Funds') {
+          details.fundPurpose = fundPurpose;
+          details.paymentMethod = fundPaymentMethod;
+        } else if (resourceType === 'Devices') {
+          details.deviceType = deviceType;
+          details.deviceCondition = deviceCondition;
         } else if (resourceType === 'Other Essentials') {
           details.essentialItemName = essentialItemName;
           details.essentialCategory = essentialCategory;
@@ -1076,9 +1139,10 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
     const renderDynamicFields = () => {
       if (!resourceType) {
         return (
-          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center">
+          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
+            <FiPackage className="h-12 w-12 text-gray-400 mx-auto mb-3" />
             <div className="text-sm font-semibold text-gray-900">Select a resource type to continue</div>
-            <div className="mt-1 text-sm text-gray-600">We’ll show the right fields based on what you’re donating.</div>
+            <div className="mt-1 text-sm text-gray-600">We'll show the right fields based on what you're donating.</div>
           </div>
         );
       }
@@ -1093,6 +1157,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                 <option value="Veg">Veg</option>
                 <option value="Non-Veg">Non-Veg</option>
               </Select>
+              <div className="mt-1.5 text-xs text-gray-500">Vegetarian or non-vegetarian food items</div>
             </div>
             <div>
               <FieldLabel>Food Category *</FieldLabel>
@@ -1102,18 +1167,22 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                 <option value="Packed">Packed</option>
                 <option value="Raw">Raw</option>
               </Select>
+              <div className="mt-1.5 text-xs text-gray-500">How the food is prepared or packaged</div>
             </div>
             <div>
               <FieldLabel>Approx Weight (kg) *</FieldLabel>
               <NumericInput value={approxWeight} onChange={setApproxWeight} placeholder="e.g. 2" />
+              <div className="mt-1.5 text-xs text-gray-500">Approximate total weight in kilograms</div>
             </div>
             <div>
               <FieldLabel>Prepared Time (Hours ago) *</FieldLabel>
               <NumericInput value={preparedHoursAgo} onChange={setPreparedHoursAgo} placeholder="e.g. 3" />
+              <div className="mt-1.5 text-xs text-gray-500">How many hours ago was the food prepared</div>
             </div>
             <div className="lg:col-span-2">
               <FieldLabel>Expiry Time (if packed) *</FieldLabel>
               <TextInput value={expiryTime} onChange={setExpiryTime} placeholder="e.g. 24 hours" />
+              <div className="mt-1.5 text-xs text-gray-500">When will the food expire or become unsafe to consume</div>
             </div>
           </div>
         );
@@ -1132,6 +1201,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                 <option value="Adult">Adult</option>
                 <option value="Senior Citizen">Senior Citizen</option>
               </Select>
+              <div className="mt-1.5 text-xs text-gray-500">Who can wear these clothes</div>
             </div>
             <div>
               <FieldLabel>Gender / Usage</FieldLabel>
@@ -1141,6 +1211,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                 <option value="Women">Women</option>
                 <option value="Unisex">Unisex</option>
               </Select>
+              <div className="mt-1.5 text-xs text-gray-500">Gender-specific or unisex clothing</div>
             </div>
             <div>
               <FieldLabel>Condition *</FieldLabel>
@@ -1149,10 +1220,11 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                 <option value="New">New</option>
                 <option value="Gently Used">Gently Used</option>
               </Select>
+              <div className="mt-1.5 text-xs text-gray-500">Condition of the clothing items</div>
             </div>
             <div className="lg:col-span-2">
               <FieldLabel>Clothing Category *</FieldLabel>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
                 {[
                   'Shirts / T-Shirts',
                   'Pants / Jeans',
@@ -1161,7 +1233,11 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                 ].map((c) => {
                   const checked = clothingCategories.includes(c);
                   return (
-                    <label key={c} className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800">
+                    <label key={c} className={`flex items-center gap-2 rounded-xl border-2 px-4 py-3 text-sm font-medium transition-all cursor-pointer ${
+                      checked 
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-700' 
+                        : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                    }`}>
                       <input
                         type="checkbox"
                         checked={checked}
@@ -1176,6 +1252,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                   );
                 })}
               </div>
+              <div className="mt-1.5 text-xs text-gray-500">Select all applicable categories</div>
             </div>
             <div>
               <FieldLabel>Season</FieldLabel>
@@ -1185,22 +1262,25 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                 <option value="Winter">Winter</option>
                 <option value="All-Season">All-Season</option>
               </Select>
+              <div className="mt-1.5 text-xs text-gray-500">Best season to use these clothes</div>
             </div>
             <div>
               <FieldLabel>Number of Items *</FieldLabel>
               <NumericInput value={clothingNumberOfItems} onChange={setClothingNumberOfItems} placeholder="e.g. 6" />
+              <div className="mt-1.5 text-xs text-gray-500">Total number of clothing items</div>
             </div>
             <div className="lg:col-span-2">
               <FieldLabel>Packing Status *</FieldLabel>
-              <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800">
+              <label className="flex items-center gap-3 rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm font-medium cursor-pointer hover:border-emerald-300 transition-all">
                 <input
                   type="checkbox"
                   checked={clothingWashedPacked}
                   onChange={(e) => setClothingWashedPacked(e.target.checked)}
-                  className="h-4 w-4"
+                  className="h-5 w-5"
                 />
                 <span>Washed & Packed</span>
               </label>
+              <div className="mt-1.5 text-xs text-gray-500">Ensure clothes are clean and ready for donation</div>
             </div>
           </div>
         );
@@ -1218,6 +1298,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                 <option value="Competitive">Competitive</option>
                 <option value="Other">Other</option>
               </Select>
+              <div className="mt-1.5 text-xs text-gray-500">Category or type of books</div>
             </div>
             <div>
               <FieldLabel>Education Level *</FieldLabel>
@@ -1227,14 +1308,17 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                 <option value="Secondary">Secondary</option>
                 <option value="College">College</option>
               </Select>
+              <div className="mt-1.5 text-xs text-gray-500">Target education level for these books</div>
             </div>
             <div>
               <FieldLabel>Language *</FieldLabel>
               <TextInput value={language} onChange={setLanguage} placeholder="e.g. English" />
+              <div className="mt-1.5 text-xs text-gray-500">Language in which books are written</div>
             </div>
             <div>
               <FieldLabel>Number of Books *</FieldLabel>
               <NumericInput value={numberOfBooks} onChange={setNumberOfBooks} placeholder="e.g. 10" />
+              <div className="mt-1.5 text-xs text-gray-500">Total count of books being donated</div>
             </div>
           </div>
         );
@@ -1253,10 +1337,12 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                 <option value="Medical Equipment">Medical Equipment</option>
                 <option value="Hygiene Products">Hygiene Products</option>
               </Select>
+              <div className="mt-1.5 text-xs text-gray-500">Type of medical supply being donated</div>
             </div>
             <div>
               <FieldLabel>Quantity *</FieldLabel>
               <NumericInput value={medicalQuantity} onChange={setMedicalQuantity} placeholder="e.g. 20" />
+              <div className="mt-1.5 text-xs text-gray-500">Number of items or units</div>
             </div>
 
             {medicalCategory === 'Medicines' ? (
@@ -1264,14 +1350,17 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                 <div className="lg:col-span-2">
                   <FieldLabel>Medicine Name *</FieldLabel>
                   <TextInput value={medicineName} onChange={setMedicineName} placeholder="e.g. Paracetamol" />
+                  <div className="mt-1.5 text-xs text-gray-500">Generic or brand name of the medicine</div>
                 </div>
                 <div>
                   <FieldLabel>Brand (Optional)</FieldLabel>
                   <TextInput value={medicineBrand} onChange={setMedicineBrand} placeholder="e.g. Crocin" />
+                  <div className="mt-1.5 text-xs text-gray-500">Manufacturer or brand name</div>
                 </div>
                 <div>
                   <FieldLabel>Dosage / Strength (Optional)</FieldLabel>
                   <TextInput value={medicineDosage} onChange={setMedicineDosage} placeholder="e.g. 500mg" />
+                  <div className="mt-1.5 text-xs text-gray-500">Dosage strength per unit</div>
                 </div>
                 <div>
                   <FieldLabel>Medicine Type</FieldLabel>
@@ -1281,6 +1370,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                     <option value="Syrups">Syrups</option>
                     <option value="Ointments">Ointments</option>
                   </Select>
+                  <div className="mt-1.5 text-xs text-gray-500">Form of the medicine</div>
                 </div>
                 <div>
                   <FieldLabel>Prescription Required?</FieldLabel>
@@ -1289,14 +1379,17 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                     <option value="Yes">Yes</option>
                     <option value="No">No</option>
                   </Select>
+                  <div className="mt-1.5 text-xs text-gray-500">Whether a prescription is needed</div>
                 </div>
                 <div>
                   <FieldLabel>Batch No. (Optional)</FieldLabel>
                   <TextInput value={medicineBatchNumber} onChange={setMedicineBatchNumber} placeholder="Batch number" />
+                  <div className="mt-1.5 text-xs text-gray-500">Manufacturing batch number if available</div>
                 </div>
                 <div>
                   <FieldLabel>Expiry Date *</FieldLabel>
                   <TextInput value={medicalExpiryDate} onChange={setMedicalExpiryDate} type="date" />
+                  <div className="mt-1.5 text-xs text-gray-500">Expiration date of the medicine</div>
                 </div>
                 <div>
                   <FieldLabel>Sealed & Unused *</FieldLabel>
@@ -1305,6 +1398,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                     <option value="Yes">Yes (Allowed)</option>
                     <option value="No">No</option>
                   </Select>
+                  <div className="mt-1.5 text-xs text-gray-500">Must be sealed and unused for safety</div>
                 </div>
                 <div className="lg:col-span-2">
                   <FieldLabel>Storage Condition</FieldLabel>
@@ -1313,10 +1407,12 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                     <option value="Normal">Normal</option>
                     <option value="Refrigerated">Refrigerated</option>
                   </Select>
+                  <div className="mt-1.5 text-xs text-gray-500">Required storage temperature</div>
 
                   {sealedUnused === 'No' ? (
-                    <div className="mt-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-900">
-                      Unsealed/used medicines are not allowed.
+                    <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-2">
+                      <FiAlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm text-red-900">Unsealed/used medicines are not allowed for safety reasons.</div>
                     </div>
                   ) : null}
                 </div>
@@ -1326,302 +1422,578 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
         );
       }
 
+      if (resourceType === 'Blood') {
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <FieldLabel>Blood Group *</FieldLabel>
+              <Select value={bloodGroup} onChange={(v) => setBloodGroup(v as any)}>
+                <option value="">Select</option>
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+              </Select>
+              <div className="mt-1.5 text-xs text-gray-500">Blood group required for matching.</div>
+            </div>
+            <div>
+              <FieldLabel>Component *</FieldLabel>
+              <Select value={bloodComponent} onChange={(v) => setBloodComponent(v as any)}>
+                <option value="">Select</option>
+                <option value="Whole Blood">Whole Blood</option>
+                <option value="Platelets">Platelets</option>
+                <option value="Plasma">Plasma</option>
+              </Select>
+              <div className="mt-1.5 text-xs text-gray-500">Specify the donation type.</div>
+            </div>
+          </div>
+        );
+      }
+
+      if (resourceType === 'Funds') {
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="lg:col-span-2">
+              <FieldLabel>Purpose *</FieldLabel>
+              <TextInput value={fundPurpose} onChange={setFundPurpose} placeholder="e.g. Food drive" />
+              <div className="mt-1.5 text-xs text-gray-500">How should the NGO use this donation?</div>
+            </div>
+            <div>
+              <FieldLabel>Payment Method *</FieldLabel>
+              <Select value={fundPaymentMethod} onChange={(v) => setFundPaymentMethod(v as any)}>
+                <option value="">Select</option>
+                <option value="UPI">UPI</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+              </Select>
+              <div className="mt-1.5 text-xs text-gray-500">Select how you will pay.</div>
+            </div>
+            <div>
+              <FieldLabel>Amount</FieldLabel>
+              <div className="mt-1.5 text-xs text-gray-500">Use Quantity + Unit = INR.</div>
+            </div>
+          </div>
+        );
+      }
+
+      if (resourceType === 'Devices') {
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <FieldLabel>Device Type *</FieldLabel>
+              <TextInput value={deviceType} onChange={setDeviceType} placeholder="e.g. Smartphone, Laptop" />
+              <div className="mt-1.5 text-xs text-gray-500">What device are you donating?</div>
+            </div>
+            <div>
+              <FieldLabel>Condition *</FieldLabel>
+              <Select value={deviceCondition} onChange={(v) => setDeviceCondition(v as any)}>
+                <option value="">Select</option>
+                <option value="New">New</option>
+                <option value="Gently Used">Gently Used</option>
+                <option value="Needs Repair">Needs Repair</option>
+              </Select>
+              <div className="mt-1.5 text-xs text-gray-500">Condition helps NGOs plan repairs/usage.</div>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <FieldLabel>Item Name *</FieldLabel>
             <TextInput value={essentialItemName} onChange={setEssentialItemName} placeholder="e.g. Toiletry kit" />
+            <div className="mt-1.5 text-xs text-gray-500">Name of the essential item</div>
           </div>
           <div>
             <FieldLabel>Category *</FieldLabel>
             <TextInput value={essentialCategory} onChange={setEssentialCategory} placeholder="e.g. Hygiene" />
+            <div className="mt-1.5 text-xs text-gray-500">Category or type of essential</div>
           </div>
           <div>
             <FieldLabel>Quantity *</FieldLabel>
             <NumericInput value={essentialQuantity} onChange={setEssentialQuantity} placeholder="e.g. 5" />
+            <div className="mt-1.5 text-xs text-gray-500">Number of items being donated</div>
           </div>
           <div className="lg:col-span-2">
             <FieldLabel>Short Description *</FieldLabel>
             <TextInput value={essentialDescription} onChange={setEssentialDescription} placeholder="Optional details" />
+            <div className="mt-1.5 text-xs text-gray-500">Brief description of the items</div>
           </div>
         </div>
       );
     };
 
+    // Resource type options with icons
+    const resourceTypeOptions = [
+      { value: 'Food', label: 'Food', icon: FiDroplet, color: 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100' },
+      { value: 'Clothes', label: 'Clothes', icon: FiShoppingBag, color: 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' },
+      { value: 'Books', label: 'Books', icon: FiBook, color: 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100' },
+      { value: 'Medical Supplies', label: 'Medical', icon: FiActivity, color: 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100' },
+      { value: 'Other Essentials', label: 'Essentials', icon: FiLayers, color: 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100' },
+      { value: 'Blood', label: 'Blood', icon: FiDroplet, color: 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100' },
+      { value: 'Funds', label: 'Funds', icon: FiTrendingUp, color: 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' },
+      { value: 'Devices', label: 'Devices', icon: FiBox, color: 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100' },
+    ];
+
+    // Time slot options with icons
+    const timeSlotOptions = [
+      { value: 'Morning', label: 'Morning', icon: FiSun, color: 'bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100' },
+      { value: 'Afternoon', label: 'Afternoon', icon: FiCloud, color: 'bg-sky-50 border-sky-200 text-sky-700 hover:bg-sky-100' },
+      { value: 'Evening', label: 'Evening', icon: FiMoon, color: 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100' },
+    ];
+
     return (
       <div className="space-y-6">
-        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-          <div className="p-5">
-            <div className="text-base font-semibold text-gray-900">Donate Now</div>
-            <div className="mt-1 text-sm text-gray-600">Provide clear details so NGOs can verify and prepare for pickup.</div>
+        {/* Header Section */}
+        <div className="rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-emerald-50/30 border border-emerald-100 shadow-sm overflow-hidden">
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                <FiHeart className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <div className="text-xl font-bold text-gray-900">Donate Now</div>
+                <div className="mt-0.5 text-sm text-gray-600">Provide clear details so NGOs can verify and prepare for pickup.</div>
+              </div>
+            </div>
           </div>
-          <div className="px-5 pb-5">
-          {submitSuccess ? (
-            <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-              {submitSuccess}
-            </div>
-          ) : null}
-          {submitError ? (
-            <div className="mb-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900">
-              {submitError}
-            </div>
-          ) : null}
-          <form
-            onSubmit={onSubmit}
-            onKeyDown={(e) => {
-              // Prevent accidental submit (which can cause scroll-to-top) while typing.
-              if (e.key === 'Enter') {
-                const t = e.target as HTMLElement | null;
-                const tag = (t?.tagName || '').toLowerCase();
-                if (tag !== 'textarea') {
-                  e.preventDefault();
-                }
-              }
-            }}
-            className="space-y-5"
-          >
-            <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/60 to-white p-4">
-              <div className="text-sm font-semibold text-gray-900">Donation Details</div>
-              <div className="mt-1 text-sm text-gray-600">All fields are required except Additional Notes.</div>
-            </div>
+        </div>
 
-            <div>
-              <FieldLabel>Upload image of the resource *</FieldLabel>
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={onDrop}
-                className={
-                  'rounded-2xl border-2 border-dashed p-5 transition-colors shadow-sm ' +
-                  (isDragging
-                    ? 'border-emerald-300 bg-emerald-50/60'
-                    : imageError
-                      ? 'border-red-300 bg-red-50/40'
-                      : 'border-gray-200 bg-gray-50')
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-5">
+            {submitSuccess ? (
+              <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start gap-3">
+                <FiCheckCircle className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-emerald-900">{submitSuccess}</div>
+                </div>
+              </div>
+            ) : null}
+            {submitError ? (
+              <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+                <FiAlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-red-900">{submitError}</div>
+                </div>
+              </div>
+            ) : null}
+            <form
+              onSubmit={onSubmit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const t = e.target as HTMLElement | null;
+                  const tag = (t?.tagName || '').toLowerCase();
+                  if (tag !== 'textarea') {
+                    e.preventDefault();
+                  }
                 }
-              >
-                <div className="flex items-start gap-4">
-                  <div className="h-11 w-11 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center text-emerald-700">
-                    <FiCamera className="h-5 w-5" />
+              }}
+              className="space-y-6"
+            >
+              {/* Image Upload Section */}
+              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                    <FiCamera className="h-5 w-5 text-emerald-600" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-gray-900">Upload image of the resource *</div>
-                    <div className="mt-1 text-sm text-gray-600">Clear images help NGOs verify and prepare for pickup</div>
-                    <div className="mt-3 flex flex-wrap gap-2 items-center">
-                      <label className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-900 hover:bg-gray-50 cursor-pointer">
-                        Click to upload
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg"
-                          multiple
-                          className="hidden"
-                          onChange={onFileInputChange}
-                        />
-                      </label>
-                      <div className="text-xs text-gray-500">or drag & drop (jpg, png)</div>
-                    </div>
-                    {imageError ? <div className="mt-3 text-sm text-red-600">{imageError}</div> : null}
+                  <div>
+                    <div className="text-base font-bold text-gray-900">Upload Image of Resource</div>
+                    <div className="mt-0.5 text-sm text-gray-600">Clear images help NGOs verify and prepare for pickup</div>
+                  </div>
+                </div>
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={onDrop}
+                  className={
+                    'rounded-xl border-2 border-dashed transition-all duration-200 ' +
+                    (isDragging
+                      ? 'border-emerald-400 bg-emerald-50/80 shadow-md scale-[1.01]'
+                      : imageError
+                        ? 'border-red-300 bg-red-50/40'
+                        : 'border-gray-300 bg-gray-50/50 hover:border-emerald-300 hover:bg-emerald-50/30')
+                  }
+                >
+                  <div className="p-8 text-center">
+                    {previews.length === 0 ? (
+                      <>
+                        <div className="mx-auto h-16 w-16 rounded-full bg-white border-2 border-dashed border-gray-300 flex items-center justify-center mb-4">
+                          <FiUpload className="h-8 w-8 text-gray-400" />
+                        </div>
+                        <div className="mb-3">
+                          <label className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 cursor-pointer transition-colors shadow-sm">
+                            <FiCamera className="h-4 w-4 mr-2" />
+                            Click to upload
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/jpg"
+                              multiple
+                              className="hidden"
+                              onChange={onFileInputChange}
+                            />
+                          </label>
+                        </div>
+                        <div className="text-sm text-gray-500">or drag & drop images here</div>
+                        <div className="mt-2 text-xs text-gray-400">Supports JPG, PNG (max 5MB per image)</div>
+                      </>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {previews.map((p) => (
+                          <div key={p.url} className="relative group rounded-xl overflow-hidden border-2 border-gray-200 bg-white shadow-sm">
+                            <img src={p.url} alt={p.file.name} className="h-32 w-full object-cover" />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                            <button
+                              type="button"
+                              aria-label="Remove image"
+                              className="absolute top-2 right-2 h-8 w-8 rounded-full bg-white/95 border border-gray-300 shadow-md flex items-center justify-center text-gray-700 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-all opacity-0 group-hover:opacity-100"
+                              onClick={() => {
+                                setImages((prev) => prev.filter((f) => f !== p.file));
+                              }}
+                            >
+                              <FiX className="h-4 w-4" />
+                            </button>
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                              <div className="text-xs text-white font-medium truncate">{p.file.name}</div>
+                            </div>
+                          </div>
+                        ))}
+                        <label className="relative flex flex-col items-center justify-center h-32 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 hover:border-emerald-400 hover:bg-emerald-50/30 cursor-pointer transition-all group">
+                          <FiPlusCircle className="h-6 w-6 text-gray-400 group-hover:text-emerald-600 mb-1" />
+                          <span className="text-xs text-gray-500 group-hover:text-emerald-600 font-medium">Add more</span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg"
+                            multiple
+                            className="hidden"
+                            onChange={onFileInputChange}
+                          />
+                        </label>
+                      </div>
+                    )}
+                    {imageError ? (
+                      <div className="mt-4 text-sm text-red-600 flex items-center gap-2 justify-center">
+                        <FiAlertCircle className="h-4 w-4" />
+                        {imageError}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+
+              {/* Info Strip */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3 flex items-start gap-3">
+                <FiInfo className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-blue-900">Upload Tips</div>
+                  <div className="mt-0.5 text-xs text-blue-700">Take clear, well-lit photos showing the condition and quantity of items. Multiple angles help NGOs assess better.</div>
+                </div>
+              </div>
+
+              {/* Resource Type & Quantity Section */}
+              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                    <FiPackage className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <div className="text-base font-bold text-gray-900">Resource Information</div>
+                    <div className="mt-0.5 text-sm text-gray-600">Tell us what you're donating</div>
                   </div>
                 </div>
 
-                {previews.length > 0 ? (
-                  <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {previews.map((p) => (
-                      <div key={p.url} className="relative rounded-xl overflow-hidden border border-gray-200 bg-white">
-                        <img src={p.url} alt={p.file.name} className="h-24 w-full object-cover" />
+                <div className="mb-5">
+                  <FieldLabel>Resource Type *</FieldLabel>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-2">
+                    {resourceTypeOptions.map((option) => {
+                      const Icon = option.icon;
+                      const isSelected = resourceType === option.value;
+                      return (
                         <button
+                          key={option.value}
                           type="button"
-                          aria-label="Remove image"
-                          className="absolute top-2 right-2 h-8 w-8 rounded-full bg-white/90 border border-gray-200 shadow-sm flex items-center justify-center text-gray-700 hover:bg-white"
-                          onClick={() => {
-                            setImages((prev) => prev.filter((f) => f !== p.file));
-                          }}
+                          onClick={() => setResourceType(option.value as ResourceType)}
+                          className={`rounded-xl border-2 p-4 flex flex-col items-center gap-2 transition-all ${
+                            isSelected
+                              ? `${option.color} border-current shadow-md scale-105`
+                              : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:shadow-sm'
+                          }`}
                         >
-                          <FiX className="h-4 w-4" />
+                          <Icon className={`h-6 w-6 ${isSelected ? 'text-current' : 'text-gray-400'}`} />
+                          <span className="text-xs font-semibold">{option.label}</span>
                         </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                ) : null}
-              </div>
-            </div>
+                  <div className="mt-2 text-xs text-gray-500">Select the type of resource you want to donate</div>
+                </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div>
-                <FieldLabel>Resource Type *</FieldLabel>
-                <Select
-                  value={resourceType}
-                  onChange={(v) => {
-                    setResourceType(v as ResourceType);
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div>
+                    <FieldLabel>Quantity *</FieldLabel>
+                    <NumericInput value={quantity} onChange={setQuantity} placeholder="e.g. 5" />
+                    <div className="mt-1.5 text-xs text-gray-500">Enter the number of items or amount</div>
+                  </div>
+                  <div>
+                    <FieldLabel>Unit *</FieldLabel>
+                    <Select value={unit} onChange={(v) => setUnit(v as any)}>
+                      <option value="kg">kg</option>
+                      <option value="items">items</option>
+                      <option value="packets">packets</option>
+                      <option value="boxes">boxes</option>
+                      <option value="units">units</option>
+                      <option value="inr">inr</option>
+                    </Select>
+                    <div className="mt-1.5 text-xs text-gray-500">Select the appropriate unit of measurement</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dynamic Fields Section */}
+              {resourceType && (
+                <>
+                  <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6">
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                        <FiTag className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <div className="text-base font-bold text-gray-900">Additional Details</div>
+                        <div className="mt-0.5 text-sm text-gray-600">Help NGOs understand your donation better</div>
+                      </div>
+                    </div>
+                    <div className="transition-all duration-300 ease-out">
+                      {renderDynamicFields()}
+                    </div>
+                  </div>
+
+                  {/* Info Strip */}
+                  <div className="rounded-xl border border-amber-100 bg-amber-50/50 px-4 py-3 flex items-start gap-3">
+                    <FiInfo className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-amber-900">Why these details matter</div>
+                      <div className="mt-0.5 text-xs text-amber-700">Accurate information helps NGOs match your donation with the right recipients and plan logistics efficiently.</div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Pickup Address Section */}
+              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                    <FiMapPin className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <div className="text-base font-bold text-gray-900">Pickup Address</div>
+                    <div className="mt-0.5 text-sm text-gray-600">Where should we collect your donation?</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="lg:col-span-2">
+                    <FieldLabel>Address Line *</FieldLabel>
+                    <div className="relative">
+                      <input
+                        value={addressLine}
+                        onChange={(e) => setAddressLine(e.target.value)}
+                        placeholder="House no., street, landmark"
+                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                      />
+                      {addressLookupError ? (
+                        <div className="mt-2 text-xs text-red-600 flex items-center gap-1">
+                          <FiAlertCircle className="h-3 w-3" />
+                          {addressLookupError}
+                        </div>
+                      ) : null}
+                      {addressLookupLoading && addressLine.trim().length >= 3 ? (
+                        <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
+                          <FiRefreshCw className="h-3 w-3 animate-spin" />
+                          Searching address...
+                        </div>
+                      ) : null}
+                      {addressResults.length > 0 ? (
+                        <div className="absolute z-20 mt-2 w-full rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                          {addressResults.map((r: any) => (
+                            <button
+                              key={String(r.place_id)}
+                              type="button"
+                              className="w-full text-left px-4 py-3 text-sm text-gray-800 hover:bg-gray-50 transition-colors"
+                              onClick={() => {
+                                setAddressLine(r.display_name || addressLine);
+                                const a = r.address || {};
+                                const nextCity =
+                                  a.city ||
+                                  a.town ||
+                                  a.village ||
+                                  a.city_district ||
+                                  a.state_district ||
+                                  a.county ||
+                                  a.suburb ||
+                                  '';
+                                const nextState = a.state || a.region || a.state_district || '';
+                                const nextPin = a.postcode || '';
+                                if (nextCity) setCity(String(nextCity));
+                                if (nextState) setState(String(nextState));
+                                if (nextPin) setPincode(String(nextPin));
+                                setAddressResults([]);
+                              }}
+                            >
+                              {r.display_name}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="mt-1.5 text-xs text-gray-500">Start typing to see address suggestions</div>
+                  </div>
+                  <div>
+                    <FieldLabel>City *</FieldLabel>
+                    <input
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="City"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                    />
+                    <div className="mt-1.5 text-xs text-gray-500">Your city name</div>
+                  </div>
+                  <div>
+                    <FieldLabel>State *</FieldLabel>
+                    <input
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      placeholder="State"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                    />
+                    <div className="mt-1.5 text-xs text-gray-500">Your state name</div>
+                  </div>
+                  <div>
+                    <FieldLabel>Pincode *</FieldLabel>
+                    <input
+                      value={pincode}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        if (/^\d*$/.test(next)) setPincode(next);
+                      }}
+                      placeholder="Pincode"
+                      inputMode="numeric"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+                    />
+                    <div className="mt-1.5 text-xs text-gray-500">6-digit postal code</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pickup Date & Time Section */}
+              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                    <FiCalendar className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <div className="text-base font-bold text-gray-900">Pickup Schedule</div>
+                    <div className="mt-0.5 text-sm text-gray-600">When can we collect your donation?</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div>
+                    <FieldLabel>Preferred Pickup Date *</FieldLabel>
+                    <TextInput value={pickupDate} onChange={setPickupDate} type="date" />
+                    <div className="mt-1.5 text-xs text-gray-500">Select a date that works for you</div>
+                  </div>
+                  <div>
+                    <FieldLabel>Preferred Time Slot *</FieldLabel>
+                    <div className="grid grid-cols-3 gap-3 mt-2">
+                      {timeSlotOptions.map((option) => {
+                        const Icon = option.icon;
+                        const isSelected = timeSlot === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setTimeSlot(option.value as TimeSlot)}
+                            className={`rounded-xl border-2 p-3 flex flex-col items-center gap-2 transition-all ${
+                              isSelected
+                                ? `${option.color} border-current shadow-md scale-105`
+                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:shadow-sm'
+                            }`}
+                          >
+                            <Icon className={`h-5 w-5 ${isSelected ? 'text-current' : 'text-gray-400'}`} />
+                            <span className="text-xs font-semibold">{option.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-1.5 text-xs text-gray-500">Choose your preferred time slot</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Notes Section */}
+              <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                    <FiTag className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <div className="text-base font-bold text-gray-900">Additional Notes</div>
+                    <div className="mt-0.5 text-sm text-gray-600">Optional information for NGOs</div>
+                  </div>
+                </div>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') e.stopPropagation();
+                  }}
+                  placeholder="Anything NGOs should know before pickup (e.g., special instructions, accessibility notes, etc.)"
+                  className="w-full min-h-[120px] rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 resize-none"
+                />
+                <div className="mt-1.5 text-xs text-gray-500">Share any additional context that might help NGOs</div>
+              </div>
+
+              {/* CTA Button */}
+              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <FiShield className="h-5 w-5 text-emerald-600" />
+                  <div className="text-sm font-semibold text-gray-900">Your donation is secure and will reach those in need</div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={!canSubmit || submitLoading}
+                  className={
+                    'w-full rounded-xl px-6 py-4 text-base font-bold transition-all duration-200 shadow-lg ' +
+                    (canSubmit && !submitLoading
+                      ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white hover:from-emerald-700 hover:to-emerald-800 hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed')
+                  }
+                  onClick={() => {
+                    if (images.length === 0) setImageError('Please upload a clear image of the resource');
                   }}
                 >
-                  <option value="">Select</option>
-                  <option value="Food">Food</option>
-                  <option value="Clothes">Clothes</option>
-                  <option value="Books">Books</option>
-                  <option value="Medical Supplies">Medical Supplies</option>
-                  <option value="Other Essentials">Other Essentials</option>
-                </Select>
-              </div>
-
-              <div>
-                <FieldLabel>Quantity *</FieldLabel>
-                <div className="grid grid-cols-2 gap-3">
-                  <NumericInput value={quantity} onChange={setQuantity} placeholder="e.g. 5" />
-                  <Select value={unit} onChange={(v) => setUnit(v as any)}>
-                    <option value="kg">kg</option>
-                    <option value="items">items</option>
-                    <option value="packets">packets</option>
-                    <option value="boxes">boxes</option>
-                  </Select>
+                  {submitLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <FiRefreshCw className="h-5 w-5 animate-spin" />
+                      Submitting your donation...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      <FiHeart className="h-5 w-5" />
+                      Submit Donation & Make an Impact
+                    </span>
+                  )}
+                </button>
+                <div className="mt-3 text-center">
+                  <div className="text-xs text-gray-500">By submitting, you agree to our donation guidelines and privacy policy</div>
                 </div>
               </div>
-            </div>
-
-            <div className="transition-all duration-300 ease-out">
-              {renderDynamicFields()}
-            </div>
-
-            <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
-              <div className="text-sm font-semibold text-gray-900">Pickup Address</div>
-              <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="lg:col-span-2">
-                  <FieldLabel>Address Line *</FieldLabel>
-                  <div className="relative">
-                    <input
-                      value={addressLine}
-                      onChange={(e) => setAddressLine(e.target.value)}
-                      placeholder="House no., street, landmark"
-                      className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
-                    />
-
-                    {addressLookupError ? (
-                      <div className="mt-2 text-xs text-red-600">{addressLookupError}</div>
-                    ) : null}
-
-                    {addressLookupLoading && addressLine.trim().length >= 3 ? (
-                      <div className="mt-2 text-xs text-gray-500">Searching address...</div>
-                    ) : null}
-
-                    {addressResults.length > 0 ? (
-                      <div className="absolute z-20 mt-2 w-full rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
-                        {addressResults.map((r: any) => (
-                          <button
-                            key={String(r.place_id)}
-                            type="button"
-                            className="w-full text-left px-3.5 py-2.5 text-sm text-gray-800 hover:bg-gray-50"
-                            onClick={() => {
-                              setAddressLine(r.display_name || addressLine);
-
-                              const a = r.address || {};
-                              const nextCity =
-                                a.city ||
-                                a.town ||
-                                a.village ||
-                                a.city_district ||
-                                a.state_district ||
-                                a.county ||
-                                a.suburb ||
-                                '';
-                              const nextState = a.state || a.region || a.state_district || '';
-                              const nextPin = a.postcode || '';
-
-                              if (nextCity) setCity(String(nextCity));
-                              if (nextState) setState(String(nextState));
-                              if (nextPin) setPincode(String(nextPin));
-
-                              setAddressResults([]);
-                            }}
-                          >
-                            {r.display_name}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div>
-                  <FieldLabel>City *</FieldLabel>
-                  <input
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    placeholder="City"
-                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
-                  />
-                </div>
-                <div>
-                  <FieldLabel>State *</FieldLabel>
-                  <input
-                    value={state}
-                    onChange={(e) => setState(e.target.value)}
-                    placeholder="State"
-                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
-                  />
-                </div>
-                <div>
-                  <FieldLabel>Pincode *</FieldLabel>
-                  <input
-                    value={pincode}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      if (/^\d*$/.test(next)) setPincode(next);
-                    }}
-                    placeholder="Pincode"
-                    inputMode="numeric"
-                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div>
-                <FieldLabel>Preferred Pickup Date *</FieldLabel>
-                <TextInput value={pickupDate} onChange={setPickupDate} type="date" />
-              </div>
-              <div>
-                <FieldLabel>Preferred Time Slot *</FieldLabel>
-                <Select value={timeSlot} onChange={(v) => setTimeSlot(v as TimeSlot)}>
-                  <option value="">Select</option>
-                  <option value="Morning">Morning</option>
-                  <option value="Afternoon">Afternoon</option>
-                  <option value="Evening">Evening</option>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <FieldLabel>Additional Notes (Optional)</FieldLabel>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter') e.stopPropagation();
-                }}
-                placeholder="Anything NGOs should know before pickup"
-                className="w-full min-h-[110px] rounded-2xl border border-gray-200 bg-white px-3.5 py-3 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={!canSubmit}
-              className={
-                'w-full rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ' +
-                (canSubmit
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed')
-              }
-              onClick={() => {
-                if (images.length === 0) setImageError('Please upload a clear image of the resource');
-              }}
-            >
-              {submitLoading ? 'Submitting...' : 'Donate Resource'}
-            </button>
-          </form>
+            </form>
           </div>
         </div>
       </div>
@@ -1905,7 +2277,11 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                         Food: 0,
                         Clothes: 0,
                         'Medical Supplies': 0,
+                        Books: 0,
                         'Other Essentials': 0,
+                        Blood: 0,
+                        Funds: 0,
+                        Devices: 0,
                       } as Record<string, number>;
 
                       for (const d of recent) {
