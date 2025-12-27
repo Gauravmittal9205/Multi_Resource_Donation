@@ -20,6 +20,18 @@ exports.getUserByFirebaseUid = asyncHandler(async (req, res) => {
   return res.status(200).json({ success: true, data: user });
 });
 
+// @desc    Get user by email
+// @route   GET /api/v1/auth/user-by-email/:email
+// @access  Public
+exports.getUserByEmail = asyncHandler(async (req, res) => {
+  const { email } = req.params;
+  const user = await User.findOne({ email: email.toLowerCase() }).select('userType organizationName firebaseUid email name');
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'User not found' });
+  }
+  return res.status(200).json({ success: true, data: user });
+});
+
 exports.deleteMe = asyncHandler(async (req, res, next) => {
   const firebaseUid = req.firebaseUid;
   if (!firebaseUid) {
@@ -61,6 +73,9 @@ exports.sendOTP = asyncHandler(async (req, res, next) => {
     
     // Allow OTP for unverified users or new users
     console.log('Sending OTP for email:', email, 'User exists:', !!existingUser);
+
+    // Clear any existing OTP for this email before generating a new one
+    otpService.clearOTP(email);
 
     // Generate and store OTP
     const otp = otpService.generateOTP();
@@ -478,5 +493,45 @@ exports.checkAdmin = asyncHandler(async (req, res, next) => {
       success: true,
       isAdmin: false
     });
+  }
+});
+
+// @desc    Update user with Firebase UID after OTP verification
+// @route   PUT /api/v1/auth/update-firebase-uid
+// @access  Public
+exports.updateFirebaseUid = asyncHandler(async (req, res, next) => {
+  try {
+    const { email, firebaseUid } = req.body;
+
+    if (!email || !firebaseUid) {
+      return next(new ErrorResponse('Email and firebaseUid are required', 400));
+    }
+
+    // Find user by email and update with firebaseUid
+    const user = await User.findOneAndUpdate(
+      { email: email.toLowerCase() },
+      { firebaseUid, isVerified: true },
+      { new: true }
+    );
+
+    if (!user) {
+      return next(new ErrorResponse('User not found', 404));
+    }
+
+    console.log('Updated user with firebaseUid:', { email, firebaseUid, userType: user.userType });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: user._id,
+        email: user.email,
+        userType: user.userType,
+        organizationName: user.organizationName,
+        firebaseUid: user.firebaseUid
+      }
+    });
+  } catch (err) {
+    console.error('Update firebaseUid error:', err);
+    next(err);
   }
 });

@@ -108,25 +108,50 @@ export const signInWithEmail = async (email: string, password: string, skipProfi
           return { user };
         }
         
-        // Try to fetch user profile
-        const response = await fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`);
+        // Try to fetch user profile by firebaseUid first
+        let response = await fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`);
+        
+        // If not found by firebaseUid, check by email (in case user was created before firebaseUid was set)
         if (!response.ok) {
-          // If profile not found, create a default donor profile
-          const idToken = await user.getIdToken();
-          await fetch('http://localhost:5000/api/v1/auth/register', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${idToken}`
-            },
-            body: JSON.stringify({
-              name: user.displayName || email.split('@')[0],
-              email: user.email,
-              userType: 'donor', // Default to donor
-              phone: user.phoneNumber || '',
-              firebaseUid: user.uid
-            }),
-          });
+          const emailResponse = await fetch(`http://localhost:5000/api/v1/auth/user-by-email/${encodeURIComponent(email)}`);
+          if (emailResponse.ok) {
+            // User exists by email but doesn't have firebaseUid - update it
+            const emailData = await emailResponse.json();
+            console.log('Found user by email, updating with firebaseUid:', emailData.data);
+            
+            const updateResponse = await fetch('http://localhost:5000/api/v1/auth/update-firebase-uid', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                email: email,
+                firebaseUid: user.uid
+              }),
+            });
+            
+            if (updateResponse.ok) {
+              console.log('Successfully updated user with firebaseUid');
+              return { user };
+            }
+          } else {
+            // User doesn't exist at all - create a default donor profile
+            const idToken = await user.getIdToken();
+            await fetch('http://localhost:5000/api/v1/auth/register', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+              },
+              body: JSON.stringify({
+                name: user.displayName || email.split('@')[0],
+                email: user.email,
+                userType: 'donor', // Default to donor
+                phone: user.phoneNumber || '',
+                firebaseUid: user.uid
+              }),
+            });
+          }
         }
       } catch (profileError) {
         console.warn('Profile auto-creation failed (non-critical):', profileError);
@@ -146,25 +171,53 @@ export const signInWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
+    const email = user.email;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`);
-      if (!response.ok) {
-        const idToken = await user.getIdToken();
-        await fetch('http://localhost:5000/api/v1/auth/register', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          },
-          body: JSON.stringify({
-            name: user.displayName || (user.email ? user.email.split('@')[0] : 'User'),
-            email: user.email,
-            userType: 'donor',
-            phone: user.phoneNumber || '',
-            firebaseUid: user.uid
-          }),
-        });
+      // Try to fetch user profile by firebaseUid first
+      let response = await fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`);
+      
+      // If not found by firebaseUid, check by email (in case user was created before firebaseUid was set)
+      if (!response.ok && email) {
+        const emailResponse = await fetch(`http://localhost:5000/api/v1/auth/user-by-email/${encodeURIComponent(email)}`);
+        if (emailResponse.ok) {
+          // User exists by email but doesn't have firebaseUid - update it
+          const emailData = await emailResponse.json();
+          console.log('Found user by email, updating with firebaseUid:', emailData.data);
+          
+          const updateResponse = await fetch('http://localhost:5000/api/v1/auth/update-firebase-uid', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: email,
+              firebaseUid: user.uid
+            }),
+          });
+          
+          if (updateResponse.ok) {
+            console.log('Successfully updated user with firebaseUid');
+            return user;
+          }
+        } else {
+          // User doesn't exist at all - create a default donor profile
+          const idToken = await user.getIdToken();
+          await fetch('http://localhost:5000/api/v1/auth/register', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              name: user.displayName || (user.email ? user.email.split('@')[0] : 'User'),
+              email: user.email,
+              userType: 'donor',
+              phone: user.phoneNumber || '',
+              firebaseUid: user.uid
+            }),
+          });
+        }
       }
     } catch (profileError) {
       console.warn('Profile auto-creation failed (non-critical):', profileError);

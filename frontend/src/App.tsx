@@ -383,6 +383,7 @@ function App() {
       console.log('Email:', formData.email);
       console.log('Password length:', formData.password.length);
       console.log('Name:', formData.name);
+      console.log('UserType:', formData.userType);
       
       try {
         const auth = getAuth();
@@ -395,6 +396,32 @@ function App() {
         // Update user profile with display name
         await updateProfile(userCredential.user, { displayName: formData.name });
         console.log('Firebase user profile updated with name:', formData.name);
+        
+        // Update MongoDB user with firebaseUid to preserve userType (donor/ngo)
+        try {
+          const updateResponse = await fetch('http://localhost:5000/api/v1/auth/update-firebase-uid', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: formData.email,
+              firebaseUid: userCredential.user.uid
+            }),
+          });
+          
+          const updateData = await updateResponse.json();
+          
+          if (updateResponse.ok) {
+            console.log('MongoDB user updated with firebaseUid:', updateData.data);
+            console.log('UserType preserved:', updateData.data.userType);
+          } else {
+            console.error('Failed to update MongoDB user with firebaseUid:', updateData.error);
+          }
+        } catch (updateError: any) {
+          console.error('Error updating MongoDB user with firebaseUid:', updateError);
+          // Don't fail registration if update fails, but log the error
+        }
         
         setError('Registration successful! You are now logged in.');
         
