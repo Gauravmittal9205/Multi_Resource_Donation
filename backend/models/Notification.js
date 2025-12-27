@@ -7,6 +7,22 @@ const NotificationSchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    eventType: {
+      type: String,
+      default: null,
+      index: true
+    },
+    relatedType: {
+      type: String,
+      enum: ['request', 'donation', null],
+      default: null,
+      index: true
+    },
+    relatedId: {
+      type: String,
+      default: null,
+      index: true
+    },
     category: {
       type: String,
       required: true,
@@ -48,6 +64,7 @@ const NotificationSchema = new mongoose.Schema(
 // Indexes for efficient queries
 NotificationSchema.index({ recipientFirebaseUid: 1, read: 1, createdAt: -1 });
 NotificationSchema.index({ recipientFirebaseUid: 1, category: 1, createdAt: -1 });
+NotificationSchema.index({ recipientFirebaseUid: 1, relatedType: 1, relatedId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', NotificationSchema);
 

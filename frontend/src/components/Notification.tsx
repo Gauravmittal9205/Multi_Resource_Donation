@@ -6,7 +6,7 @@ const Notification = () => {
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'donations' | 'pickups' | 'system'>('all');
+  const [filter, setFilter] = useState<'all' | 'donations' | 'system'>('all');
   const notificationRef = useRef<HTMLDivElement>(null);
 
   // Close notification when clicking outside
@@ -93,11 +93,6 @@ const Notification = () => {
   const handleNotificationClick = async (notification: NotificationType) => {
     if (!notification.read) {
       await handleMarkAsRead(notification._id);
-    }
-
-    // Redirect to the appropriate page
-    if (notification.redirectUrl) {
-      window.location.href = notification.redirectUrl;
     }
   };
 
@@ -202,16 +197,15 @@ const Notification = () => {
               {[
                 { key: 'all', label: 'All' },
                 { key: 'donations', label: 'Donations' },
-                { key: 'pickups', label: 'Pickups' },
                 { key: 'system', label: 'System' }
               ].map(({ key, label }) => (
                 <button
                   key={key}
                   onClick={() => setFilter(key as any)}
-                  className={`px-3 py-1 text-xs rounded-full ${
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                     filter === key
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   {label}

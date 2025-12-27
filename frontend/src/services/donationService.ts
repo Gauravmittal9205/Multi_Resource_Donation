@@ -47,6 +47,17 @@ export interface DonationItem {
   updatedAt: string;
 }
 
+export interface NgoLiveDonationsPoolItem {
+  _id: string;
+  resourceType: DonationPayload['resourceType'];
+  quantity: number;
+  unit: DonationPayload['unit'];
+  address: DonationPayload['address'];
+  pickup: { pickupDate: string; timeSlot: DonationPayload['pickup']['timeSlot'] };
+  status: DonationStatus;
+  createdAt: string;
+}
+
 export interface DonorDashboardResponse {
   summary: {
     totalDonations: number;
@@ -141,6 +152,10 @@ export const fetchMyDonationsPaged = async (params?: {
       ...(params?.page ? { page: params.page } : {}),
       ...(params?.limit ? { limit: params.limit } : {}),
     },
+export const fetchNgoLiveDonationsPool = async (params?: { limit?: number }) => {
+  const token = await getAuthToken();
+  const response = await axios.get(`${API_URL}/ngo/live-pool`, {
+    params,
     headers: {
       Authorization: `Bearer ${token}`
     }
@@ -158,8 +173,17 @@ export const fetchMyDonationsPaged = async (params?: {
 };
 
 export const fetchDonorProfileByUid = async (firebaseUid: string) => {
-  const response = await axios.get(`http://localhost:5000/api/v1/profile/${encodeURIComponent(firebaseUid)}`);
-  return response.data as { success: boolean; data: DonorProfile };
+  try {
+    const response = await axios.get(`http://localhost:5000/api/v1/profile/${encodeURIComponent(firebaseUid)}`);
+    return response.data as { success: boolean; data: DonorProfile };
+  } catch (error: any) {
+    // Handle 404 gracefully - profile not found is expected for new users
+    if (error.response?.status === 404) {
+      return { success: false, data: null };
+    }
+    // Re-throw other errors
+    throw error;
+  }
 };
 
 export type NotificationCategory = 'donations' | 'pickups' | 'ngo_requests' | 'impact' | 'system';
@@ -170,6 +194,8 @@ export interface NotificationItem {
   category: NotificationCategory;
   title: string;
   message: string;
+  donationId?: string | null;
+  redirectUrl?: string | null;
   read: boolean;
   readAt?: string | null;
   createdAt: string;
@@ -273,6 +299,7 @@ export interface UpdateDonationPayload {
   ngoFirebaseUid?: string;
   status?: DonationStatus;
   requestId?: string;
+  cancelReason?: string;
 }
 
 export const updateDonation = async (donationId: string, payload: UpdateDonationPayload) => {
@@ -283,6 +310,20 @@ export const updateDonation = async (donationId: string, payload: UpdateDonation
     }
   });
   return response.data as { success: boolean; data: AdminDonationItem };
+};
+
+export const verifyDonationOtp = async (donationId: string) => {
+  const token = await getAuthToken();
+  const response = await axios.put(
+    `${API_URL}/${encodeURIComponent(donationId)}/verify-otp`,
+    {},
+    {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    }
+  );
+  return response.data as { success: boolean; data: DonationItem };
 };
 
 // NGO functions
@@ -312,9 +353,13 @@ export const assignVolunteer = async (donationId: string, payload: AssignVolunte
   return response.data as { success: boolean; data: DonationItem };
 };
 
-export const updateNgoDonationStatus = async (donationId: string, status: 'volunteer_assigned' | 'picked' | 'completed') => {
+export const updateNgoDonationStatus = async (
+  donationId: string,
+  status: 'volunteer_assigned' | 'picked' | 'completed',
+  otp?: string
+) => {
   const token = await getAuthToken();
-  const response = await axios.put(`${API_URL}/ngo/${donationId}/status`, { status }, {
+  const response = await axios.put(`${API_URL}/ngo/${donationId}/status`, { status, otp }, {
     headers: {
       Authorization: `Bearer ${token}`
     }

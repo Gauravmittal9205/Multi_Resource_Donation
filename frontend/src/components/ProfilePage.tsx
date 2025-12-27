@@ -300,7 +300,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
       
       try {
         const res = await fetchDonorProfileByUid(authUser.uid);
-        const savedProfile = res.data as any; // Backend returns full profile object
+        const savedProfile = res.success && res.data ? res.data as any : null; // Backend returns full profile object
         
         if (savedProfile) {
           setProfile((p) => ({
@@ -355,8 +355,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
           }));
           profileLoadedRef.current = true;
         }
-      } catch (error) {
-        console.error('Failed to load profile data:', error);
+      } catch (error: any) {
+        // Only log non-404 errors (404 is expected for new users)
+        if (error.response?.status !== 404) {
+          console.error('Failed to load profile data:', error);
+        }
         // If profile doesn't exist, keep default values
       }
     };

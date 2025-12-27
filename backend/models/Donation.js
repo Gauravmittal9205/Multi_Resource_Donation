@@ -53,6 +53,14 @@ const DonationSchema = new mongoose.Schema(
       default: 'pending',
       index: true
     },
+    cancelReason: {
+      type: String,
+      default: ''
+    },
+    cancelledAt: {
+      type: Date,
+      default: null
+    },
     assignedNGO: {
       ngoFirebaseUid: {
         type: String,
