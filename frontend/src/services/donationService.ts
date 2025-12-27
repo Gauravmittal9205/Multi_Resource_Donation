@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { auth } from '../firebase';
 
-const API_URL = 'http://localhost:5000/api/v1/donations';
-const NOTIFICATIONS_URL = 'http://localhost:5000/api/v1/notifications';
+const API_URL = '/api/v1/donations';
+const NOTIFICATIONS_URL = '/api/v1/notifications';
 
 const getAuthToken = async (): Promise<string> => {
   const user = auth.currentUser;
@@ -191,7 +191,7 @@ export const fetchDonorProfileByUid = async (firebaseUid: string) => {
       return cached.data;
     }
 
-    const response = await axios.get(`http://localhost:5000/api/v1/profile/${encodeURIComponent(firebaseUid)}`);
+    const response = await axios.get(`/api/v1/profile/${encodeURIComponent(firebaseUid)}`);
     const result = response.data as { success: boolean; data: DonorProfile };
     
     // Cache the result
