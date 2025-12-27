@@ -28,10 +28,23 @@ const ProfileSchema = new mongoose.Schema(
     },
     preferences: {
       donationCategories: [String],
+      preferredResourceTypes: [String],
+      preferredAreas: [String],
+      emergencyDonations: { type: Boolean, default: false },
       preferredPickupTime: String,
       notificationPreference: { type: String, enum: ['email', 'push', 'sms'], default: 'push' },
       nearbyNgoRadiusKm: { type: Number, default: 10 },
     },
+    addressBook: [
+      {
+        label: { type: String, default: '' },
+        addressLine: { type: String, default: '' },
+        city: { type: String, default: '' },
+        state: { type: String, default: '' },
+        pincode: { type: String, default: '' },
+        isDefault: { type: Boolean, default: false },
+      },
+    ],
     trust: {
       verifiedStatus: { type: Boolean, default: false },
       donorRating: { type: Number, default: 0 },

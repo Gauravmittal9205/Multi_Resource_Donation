@@ -99,6 +99,34 @@ exports.getDonorDashboard = asyncHandler(async (req, res) => {
     .limit(5)
     .lean();
 
+  const lastDonation = await Donation.findOne({ donorFirebaseUid })
+    .sort({ createdAt: -1 })
+    .select('createdAt')
+    .lean();
+  const lastDonationDate = lastDonation?.createdAt || null;
+
+  const activeDonations = await Donation.countDocuments({
+    donorFirebaseUid,
+    status: { $in: ['pending', 'assigned', 'volunteer_assigned', 'picked'] }
+  });
+
+  const donationsByTypeAgg = await Donation.aggregate([
+    { $match: { donorFirebaseUid } },
+    {
+      $group: {
+        _id: '$resourceType',
+        count: { $sum: 1 },
+        totalQuantity: { $sum: '$quantity' }
+      }
+    },
+    { $sort: { count: -1 } }
+  ]);
+  const donationsByType = (Array.isArray(donationsByTypeAgg) ? donationsByTypeAgg : []).map((r) => ({
+    resourceType: r._id,
+    count: Number(r.count || 0),
+    totalQuantity: Number(r.totalQuantity || 0)
+  }));
+
   // Activity: last 12 months counts by month
   const now = new Date();
   const months = [];
@@ -138,7 +166,10 @@ exports.getDonorDashboard = asyncHandler(async (req, res) => {
         foodSavedKg
       },
       activity,
-      recentDonations
+      recentDonations,
+      lastDonationDate,
+      activeDonations,
+      donationsByType
     }
   });
 });
@@ -220,16 +251,43 @@ exports.verifyDonationOtp = asyncHandler(async (req, res) => {
 // @access  Private (Firebase)
 exports.listMyDonations = asyncHandler(async (req, res) => {
   const donorFirebaseUid = req.firebaseUid;
-  const { status } = req.query;
+  const { status, resourceType, page, limit } = req.query;
 
   const query = { donorFirebaseUid };
   if (status) query.status = status;
+  if (resourceType) query.resourceType = resourceType;
 
-  const donations = await Donation.find(query).sort({ createdAt: -1 }).lean();
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
 
-  res.status(200).json({
+  // Backwards-compatible: if no pagination params provided, return full list
+  if (!Number.isFinite(pageNum) || !Number.isFinite(limitNum) || pageNum <= 0 || limitNum <= 0) {
+    const donations = await Donation.find(query).sort({ createdAt: -1 }).lean();
+
+    return res.status(200).json({
+      success: true,
+      count: donations.length,
+      data: donations
+    });
+  }
+
+  const total = await Donation.countDocuments(query);
+  const pages = Math.max(1, Math.ceil(total / limitNum));
+  const safePage = Math.min(pageNum, pages);
+
+  const donations = await Donation.find(query)
+    .sort({ createdAt: -1 })
+    .skip((safePage - 1) * limitNum)
+    .limit(limitNum)
+    .lean();
+
+  return res.status(200).json({
     success: true,
     count: donations.length,
+    total,
+    page: safePage,
+    pages,
+    limit: limitNum,
     data: donations
   });
 });

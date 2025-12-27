@@ -30,7 +30,6 @@ import {
   Clock,
   FileText,
   MessageSquare,
-  Menu,
   X,
   TrendingUp,
   RefreshCw,
@@ -460,6 +459,8 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
     loading: true
   });
 
+  // Heat map helper functions (commented out as unused)
+  /*
   
 
   const getHeatColor = (percentage: number) => {
@@ -471,6 +472,14 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
   };
 
 
+  const getHeatTextColor = (percentage: number) => {
+    if (percentage >= 20) return 'text-red-700';
+    if (percentage >= 15) return 'text-orange-700';
+    if (percentage >= 10) return 'text-yellow-700';
+    if (percentage >= 5) return 'text-green-700';
+    return 'text-blue-700';
+  };
+  */
 
 
   const recentActivities = [
@@ -2600,6 +2609,9 @@ function DonationsManagement() {
               <option value="Books">Books</option>
               <option value="Medical Supplies">Medical Supplies</option>
               <option value="Other Essentials">Other Essentials</option>
+              <option value="Blood">Blood</option>
+              <option value="Funds">Funds</option>
+              <option value="Devices">Devices</option>
             </select>
           </div>
           <div>

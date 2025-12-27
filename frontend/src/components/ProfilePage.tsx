@@ -1,15 +1,28 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { auth } from '../firebase';
-import { FiUser, FiMail, FiPhone, FiCalendar, FiShield, FiImage, FiEye, FiEyeOff } from 'react-icons/fi';
+import {
+  FiUser,
+  FiMail,
+  FiPhone,
+  FiCalendar,
+  FiShield,
+  FiImage,
+  FiEye,
+  FiEyeOff,
+  FiTrendingUp,
+  FiClock,
+  FiBarChart2,
+  FiCheckCircle,
+} from 'react-icons/fi';
 import { EmailAuthProvider, reauthenticateWithCredential, signOut, updatePassword } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { fetchDonorProfileByUid, fetchMyDonations } from '../services/donationService';
-import type { DonationItem } from '../services/donationService';
+import { fetchDonorDashboard, fetchDonorProfileByUid, fetchMyDonations, fetchMyDonationsPaged } from '../services/donationService';
+import type { DonationItem, DonationPayload } from '../services/donationService';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts';
 
 interface ProfilePageProps {
   user: FirebaseUser;
 }
- 
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
   // Simple pincode -> city lookup (extend as needed)
@@ -82,6 +95,18 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
   const [myDonations, setMyDonations] = useState<DonationItem[]>([]);
   const [myDonationsLoading, setMyDonationsLoading] = useState(false);
 
+  const [donorDashboard, setDonorDashboard] = useState<any>(null);
+  const [donorDashboardLoading, setDonorDashboardLoading] = useState(false);
+
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyRows, setHistoryRows] = useState<DonationItem[]>([]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyLimit, setHistoryLimit] = useState(8);
+  const [historyPages, setHistoryPages] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyResourceType, setHistoryResourceType] = useState<DonationPayload['resourceType'] | ''>('');
+
   // Still keep the auth state listener for changes
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => setAuthUser(u));
@@ -104,6 +129,75 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
 
     run();
   }, [authUser?.uid]);
+
+  useEffect(() => {
+    const run = async () => {
+      if (!authUser?.uid) return;
+      try {
+        setDonorDashboardLoading(true);
+        const res = await fetchDonorDashboard();
+        setDonorDashboard(res.data || null);
+      } catch {
+        setDonorDashboard(null);
+      } finally {
+        setDonorDashboardLoading(false);
+      }
+    };
+
+    run();
+  }, [authUser?.uid]);
+
+  const loadHistory = async (next?: { page?: number; resourceType?: DonationPayload['resourceType'] | '' }) => {
+    const nextPage = next?.page ?? historyPage;
+    const nextType = next?.resourceType ?? historyResourceType;
+
+    try {
+      setHistoryLoading(true);
+      setHistoryError(null);
+      const res = await fetchMyDonationsPaged({
+        page: nextPage,
+        limit: historyLimit,
+        resourceType: nextType || undefined,
+      });
+
+      setHistoryRows(res.data || []);
+      setHistoryPages(Number(res.pages || 1));
+      setHistoryTotal(Number(res.total || 0));
+      setHistoryPage(Number(res.page || nextPage));
+    } catch (e: any) {
+      setHistoryRows([]);
+      setHistoryPages(1);
+      setHistoryTotal(0);
+      setHistoryError(typeof e?.message === 'string' ? e.message : 'Failed to load donation history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!authUser?.uid) return;
+    loadHistory({ page: 1, resourceType: historyResourceType });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser?.uid, historyLimit]);
+
+  useEffect(() => {
+    const onDonationCreated = () => {
+      if (!authUser?.uid) return;
+      loadHistory({ page: 1, resourceType: historyResourceType });
+      (async () => {
+        try {
+          const [dash, list] = await Promise.all([fetchDonorDashboard(), fetchMyDonations()]);
+          setDonorDashboard(dash.data || null);
+          setMyDonations(list.data || []);
+        } catch {
+          // ignore
+        }
+      })();
+    };
+
+    window.addEventListener('donationCreated', onDonationCreated);
+    return () => window.removeEventListener('donationCreated', onDonationCreated);
+  }, [authUser?.uid, historyResourceType, historyLimit]);
 
   const roleLabel = 'Donor';
 
@@ -176,9 +270,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
     },
     preferences: {
       donationCategories: ['food'] as DonationCategory[],
+      preferredResourceTypes: [] as DonationPayload['resourceType'][],
+      preferredAreas: [] as string[],
+      emergencyDonations: false,
       preferredPickupTime: '',
       notificationPreference: 'push' as 'email' | 'push' | 'sms',
     },
+    addressBook: [] as Array<{ label: string; addressLine: string; city: string; state: string; pincode: string; isDefault: boolean }>,
     trust: {
       verifiedStatus: false,
       donorRating: 0,
@@ -233,9 +331,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
             },
             preferences: {
               donationCategories: (savedProfile.preferences?.donationCategories as DonationCategory[]) || p.preferences.donationCategories,
+              preferredResourceTypes: (savedProfile.preferences?.preferredResourceTypes as DonationPayload['resourceType'][]) || p.preferences.preferredResourceTypes,
+              preferredAreas: (savedProfile.preferences?.preferredAreas as string[]) || p.preferences.preferredAreas,
+              emergencyDonations: savedProfile.preferences?.emergencyDonations ?? p.preferences.emergencyDonations,
               preferredPickupTime: savedProfile.preferences?.preferredPickupTime || p.preferences.preferredPickupTime,
               notificationPreference: (savedProfile.preferences?.notificationPreference as 'email' | 'push' | 'sms') || p.preferences.notificationPreference,
             },
+            addressBook: Array.isArray(savedProfile.addressBook) ? savedProfile.addressBook : p.addressBook,
             trust: {
               verifiedStatus: savedProfile.trust?.verifiedStatus ?? p.trust.verifiedStatus,
               donorRating: savedProfile.trust?.donorRating ?? p.trust.donorRating,
@@ -875,6 +977,243 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="text-lg font-semibold text-gray-900">Donor Overview</div>
+                <div className="text-xs text-gray-500">Read-only</div>
+              </div>
+
+              {donorDashboardLoading ? (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="rounded-xl border border-gray-100 bg-white p-4">
+                      <div className="h-4 w-28 bg-gray-100 rounded animate-pulse" />
+                      <div className="mt-3 h-7 w-16 bg-gray-100 rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="rounded-xl border border-gray-100 bg-white p-4">
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <FiTrendingUp className="h-4 w-4" />
+                      Total Donations Made
+                    </div>
+                    <div className="mt-2 text-2xl font-bold text-gray-900">{Number(donorDashboard?.summary?.totalDonations ?? 0).toLocaleString()}</div>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 bg-white p-4">
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <FiBarChart2 className="h-4 w-4" />
+                      Total Resources Donated
+                    </div>
+                    <div className="mt-2 text-2xl font-bold text-gray-900">{Number(donorDashboard?.impact?.resourcesDonated ?? 0).toLocaleString()}</div>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 bg-white p-4">
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <FiClock className="h-4 w-4" />
+                      Last Donation Date
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-gray-900">
+                      {donorDashboard?.lastDonationDate ? new Date(donorDashboard.lastDonationDate).toLocaleDateString('en-IN') : '—'}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 bg-white p-4">
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <FiCheckCircle className="h-4 w-4" />
+                      Active Donations
+                    </div>
+                    <div className="mt-2 text-2xl font-bold text-gray-900">{Number(donorDashboard?.activeDonations ?? 0).toLocaleString()}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <div>
+                  <div className="text-lg font-semibold text-gray-900">Donation History</div>
+                  <div className="text-sm text-gray-600">Real records linked to your account</div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <select
+                    value={String(historyLimit)}
+                    onChange={(e) => {
+                      const next = Number(e.target.value);
+                      if (Number.isFinite(next) && next > 0) {
+                        setHistoryLimit(next);
+                        setHistoryPage(1);
+                      }
+                    }}
+                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm"
+                  >
+                    <option value="5">5 / page</option>
+                    <option value="8">8 / page</option>
+                    <option value="10">10 / page</option>
+                    <option value="15">15 / page</option>
+                  </select>
+                  <select
+                    value={historyResourceType}
+                    onChange={(e) => {
+                      const next = e.target.value as DonationPayload['resourceType'] | '';
+                      setHistoryResourceType(next);
+                      loadHistory({ page: 1, resourceType: next });
+                    }}
+                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm"
+                  >
+                    <option value="">All resource types</option>
+                    <option value="Food">Food</option>
+                    <option value="Clothes">Clothes</option>
+                    <option value="Books">Books</option>
+                    <option value="Medical Supplies">Medical Supplies</option>
+                    <option value="Other Essentials">Other Essentials</option>
+                  </select>
+                </div>
+              </div>
+
+              {historyError ? (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-900">{historyError}</div>
+              ) : historyLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="rounded-xl border border-gray-100 bg-white p-4">
+                      <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
+                      <div className="mt-3 h-4 w-64 bg-gray-100 rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              ) : historyRows.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-white px-4 py-10 text-center">
+                  <div className="text-sm font-semibold text-gray-900">No donations found</div>
+                  <div className="mt-1 text-sm text-gray-600">Try changing the filter.</div>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Donation ID</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Resource Type</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Quantity / Amount</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Donation Date</th>
+                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {historyRows.map((d) => (
+                          <tr key={d._id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <div className="font-mono text-xs bg-gray-100 px-2 py-1 rounded inline-block">{String(d._id).slice(-10)}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <FiBarChart2 className="h-4 w-4 text-gray-400" />
+                                <span className="font-medium text-gray-900">{d.resourceType}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-gray-900">{d.quantity} {d.unit}</td>
+                            <td className="px-4 py-3 text-gray-700">{d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN') : '—'}</td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                d.status === 'completed'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : d.status === 'cancelled'
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {d.status.charAt(0).toUpperCase() + d.status.slice(1)}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-sm text-gray-600">
+                      Page {historyPage} of {historyPages} ({historyTotal} total)
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-700 disabled:opacity-50"
+                        disabled={historyPage <= 1 || historyLoading}
+                        onClick={() => loadHistory({ page: Math.max(1, historyPage - 1) })}
+                      >
+                        Prev
+                      </button>
+                      <button
+                        type="button"
+                        className="h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-700 disabled:opacity-50"
+                        disabled={historyPage >= historyPages || historyLoading}
+                        onClick={() => loadHistory({ page: Math.min(historyPages, historyPage + 1) })}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">
+              <div className="text-lg font-semibold text-gray-900 mb-4">Real-time Donation Insights</div>
+
+              {donorDashboardLoading ? (
+                <div className="grid lg:grid-cols-2 gap-6">
+                  <div className="rounded-xl border border-gray-100 bg-white p-4">
+                    <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
+                    <div className="mt-4 h-56 bg-gray-100 rounded animate-pulse" />
+                  </div>
+                  <div className="rounded-xl border border-gray-100 bg-white p-4">
+                    <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
+                    <div className="mt-4 h-56 bg-gray-100 rounded animate-pulse" />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid lg:grid-cols-2 gap-6">
+                  <div className="rounded-xl border border-gray-100 bg-white p-4">
+                    <div className="text-sm font-semibold text-gray-900 mb-2">Donations by resource type</div>
+                    {(donorDashboard?.donationsByType || []).length === 0 ? (
+                      <div className="py-10 text-center text-sm text-gray-600">No donation data yet.</div>
+                    ) : (
+                      <div style={{ width: '100%', height: 260 }}>
+                        <ResponsiveContainer>
+                          <BarChart data={donorDashboard.donationsByType}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="resourceType" />
+                            <YAxis allowDecimals={false} />
+                            <Tooltip />
+                            <Bar dataKey="count" fill="#10b981" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-gray-100 bg-white p-4">
+                    <div className="text-sm font-semibold text-gray-900 mb-2">Monthly donation trend</div>
+                    {(donorDashboard?.activity || []).length === 0 ? (
+                      <div className="py-10 text-center text-sm text-gray-600">No activity data yet.</div>
+                    ) : (
+                      <div style={{ width: '100%', height: 260 }}>
+                        <ResponsiveContainer>
+                          <LineChart data={donorDashboard.activity}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="label" />
+                            <YAxis allowDecimals={false} />
+                            <Tooltip />
+                            <Line type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={2} dot={false} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="rounded-2xl bg-white/70 backdrop-blur border border-white/60 p-5 sm:p-6 shadow-sm">
