@@ -156,7 +156,7 @@ export const fetchMyDonationsPaged = async (params?: {
       Authorization: `Bearer ${token}`
     }
   });
-  return response.data as { success: boolean; count: number; data: DonationItem[] };
+  return response.data as { success: boolean; count: number; data: DonationItem[]; page?: number; pages?: number; total?: number; };
 };
 
 export const fetchNgoLiveDonationsPool = async (params?: { limit?: number }) => {
@@ -179,17 +179,49 @@ export const fetchNgoLiveDonationsPool = async (params?: { limit?: number }) => 
   };
 };
 
+// Global cache for profile requests
+const profileCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 export const fetchDonorProfileByUid = async (firebaseUid: string) => {
   try {
+    // Check cache first
+    const cached = profileCache.get(firebaseUid);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return cached.data;
+    }
+
     const response = await axios.get(`http://localhost:5000/api/v1/profile/${encodeURIComponent(firebaseUid)}`);
-    return response.data as { success: boolean; data: DonorProfile };
+    const result = response.data as { success: boolean; data: DonorProfile };
+    
+    // Cache the result
+    profileCache.set(firebaseUid, {
+      data: result,
+      timestamp: Date.now()
+    });
+    
+    return result;
   } catch (error: any) {
     // Handle 404 gracefully - profile not found is expected for new users
     if (error.response?.status === 404) {
-      return { success: false, data: null };
+      const result = { success: false, data: null };
+      // Cache 404 results for a shorter duration
+      profileCache.set(firebaseUid, {
+        data: result,
+        timestamp: Date.now()
+      });
+      return result;
     }
-    // Re-throw other errors
     throw error;
+  }
+};
+
+// Function to clear profile cache when needed
+export const clearProfileCache = (firebaseUid?: string) => {
+  if (firebaseUid) {
+    profileCache.delete(firebaseUid);
+  } else {
+    profileCache.clear();
   }
 };
 

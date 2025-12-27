@@ -27,8 +27,19 @@ exports.upsertProfile = async (req, res) => {
 exports.getProfileByUid = async (req, res) => {
   try {
     const { firebaseUid } = req.params;
-    const profile = await Profile.findOne({ firebaseUid });
-    if (!profile) return res.status(404).json({ success: false, error: 'Profile not found' });
+    let profile = await Profile.findOne({ firebaseUid });
+    
+    // If profile doesn't exist, create a default one
+    if (!profile) {
+      profile = await Profile.create({
+        firebaseUid,
+        basic: {
+          firebaseUid,
+          accountCreationDate: new Date().toISOString()
+        }
+      });
+    }
+    
     return res.json({ success: true, data: profile });
   } catch (err) {
     console.error('getProfileByUid error', err);

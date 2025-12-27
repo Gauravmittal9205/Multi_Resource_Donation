@@ -296,14 +296,44 @@ exports.listMyDonations = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/donations/admin/ngos
 // @access  Private (Admin)
 exports.getAllNGOs = asyncHandler(async (req, res) => {
-  const ngos = await User.find({ userType: 'ngo', isVerified: true })
-    .select('_id name email organizationName firebaseUid')
+  const NgoRegistration = require('../models/NgoRegistration');
+  
+  // Get all NGOs with approved registrations OR isVerified: true
+  // First, get all approved NGO registrations
+  const approvedRegistrations = await NgoRegistration.find({ status: 'approved' })
+    .select('firebaseUid ngoName')
     .lean();
+  
+  const approvedFirebaseUids = approvedRegistrations.map(reg => reg.firebaseUid);
+  
+  // Get all NGOs that are either:
+  // 1. Verified in User model (isVerified: true), OR
+  // 2. Have approved registration status
+  const ngos = await User.find({
+    userType: 'ngo',
+    $or: [
+      { isVerified: true },
+      { firebaseUid: { $in: approvedFirebaseUids } }
+    ]
+  })
+    .select('_id name email organizationName firebaseUid isVerified')
+    .lean();
+
+  // Enrich with registration data (use ngoName from registration if available)
+  const ngosWithRegistrationData = ngos.map(ngo => {
+    const registration = approvedRegistrations.find(reg => reg.firebaseUid === ngo.firebaseUid);
+    return {
+      ...ngo,
+      organizationName: ngo.organizationName || registration?.ngoName || ngo.name || 'Unknown NGO'
+    };
+  });
+
+  console.log(`Found ${ngosWithRegistrationData.length} NGOs (${ngos.filter(n => n.isVerified).length} verified, ${approvedFirebaseUids.length} with approved registration)`);
 
   res.status(200).json({
     success: true,
-    count: ngos.length,
-    data: ngos
+    count: ngosWithRegistrationData.length,
+    data: ngosWithRegistrationData
   });
 });
 
@@ -320,6 +350,14 @@ exports.updateDonation = asyncHandler(async (req, res) => {
     return res.status(404).json({
       success: false,
       error: 'Donation not found'
+    });
+  }
+
+  // Prevent status changes if donation is already assigned to an NGO
+  if (donation.assignedNGO?.ngoFirebaseUid && status && status !== donation.status) {
+    return res.status(400).json({
+      success: false,
+      error: 'Cannot change status of an assigned donation'
     });
   }
 
