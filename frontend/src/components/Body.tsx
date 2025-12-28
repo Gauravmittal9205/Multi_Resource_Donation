@@ -100,6 +100,7 @@ export default function Body({ activeLink, user, setActiveLink, userMeta }: Body
         <NgoDashboard
           user={user}
           onBack={() => setActiveLink('home')}
+          onNavigateProfile={() => setActiveLink('profile')}
         />
       ) : activeLink === 'registration' ? (
         isNgo ? (
