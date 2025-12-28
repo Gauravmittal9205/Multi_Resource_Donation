@@ -33,6 +33,7 @@ function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [userMeta, setUserMeta] = useState<UserMeta>(null);
+  const [userMetaLoading, setUserMetaLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('email');
   const [formData, setFormData] = useState<AuthFormData>({
@@ -72,6 +73,7 @@ function App() {
   console.log('User type debugging:', {
     user: user?.email,
     userMeta,
+    userMetaLoading,
     isDonorUser,
     isNgoUser,
     userType: userMeta?.userType,
@@ -115,10 +117,12 @@ function App() {
   useEffect(() => {
     if (!user?.uid) {
       setUserMeta(null);
+      setUserMetaLoading(false);
       setIsAdmin(false);
       return;
     }
     let cancelled = false;
+    setUserMetaLoading(true);
     
     // Check if user is admin
     fetch(`http://localhost:5000/api/v1/auth/admin/check?email=${encodeURIComponent(user.email || '')}`)
@@ -168,6 +172,11 @@ function App() {
       .catch(() => {
         if (cancelled) return;
         setUserMeta(null);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setUserMetaLoading(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -1573,6 +1582,13 @@ function App() {
                         onClick={(e) => {
                           e.preventDefault();
                           setShowAbout(false);
+                          
+                          // Prevent navigation if userMeta is still loading
+                          if (userMetaLoading) {
+                            console.log('User meta still loading, please wait...');
+                            return;
+                          }
+                          
                           console.log('Dashboard clicked - User type:', userMeta?.userType);
                           console.log('isDonorUser:', isDonorUser, 'isNgoUser:', isNgoUser);
                           console.log('userMeta:', userMeta);
@@ -1583,10 +1599,14 @@ function App() {
                             targetLink = 'ngo-dashboard';
                           } else if (isDonorUser) {
                             targetLink = 'donor-dashboard';
-                          } else if (user && !userMeta) {
-                            // If user exists but userMeta is not loaded, default to donor-dashboard
-                            console.log('User exists but userMeta not loaded, defaulting to donor-dashboard');
+                          } else if (user && !userMeta && !userMetaLoading) {
+                            // If user exists but userMeta is not loaded and loading is complete, default to donor-dashboard
+                            console.log('User exists but userMeta not loaded and loading complete, defaulting to donor-dashboard');
                             targetLink = 'donor-dashboard';
+                          } else if (user && !userMeta && userMetaLoading) {
+                            // Still loading userMeta, don't navigate yet
+                            console.log('User exists but userMeta still loading, staying on home');
+                            targetLink = 'home';
                           }
                           
                           console.log('Navigating to:', targetLink);
@@ -1594,7 +1614,9 @@ function App() {
                           setIsProfileOpen(false);
                         }}
                       >
-                        Dashboard
+                        Dashboard {userMetaLoading && (
+                          <span className="ml-1 text-xs text-gray-500">(loading...)</span>
+                        )}
                       </a>
                       <a
                         href="#"
