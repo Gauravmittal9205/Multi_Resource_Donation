@@ -6,15 +6,17 @@ import { createFeedback } from '../services/feedbackService';
 import { createContact } from '../services/contactService';
 import { getMyNotifications, markNotificationAsRead, markAllNotificationsAsRead, type Notification } from '../services/notificationService';
 import { fetchNgoAssignedDonations, fetchNgoLiveDonationsPool, assignVolunteer, updateNgoDonationStatus } from '../services/donationService';
+import { getMyNgoProfile, type NgoProfile } from '../services/ngoProfileService';
 import { Package, Check, Activity, MapPin, Calendar, User as UserIcon, RefreshCw, FileText, Bell, LayoutGrid, Gift, Truck, Settings } from 'lucide-react';
 import NgoRegistration from './NgoRegistration';
 
 interface NgoDashboardProps {
   user: User | null;
   onBack: () => void;
+  onNavigateProfile: () => void;
 }
 
-export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
+export default function NgoDashboard({ user, onBack, onNavigateProfile }: NgoDashboardProps) {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   
@@ -136,6 +138,8 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
   const [state, setState] = useState('');
   const [hasRegistered, setHasRegistered] = useState(false);
   const [showRegistrationForm, setShowRegistrationForm] = useState(false);
+  const [ngoProfile, setNgoProfile] = useState<NgoProfile | null>(null);
+  const [, setNgoProfileLoading] = useState(false);
 
   useEffect(() => {
     const fetchNgoDetails = async () => {
@@ -302,6 +306,27 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
       if (intervalId) clearInterval(intervalId);
     };
   }, [hasRegistered, user, activeTab]);
+
+  // Load NGO profile data
+  useEffect(() => {
+    const loadNgoProfile = async () => {
+      if (!user) return;
+      
+      try {
+        setNgoProfileLoading(true);
+        const response = await getMyNgoProfile();
+        if (response.success && response.data) {
+          setNgoProfile(response.data);
+        }
+      } catch (error) {
+        console.error('Error loading NGO profile:', error);
+      } finally {
+        setNgoProfileLoading(false);
+      }
+    };
+
+    loadNgoProfile();
+  }, [user]);
 
   const loadNotifications = async () => {
     setNotificationsLoading(true);
@@ -573,18 +598,28 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                 <p className="text-xs text-white/80">{user?.email}</p>
               </div>
               <div className="relative">
-                {user?.photoURL ? (
+                {(ngoProfile?.basic?.logoUrl) ? (
+                  <div className="relative group">
+                    <img
+                      src={ngoProfile.basic.logoUrl}
+                      alt="NGO Logo"
+                      className="w-16 h-16 rounded-full border-2 border-white/80 shadow-md transition-all duration-300 group-hover:scale-105 object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></div>
+                  </div>
+                ) : user?.photoURL ? (
                   <div className="relative group">
                     <img
                       src={user.photoURL}
                       alt={user.displayName || 'User'}
-                      className="w-12 h-12 rounded-full border-2 border-white/80 shadow-md transition-all duration-300 group-hover:scale-105"
+                      className="w-16 h-16 rounded-full border-2 border-white/80 shadow-md transition-all duration-300 group-hover:scale-105"
                       referrerPolicy="no-referrer"
                     />
                     <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></div>
                   </div>
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white text-xl font-bold shadow-lg transition-all duration-300 group-hover:bg-white/30 group-hover:scale-105">
+                  <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white text-xl font-bold shadow-lg transition-all duration-300 group-hover:bg-white/30 group-hover:scale-105">
                     {user?.displayName?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
                     <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white"></div>
                   </div>
@@ -842,7 +877,10 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                         Verification Pending
                       </div>
                     )}
-                    <button className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-500 text-white text-sm font-semibold rounded-xl hover:from-emerald-700 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                    <button 
+                      onClick={onNavigateProfile}
+                      className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-md hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                    >
                       Complete Profile
                     </button>
                   </div>

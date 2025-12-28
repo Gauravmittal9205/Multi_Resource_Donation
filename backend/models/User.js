@@ -11,12 +11,19 @@ const UserSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: [true, 'Please add an email'],
+    required: [
+      function() { return !this.phone || this.phone === ''; },
+      'Email is required if phone number is not provided'
+    ],
     unique: true,
-    match: [
-      /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
-      'Please add a valid email'
-    ]
+    sparse: true, // Allows multiple null/empty values
+    validate: {
+      validator: function(v) {
+        // If email is provided, validate format; if empty and phone exists, allow it
+        return !v || /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(v);
+      },
+      message: 'Please add a valid email'
+    }
   },
   // Password is optional for Firebase-authenticated users
   password: {
@@ -54,7 +61,8 @@ const UserSchema = new mongoose.Schema({
   phone: {
     type: String,
     default: '',
-    maxlength: [20, 'Phone number cannot be longer than 20 characters']
+    maxlength: [20, 'Phone number cannot be longer than 20 characters'],
+    sparse: true // Allows multiple empty values but unique non-empty values
   },
   address: {
     street: String,

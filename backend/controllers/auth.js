@@ -32,6 +32,94 @@ exports.getUserByEmail = asyncHandler(async (req, res) => {
   return res.status(200).json({ success: true, data: user });
 });
 
+// @desc    Get user by phone number
+// @route   GET /api/v1/auth/user-by-phone/:phone
+// @access  Public
+exports.getUserByPhone = asyncHandler(async (req, res) => {
+  const { phone } = req.params;
+  const user = await User.findOne({ phone }).select('userType organizationName firebaseUid email name phone');
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'User not found' });
+  }
+  return res.status(200).json({ success: true, data: user });
+});
+
+// @desc    Register user with phone number
+// @route   POST /api/v1/auth/register-phone
+// @access  Public
+exports.registerWithPhone = asyncHandler(async (req, res, next) => {
+  try {
+    const { name, phone, userType, organizationName } = req.body;
+
+    if (!name || !phone || !userType) {
+      return next(new ErrorResponse('Name, phone number, and user type are required', 400));
+    }
+
+    if (!['donor', 'ngo'].includes(userType)) {
+      return next(new ErrorResponse('User type must be either "donor" or "ngo"', 400));
+    }
+
+    if (userType === 'ngo' && !organizationName) {
+      return next(new ErrorResponse('Organization name is required for NGOs', 400));
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ phone });
+    if (existingUser) {
+      return next(new ErrorResponse('User with this phone number already exists', 400));
+    }
+
+    // Format phone number
+    const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
+
+    // Create user data
+    // For phone-only users, use a placeholder email format to satisfy schema requirements
+    // This email won't be used for authentication
+    const placeholderEmail = `phone_${formattedPhone.replace(/[^0-9]/g, '')}@phoneauth.local`;
+    
+    const userData = {
+      name,
+      phone: formattedPhone,
+      userType,
+      email: placeholderEmail, // Placeholder email for phone-only users
+      isVerified: true, // Phone verified
+      emailVerified: false
+    };
+
+    if (userType === 'ngo') {
+      userData.organizationName = organizationName;
+    }
+
+    // Create user in MongoDB
+    const user = await User.create(userData);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        userType: user.userType,
+        organizationName: user.organizationName
+      }
+    });
+  } catch (err) {
+    console.error('Phone registration error:', err);
+    
+    if (err.code === 11000) {
+      return next(new ErrorResponse('Phone number already exists', 400));
+    }
+    
+    if (err.name === 'ValidationError') {
+      const messages = Object.values(err.errors).map(val => val.message);
+      return next(new ErrorResponse(messages.join(', '), 400));
+    }
+    
+    next(err);
+  }
+});
+
 exports.deleteMe = asyncHandler(async (req, res, next) => {
   const firebaseUid = req.firebaseUid;
   if (!firebaseUid) {
@@ -501,30 +589,61 @@ exports.checkAdmin = asyncHandler(async (req, res, next) => {
 // @access  Public
 exports.updateFirebaseUid = asyncHandler(async (req, res, next) => {
   try {
-    const { email, firebaseUid } = req.body;
+    const { email, phone, firebaseUid, userType } = req.body;
 
-    if (!email || !firebaseUid) {
-      return next(new ErrorResponse('Email and firebaseUid are required', 400));
+    if (!firebaseUid) {
+      return next(new ErrorResponse('Firebase UID is required', 400));
     }
 
-    // Find user by email and update with firebaseUid
-    const user = await User.findOneAndUpdate(
-      { email: email.toLowerCase() },
-      { firebaseUid, isVerified: true },
-      { new: true }
-    );
+    if (!email && !phone) {
+      return next(new ErrorResponse('Either email or phone number is required', 400));
+    }
+
+    let user;
+    let updateData = {
+      firebaseUid,
+      isVerified: true
+    };
+
+    // If userType is provided in the request, include it in the update
+    if (userType && ['donor', 'ngo'].includes(userType)) {
+      updateData.userType = userType;
+    }
+    
+    // Find user by email or phone
+    if (email) {
+      user = await User.findOneAndUpdate(
+        { email: email.toLowerCase() },
+        updateData,
+        { new: true, runValidators: true }
+      );
+    } else if (phone) {
+      // Format phone number
+      const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
+      user = await User.findOneAndUpdate(
+        { phone: formattedPhone },
+        updateData,
+        { new: true, runValidators: true }
+      );
+    }
 
     if (!user) {
       return next(new ErrorResponse('User not found', 404));
     }
 
-    console.log('Updated user with firebaseUid:', { email, firebaseUid, userType: user.userType });
+    console.log('Updated user with firebaseUid:', { 
+      email: user.email, 
+      phone: user.phone, 
+      firebaseUid, 
+      userType: user.userType 
+    });
 
     res.status(200).json({
       success: true,
       data: {
         id: user._id,
         email: user.email,
+        phone: user.phone,
         userType: user.userType,
         organizationName: user.organizationName,
         firebaseUid: user.firebaseUid
