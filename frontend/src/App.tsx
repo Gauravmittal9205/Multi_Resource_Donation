@@ -4,6 +4,7 @@ import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase
 import type { User as FirebaseUser } from 'firebase/auth';
 // Import donation service
 import { fetchDonorProfileByUid } from './services/donationService';
+import { getMyNgoProfile, type NgoProfile } from './services/ngoProfileService';
 
 import AboutUs from './components/AboutUs';
 import Footer from './components/Footer';
@@ -71,6 +72,7 @@ function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [donorProfile, setDonorProfile] = useState<any>(null);
+  const [ngoProfile, setNgoProfile] = useState<NgoProfile | null>(null);
 
   const isDonorUser = userMeta?.userType === 'donor';
   const isNgoUser = userMeta?.userType === 'ngo';
@@ -283,6 +285,40 @@ function App() {
       window.removeEventListener('profileUpdated', handleProfileUpdate);
     };
   }, [user?.uid, isDonorUser]);
+
+  // Load NGO profile for profile picture
+  useEffect(() => {
+    const loadNgoProfile = async () => {
+      if (!user?.uid || !isNgoUser) {
+        setNgoProfile(null);
+        return;
+      }
+      
+      try {
+        const res = await getMyNgoProfile();
+        if (res.success && res.data) {
+          setNgoProfile(res.data);
+        } else {
+          setNgoProfile(null);
+        }
+      } catch (error: any) {
+        console.error('Failed to load NGO profile:', error);
+        setNgoProfile(null);
+      }
+    };
+
+    loadNgoProfile();
+    
+    // Listen for profile updates
+    const handleNgoProfileUpdate = () => {
+      loadNgoProfile();
+    };
+    
+    window.addEventListener('ngoProfileUpdated', handleNgoProfileUpdate);
+    return () => {
+      window.removeEventListener('ngoProfileUpdated', handleNgoProfileUpdate);
+    };
+  }, [user?.uid, isNgoUser]);
 
   // Handle initial page load and user type changes
   useEffect(() => {
@@ -2112,8 +2148,14 @@ function App() {
                   >
                     {(() => {
                       // Priority: profile photo from MongoDB > Firebase photoURL > initial
-                      const photoUrl = donorProfile?.basic?.photoUrl || user.photoURL;
-                      const displayName = donorProfile?.basic?.name || user.displayName || user.email?.split('@')[0] || 'User';
+                      // For NGO users: NGO logo > NGO name initial > Firebase photoURL > email initial
+                      // For donor users: donor photo > Firebase photoURL > email initial
+                      const photoUrl = isNgoUser 
+                        ? ngoProfile?.basic?.logoUrl || user.photoURL
+                        : donorProfile?.basic?.photoUrl || user.photoURL;
+                      const displayName = isNgoUser
+                        ? ngoProfile?.basic?.contactPersonName || user.displayName || user.email?.split('@')[0] || 'User'
+                        : donorProfile?.basic?.name || user.displayName || user.email?.split('@')[0] || 'User';
                       const initial = displayName?.charAt(0)?.toUpperCase() || user.email?.charAt(0).toUpperCase();
                       
                       if (photoUrl) {
@@ -2148,7 +2190,9 @@ function App() {
                       );
                     })()}
                     <span className="text-sm font-medium text-gray-700">
-                      {donorProfile?.basic?.name || user.displayName || user.email?.split('@')[0]}
+                      {isNgoUser
+                        ? ngoProfile?.basic?.contactPersonName || user.displayName || user.email?.split('@')[0]
+                        : donorProfile?.basic?.name || user.displayName || user.email?.split('@')[0]}
                     </span>
                     <svg 
                       className={`w-4 h-4 text-gray-500 transition-transform ${isProfileOpen ? 'transform rotate-180' : ''}`} 
