@@ -41,6 +41,9 @@ import {
   AlertCircle,
   Calendar,
   CalendarCheck,
+  Search,
+  HelpCircle,
+  LogOut,
 } from 'lucide-react';
 
 import adminIcon from '../assets/admin.jpg';
@@ -709,11 +712,13 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
       const [
         pendingDonationsResponse,
         pendingNgoRegistrations,
-        allHelpMessages
+        allHelpMessages,
+        ngoRequestsResponse
       ] = await Promise.all([
         donationService.fetchAllDonations({ status: 'pending' }).catch(() => ({ success: false, count: 0, data: [] })),
         getAllNgoRegistrations('pending').catch(() => []),
-        getAllHelpMessages().catch(() => ({ success: false, data: [] }))
+        getAllHelpMessages().catch(() => ({ success: false, data: [] })),
+        getAllNgoRequests().catch(() => ({ success: false, data: [] }))
       ]);
 
       // Count pending donations
@@ -726,6 +731,11 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
         ? pendingNgoRegistrations.length
         : 0;
 
+      // Count pending NGO requests (requests with status 'pending')
+      const pendingNgoRequestsCount = ngoRequestsResponse.success && Array.isArray(ngoRequestsResponse.data)
+        ? ngoRequestsResponse.data.filter((req: any) => req.status === 'pending').length
+        : 0;
+
       // Count pending reports (help messages with status 'new' only - not read yet)
       const pendingReportsCount = allHelpMessages.success && Array.isArray(allHelpMessages.data)
         ? allHelpMessages.data.filter((msg: any) => msg.status === 'new').length
@@ -736,7 +746,7 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
         ...prev,
         pendingDonations: pendingDonationsCount,
         pendingApprovals: pendingNgoVerificationsCount,
-        pendingNGOs: pendingNgoVerificationsCount,
+        pendingNGOs: pendingNgoRequestsCount, // Update with pending NGO requests count, not registrations
         pendingReports: pendingReportsCount,
         openIssues: pendingReportsCount // Update openIssues with new reports count
       }));
@@ -841,6 +851,20 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
     }
   };
 
+  // Refresh function for overview tab
+  const handleRefreshOverview = async () => {
+    try {
+      await Promise.all([
+        fetchPendingCounts(),
+        fetchActivePickupsCount(),
+        fetchChartData(),
+        calculateTotalFoodKg()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing overview:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -878,31 +902,24 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <aside className={`bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out overflow-hidden h-screen fixed left-0 top-0 ${
+      {/* Sidebar - Donezo Style */}
+      <aside className={`bg-white border-r border-gray-100 flex flex-col transition-all duration-300 ease-in-out overflow-hidden h-screen fixed left-0 top-0 ${
         sidebarCollapsed ? 'w-20' : 'w-64'
       }`}>
-        {/* Header */}
-        <div className="p-6 border-b border-gray-200 relative">
+        {/* Logo/Header */}
+        <div className="p-6 border-b border-gray-100 relative">
           {!sidebarCollapsed ? (
-            <div className="flex flex-col items-center text-center">
-              <div className="relative w-20 h-20 mb-3">
-                <img
-                  src={adminIcon}
-                  alt="Admin"
-                  className="w-20 h-20 rounded-full object-cover shadow-lg border-2 border-blue-100 bg-white"
-                />
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center shadow-sm">
+                <Check className="w-6 h-6 text-white" />
               </div>
-              <div className="font-semibold text-gray-900 text-lg">{user?.displayName || 'Admin'}</div>
-              <div className="text-sm text-gray-600 mt-1 truncate w-full">{user?.email}</div>
+              <div className="font-bold text-xl text-gray-900">Admin</div>
             </div>
           ) : (
             <div className="flex items-center justify-center w-full">
-              <img
-                src={adminIcon}
-                alt="Admin"
-                className="w-10 h-10 rounded-full object-cover shadow-md border border-blue-100 bg-white"
-              />
+              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center shadow-sm">
+                <Check className="w-6 h-6 text-white" />
+              </div>
             </div>
           )}
           <button
@@ -918,9 +935,14 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
           </button>
         </div>
         
-        
-        <nav className="flex-1 min-h-0 p-4 space-y-1 overflow-y-auto scrollbar-hide">
-          {menuItems.map((item) => {
+        {/* MENU Section */}
+        {!sidebarCollapsed && (
+          <div className="px-6 pt-4 pb-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">MENU</p>
+          </div>
+        )}
+        <nav className="flex-1 min-h-0 px-4 py-2 space-y-1 overflow-y-auto scrollbar-hide">
+          {menuItems.slice(0, 6).map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             
@@ -928,17 +950,20 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
               <div key={item.id} className="relative group">
                 <button
                   onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 transform hover:scale-105 ${
+                  className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                     isActive
-                      ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-200 shadow-sm'
-                      : 'text-gray-700 hover:bg-gray-50 hover:shadow-sm'
+                      ? 'bg-green-50 text-green-700'
+                      : 'text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  <Icon className={`w-5 h-5 transition-transform duration-200 ${
-                    isActive ? 'scale-110' : 'group-hover:scale-110'
-                  }`} />
+                  <Icon className={`w-5 h-5 ${isActive ? 'text-green-600' : 'text-gray-500'}`} />
                   {!sidebarCollapsed && (
                     <span className="transition-all duration-200">{item.label}</span>
+                  )}
+                  {!sidebarCollapsed && activeTab === 'ngos' && item.id === 'ngos' && (
+                    <span className="ml-auto bg-green-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                      {animatedStats.pendingNGOs > 0 ? `${animatedStats.pendingNGOs}+` : ''}
+                    </span>
                   )}
                 </button>
                 
@@ -954,162 +979,222 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
           })}
         </nav>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-gray-200">
-          {!sidebarCollapsed ? (
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:shadow-sm transition-all duration-200 transform hover:scale-105"
-            >
-              <span>Logout</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-all duration-200 transform hover:scale-105 group"
-              title="Logout"
-            >
-              <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-200" />
-            </button>
-          )}
+        {/* GENERAL Section */}
+        {!sidebarCollapsed && (
+          <div className="px-6 pt-4 pb-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">GENERAL</p>
+          </div>
+        )}
+        <div className="px-4 py-2 space-y-1">
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+              activeTab === 'settings'
+                ? 'bg-green-50 text-green-700'
+                : 'text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Settings className={`w-5 h-5 ${activeTab === 'settings' ? 'text-green-600' : 'text-gray-500'}`} />
+            {!sidebarCollapsed && <span>Settings</span>}
+          </button>
+          <button
+            className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 text-gray-700 hover:bg-gray-50`}
+          >
+            <HelpCircle className="w-5 h-5 text-gray-500" />
+            {!sidebarCollapsed && <span>Help</span>}
+          </button>
+          <button
+            onClick={handleLogout}
+            className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 text-gray-700 hover:bg-gray-50`}
+          >
+            <LogOut className="w-5 h-5 text-gray-500" />
+            {!sidebarCollapsed && <span>Logout</span>}
+          </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className={`flex-1 overflow-y-auto transition-all duration-300 ease-in-out ${
+      <main className={`flex-1 overflow-y-auto transition-all duration-300 ease-in-out bg-gray-50 ${
         sidebarCollapsed ? 'ml-20' : 'ml-64'
       }`}>
+        {/* Top Header - Donezo Style */}
+        <div className="bg-white border-b border-gray-100 sticky top-0 z-40">
+          <div className="px-8 py-4 flex items-center justify-end">
+            {/* User Profile & Notifications */}
+            <div className="flex items-center space-x-6">
+              <button 
+                onClick={() => setActiveTab('users')}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors relative"
+                title="Users"
+              >
+                <MessageSquare className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={() => setActiveTab('notifications')}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors relative"
+                title="Notifications"
+              >
+                <Bell className="w-5 h-5" />
+                {animatedStats.pendingReports > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                )}
+              </button>
+              <div className="flex items-center space-x-3 pl-4 border-l border-gray-200">
+                <img
+                  src={adminIcon}
+                  alt="Admin"
+                  className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                />
+                <div className="hidden md:block">
+                  <div className="text-sm font-medium text-gray-900">{user?.displayName || 'Admin User'}</div>
+                  <div className="text-xs text-gray-500">{user?.email || 'admin@example.com'}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="p-8">
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Dashboard Overview</h2>
-                <p className="text-gray-600">System health and key metrics at a glance</p>
+              {/* Dashboard Title Section */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-4xl font-bold text-gray-900 mb-2">Dashboard</h1>
+                  <p className="text-gray-600 text-lg">Plan, prioritize, and accomplish your tasks with ease.</p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={handleRefreshOverview}
+                    className="px-5 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors duration-200 shadow-sm hover:shadow-md font-medium text-sm"
+                  >
+                    <RefreshCw className="w-4 h-4 inline mr-2" />
+                    Refresh
+                  </button>
+                </div>
               </div>
 
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Stats Cards - Donezo Style */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* Total Donations - Green Card (Primary) */}
                 <button
                   onClick={() => setActiveTab('donations')}
-                  className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500 hover:shadow-xl transform hover:scale-105 transition-all duration-300 group relative overflow-hidden"
+                  className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  <div className="relative flex items-center justify-between">
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-gray-600 group-hover:text-blue-700 transition-colors">Completed Donations</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-2 group-hover:text-blue-800 transition-colors">
-                        {animatedStats.completedDonations.toLocaleString()}
-                      </p>
-                      <div className="flex items-center mt-2 text-xs text-green-600">
-                        <ArrowUp className="w-3 h-3 mr-1" />
-                        <span>+12% from last month</span>
-                      </div>
-                    </div>
-                    <div className="relative">
-                      <Package className="w-12 h-12 text-blue-500 group-hover:scale-110 transition-transform duration-300" />
-                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                    </div>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-green-50">Total Donations</p>
+                    <Package className="w-8 h-8 text-green-100" />
+                  </div>
+                  <p className="text-4xl font-bold mb-2">
+                    {animatedStats.completedDonations.toLocaleString()}
+                  </p>
+                  <div className="flex items-center text-xs text-green-100">
+                    <ArrowUp className="w-3 h-3 mr-1" />
+                    <span>5 Increased from last month</span>
                   </div>
                 </button>
 
+                {/* Completed Donations - White Card */}
                 <button
-                  onClick={() => setActiveTab('ngos')}
-                  className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500 hover:shadow-xl transform hover:scale-105 transition-all duration-300 group relative overflow-hidden"
+                  onClick={() => setActiveTab('donations')}
+                  className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-all duration-300 transform hover:scale-[1.02] border border-gray-100"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-green-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  <div className="relative flex items-center justify-between">
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-gray-600 group-hover:text-green-700 transition-colors">Verified NGOs</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-2 group-hover:text-green-800 transition-colors">
-                        {animatedStats.verifiedNGOs}
-                      </p>
-                      <div className="flex items-center mt-2 text-xs text-green-600">
-                        <ArrowUp className="w-3 h-3 mr-1" />
-                        <span>+8% from last month</span>
-                      </div>
-                    </div>
-                    <Building2 className="w-12 h-12 text-green-500 group-hover:scale-110 transition-transform duration-300" />
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-gray-600">Completed Donations</p>
+                    <CheckCircle className="w-8 h-8 text-green-500" />
+                  </div>
+                  <p className="text-4xl font-bold text-gray-900 mb-2">
+                    {animatedStats.completedDonations.toLocaleString()}
+                  </p>
+                  <div className="flex items-center text-xs text-gray-500">
+                    <ArrowUp className="w-3 h-3 mr-1" />
+                    <span>6 Increased from last month</span>
                   </div>
                 </button>
 
-                <button
-                  onClick={() => setActiveTab('ngos')}
-                  className="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500 hover:shadow-xl transform hover:scale-105 transition-all duration-300 group relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-yellow-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  <div className="relative flex items-center justify-between">
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-gray-600 group-hover:text-yellow-700 transition-colors">Pending NGO Requests</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-2 group-hover:text-yellow-800 transition-colors">
-                        {animatedStats.pendingNGOs}
-                      </p>
-                      <div className="flex items-center mt-2 text-xs text-yellow-600">
-                        <Clock className="w-3 h-3 mr-1" />
-                        <span>Needs attention</span>
-                      </div>
-                    </div>
-                    <Clock className="w-12 h-12 text-yellow-500 group-hover:scale-110 transition-transform duration-300" />
-                  </div>
-                </button>
+                {/* Active Pickups - White Card */}
                 <button
                   onClick={() => setActiveTab('pickups')}
-                  className="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500 hover:shadow-xl transform hover:scale-105 transition-all duration-300 group relative overflow-hidden"
+                  className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-all duration-300 transform hover:scale-[1.02] border border-gray-100"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-purple-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  <div className="relative flex items-center justify-between">
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-gray-600 group-hover:text-purple-700 transition-colors">Active Pickups</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-2 group-hover:text-purple-800 transition-colors">
-                        {animatedStats.activePickups}
-                      </p>
-                      <div className="flex items-center mt-2 text-xs text-purple-600">
-                        <Activity className="w-3 h-3 mr-1" />
-                        <span>{animatedStats.activePickups} in progress</span>
-                      </div>
-                    </div>
-                    <Truck className="w-12 h-12 text-purple-500 group-hover:scale-110 transition-transform duration-300" />
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-gray-600">Active Pickups</p>
+                    <Truck className="w-8 h-8 text-blue-500" />
+                  </div>
+                  <p className="text-4xl font-bold text-gray-900 mb-2">
+                    {animatedStats.activePickups}
+                  </p>
+                  <div className="flex items-center text-xs text-gray-500">
+                    <ArrowUp className="w-3 h-3 mr-1" />
+                    <span>2 Increased from last month</span>
                   </div>
                 </button>
 
+                {/* Pending Requests - White Card */}
                 <button
-                  onClick={() => setActiveTab('analytics')}
-                  className="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500 hover:shadow-xl transform hover:scale-105 transition-all duration-300 group relative overflow-hidden"
+                  onClick={() => setActiveTab('ngos')}
+                  className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-all duration-300 transform hover:scale-[1.02] border border-gray-100"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-orange-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  <div className="relative flex items-center justify-between">
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-gray-600 group-hover:text-orange-700 transition-colors">Total Food Donated</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-2 group-hover:text-orange-800 transition-colors">
-                        {animatedStats.mealsSaved.toLocaleString()} kg
-                      </p>
-                      <div className="flex items-center mt-2 text-xs text-orange-600">
-                        <TrendingUp className="w-3 h-3 mr-1" />
-                        <span>Total food donated</span>
-                      </div>
-                    </div>
-                    <BarChart3 className="w-12 h-12 text-orange-500 group-hover:scale-110 transition-transform duration-300" />
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-gray-600">Pending Requests</p>
+                    <Clock className="w-8 h-8 text-yellow-500" />
+                  </div>
+                  <p className="text-4xl font-bold text-gray-900 mb-2">
+                    {animatedStats.pendingNGOs}
+                  </p>
+                  <div className="flex items-center text-xs text-gray-500">
+                    <span>On Discuss</span>
                   </div>
                 </button>
+              </div>
 
-
+              {/* Additional Stats Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <button
+                  onClick={() => setActiveTab('ngos')}
+                  className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-all duration-300 transform hover:scale-[1.02] border border-gray-100"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-gray-600">Verified NGOs</p>
+                    <Building2 className="w-8 h-8 text-green-500" />
+                  </div>
+                  <p className="text-4xl font-bold text-gray-900 mb-2">
+                    {animatedStats.verifiedNGOs}
+                  </p>
+                  <div className="flex items-center text-xs text-gray-500">
+                    <ArrowUp className="w-3 h-3 mr-1" />
+                    <span>8% from last month</span>
+                  </div>
+                </button>
                 <button
                   onClick={() => setActiveTab('reports')}
-                  className="bg-white rounded-lg shadow p-6 border-l-4 border-red-500 hover:shadow-xl transform hover:scale-105 transition-all duration-300 group relative overflow-hidden"
+                  className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-all duration-300 transform hover:scale-[1.02] border border-gray-100"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-red-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  <div className="relative flex items-center justify-between">
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-gray-600 group-hover:text-red-700 transition-colors">New Reports</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-2 group-hover:text-red-800 transition-colors">
-                        {animatedStats.openIssues}
-                      </p>
-                      <div className="flex items-center mt-2 text-xs text-red-600">
-                        <AlertTriangle className="w-3 h-3 mr-1" />
-                        <span>Unread support tickets</span>
-                      </div>
-                    </div>
-                    <AlertTriangle className="w-12 h-12 text-red-500 group-hover:scale-110 transition-transform duration-300" />
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-gray-600">Open Issues</p>
+                    <AlertTriangle className="w-8 h-8 text-red-500" />
+                  </div>
+                  <p className="text-4xl font-bold text-gray-900 mb-2">
+                    {animatedStats.openIssues}
+                  </p>
+                  <div className="flex items-center text-xs text-gray-500">
+                    <span>Needs attention</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('donations')}
+                  className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-all duration-300 transform hover:scale-[1.02] border border-gray-100"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-gray-600">Pending Donations</p>
+                    <Package className="w-8 h-8 text-yellow-500" />
+                  </div>
+                  <p className="text-4xl font-bold text-gray-900 mb-2">
+                    {animatedStats.pendingDonations}
+                  </p>
+                  <div className="flex items-center text-xs text-gray-500">
+                    <span>Awaiting assignment</span>
                   </div>
                 </button>
               </div>
@@ -1908,35 +1993,35 @@ function NGOVerificationPanel({ onViewRequest }: NGOVerificationPanelProps) {
   });
 
   // Fetch NGO registrations
-  useEffect(() => {
-    const fetchRegistrations = async () => {
-      try {
-        setRegistrations(prev => ({ ...prev, loading: true, error: null }));
-        
-        // Fetch all statuses in parallel
-        const [pending, approved, rejected] = await Promise.all([
-          getAllNgoRegistrations('pending'),
-          getAllNgoRegistrations('approved'),
-          getAllNgoRegistrations('rejected')
-        ]);
-        
-        setRegistrations({
-          pending,
-          approved,
-          rejected,
-          loading: false,
-          error: null
-        });
-      } catch (error) {
-        console.error('Error fetching NGO registrations:', error);
-        setRegistrations(prev => ({
-          ...prev,
-          loading: false,
-          error: 'Failed to load NGO registrations. Please try again.'
-        }));
-      }
-    };
+  const fetchRegistrations = async () => {
+    try {
+      setRegistrations(prev => ({ ...prev, loading: true, error: null }));
+      
+      // Fetch all statuses in parallel
+      const [pending, approved, rejected] = await Promise.all([
+        getAllNgoRegistrations('pending'),
+        getAllNgoRegistrations('approved'),
+        getAllNgoRegistrations('rejected')
+      ]);
+      
+      setRegistrations({
+        pending,
+        approved,
+        rejected,
+        loading: false,
+        error: null
+      });
+    } catch (error) {
+      console.error('Error fetching NGO registrations:', error);
+      setRegistrations(prev => ({
+        ...prev,
+        loading: false,
+        error: 'Failed to load NGO registrations. Please try again.'
+      }));
+    }
+  };
 
+  useEffect(() => {
     fetchRegistrations();
   }, []);
 
@@ -1972,9 +2057,20 @@ function NGOVerificationPanel({ onViewRequest }: NGOVerificationPanelProps) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">NGO Verification</h2>
-        <p className="text-gray-600">Manage NGO registrations and verifications</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">NGO Verification</h2>
+          <p className="text-gray-600">Manage NGO registrations and verifications</p>
+        </div>
+        <button
+          onClick={fetchRegistrations}
+          disabled={registrations.loading}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Refresh NGO Registrations"
+        >
+          <RefreshCw className={`w-4 h-4 ${registrations.loading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* Tabs */}
@@ -2556,8 +2652,29 @@ function DonationsManagement() {
 
  
 
+  const handleRefresh = async () => {
+    setLoading(true);
+    await Promise.all([fetchDonations(), fetchNGOs()]);
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Donations Management</h2>
+          <p className="text-gray-600">Manage and assign donations to NGOs</p>
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={loading}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Refresh Donations"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
+      </div>
+
       {/* New Donation Notification Popup */}
       {showNotification && newDonation && (
         <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
@@ -2588,9 +2705,11 @@ function DonationsManagement() {
         </div>
       )}
 
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Donation Monitoring</h2>
-        <p className="text-gray-600">Track and manage all donations in real-time</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Donation Monitoring</h2>
+          <p className="text-gray-600">Track and manage all donations in real-time</p>
+        </div>
       </div>
 
       {/* Filters */}
@@ -2634,8 +2753,6 @@ function DonationsManagement() {
               <option value="">All Status</option>
               <option value="pending">Pending</option>
               <option value="assigned">Assigned</option>
-              <option value="picked">Picked</option>
-              <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
             </select>
           </div>
@@ -2733,16 +2850,20 @@ function DonationsManagement() {
                             : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button 
-                          onClick={() => {
-                            setSelectedDonation(donation);
-                            setShowDetailsModal(true);
-                          }}
-                          className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
-                        >
-                          <Eye className="w-4 h-4" />
-                          <span>View</span>
-                        </button>
+                        {donation.status !== 'cancelled' && donation.status !== 'completed' ? (
+                          <button 
+                            onClick={() => {
+                              setSelectedDonation(donation);
+                              setShowDetailsModal(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
+                          >
+                            <Eye className="w-4 h-4" />
+                            <span>View</span>
+                          </button>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -2944,6 +3065,7 @@ function DonationsManagement() {
                     )}
 
                     {/* NGO Assignment & Status Update Form */}
+                    {selectedDonation.status !== 'assigned' && (
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-4 border-2 border-blue-200">
                       <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                         <Package className="w-5 h-5 mr-2 text-blue-600" />
@@ -2952,6 +3074,13 @@ function DonationsManagement() {
                       
                       <form onSubmit={async (e) => {
                         e.preventDefault();
+                        
+                        // Prevent status changes if donation is already assigned
+                        if (selectedDonation.status === 'assigned') {
+                          alert('This donation is already assigned. Status cannot be changed.');
+                          return;
+                        }
+                        
                         if (!formData.selectedNGO && !formData.status) {
                           alert('Please select an NGO request or update status');
                           return;
@@ -3038,35 +3167,49 @@ function DonationsManagement() {
                             <label className="block text-sm font-medium text-gray-700">
                               Donation Status
                             </label>
-                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                              {[
-                                { value: 'pending', label: 'Pending', color: 'yellow' },
-                                { value: 'assigned', label: 'Assigned', color: 'blue' },
-                                { value: 'picked', label: 'Picked', color: 'purple' },
-                                { value: 'completed', label: 'Completed', color: 'green' },
-                                { value: 'cancelled', label: 'Cancelled', color: 'red' },
-                              ].map((status) => (
-                                <button
-                                  key={status.value}
-                                  type="button"
-                                  onClick={() => {
-                                    setFormData({ ...formData, status: status.value });
-                                  }}
-                                  className={`flex items-center justify-center px-3 py-2 rounded-lg border ${
-                                    formData.status === status.value
-                                      ? `bg-${status.color}-100 border-${status.color}-500 text-${status.color}-800 font-medium`
-                                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                                  } transition-colors`}
-                                >
-                                  {status.label}
-                                </button>
-                              ))}
-                            </div>
+                            {selectedDonation.status === 'assigned' ? (
+                              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <p className="text-sm text-blue-800 font-medium">
+                                  This donation is already assigned. Status cannot be changed.
+                                </p>
+                                <p className="text-xs text-blue-600 mt-1">
+                                  Current Status: <span className="font-semibold">Assigned</span>
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                {[
+                                  { value: 'pending', label: 'Pending', color: 'yellow' },
+                                  { value: 'assigned', label: 'Assigned', color: 'blue' },
+                                  { value: 'cancelled', label: 'Cancelled', color: 'red' },
+                                ].map((status) => (
+                                  <button
+                                    key={status.value}
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData({ ...formData, status: status.value });
+                                    }}
+                                    className={`flex items-center justify-center px-3 py-2 rounded-lg border ${
+                                      formData.status === status.value
+                                        ? `bg-${status.color}-100 border-${status.color}-500 text-${status.color}-800 font-medium`
+                                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    } transition-colors`}
+                                  >
+                                    {status.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
 
                           {/* Submit Button */}
                           <div className="flex space-x-3">
-                            {formData.status !== 'cancelled' ? (
+                            {selectedDonation.status === 'assigned' ? (
+                              <div className="flex-1 bg-gray-100 text-gray-600 px-4 py-2 rounded-lg flex items-center justify-center space-x-2 shadow-sm cursor-not-allowed">
+                                <XCircle className="w-4 h-4" />
+                                <span>Cannot Modify Assigned Donation</span>
+                              </div>
+                            ) : formData.status !== 'cancelled' ? (
                               <button
                                 type="submit"
                                 disabled={assigningNGO || (!formData.selectedNGO && !formData.status)}
@@ -3118,6 +3261,19 @@ function DonationsManagement() {
                         </div>
                       </form>
                     </div>
+                    )}
+                    
+                    {selectedDonation.status === 'assigned' && (
+                      <div className="bg-blue-50 rounded-lg p-6 mb-4 border-2 border-blue-200">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                          <CheckCircle className="w-5 h-5 mr-2 text-blue-600" />
+                          Donation Already Assigned
+                        </h4>
+                        <p className="text-sm text-blue-800">
+                          This donation has been assigned to an NGO. Status changes are not allowed once a donation is assigned.
+                        </p>
+                      </div>
+                    )}
 
                     {(formData.status === 'cancelled' || selectedDonation.status === 'cancelled') && (
                       <div className="bg-red-50 rounded-lg p-6 mb-4 border-2 border-red-200">
@@ -3391,9 +3547,11 @@ function PickupTracking() {
         </div>
         <button
           onClick={fetchPickupDonations}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          disabled={loading}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Refresh Pickups"
         >
-          <RefreshCw className="w-4 h-4" />
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh</span>
         </button>
       </div>
@@ -3928,8 +4086,19 @@ function ReportsManagement() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Reports & Support</h2>
-        <p className="text-gray-600">Manage help messages and support requests from users</p>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Reports & Support</h2>
+          <p className="text-gray-600">Manage help messages and support requests from users</p>
+        </div>
+        <button
+          onClick={fetchHelpMessages}
+          disabled={loading}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Refresh Reports"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* Stats Cards */}
@@ -4413,8 +4582,19 @@ function ImpactAnalytics() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Analytics Dashboard</h2>
-        <p className="text-gray-600">Real-time analytics and performance metrics</p>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Analytics Dashboard</h2>
+          <p className="text-gray-600">Real-time analytics and performance metrics</p>
+        </div>
+        <button
+          onClick={fetchAnalyticsData}
+          disabled={loading}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Refresh Analytics"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* Metrics Cards */}
@@ -4709,8 +4889,19 @@ function NotificationsPanel() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Notifications</h2>
-        <p className="text-gray-600">View all notifications sent to donors</p>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Notifications</h2>
+          <p className="text-gray-600">View all notifications sent to donors</p>
+        </div>
+        <button
+          onClick={fetchNotifications}
+          disabled={loading}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Refresh Notifications"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {error && (
@@ -4932,8 +5123,19 @@ function UserManagement() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">User Management</h2>
-        <p className="text-gray-600">Manage donors and volunteers</p>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">User Management</h2>
+          <p className="text-gray-600">Manage donors and volunteers</p>
+        </div>
+        <button
+          onClick={fetchDonors}
+          disabled={loading}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Refresh Users"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {notificationSuccess && (
@@ -5300,13 +5502,23 @@ function SettingsPanel() {
           <h2 className="text-2xl font-bold text-gray-900">Admin Settings</h2>
           <p className="text-sm text-gray-600">Configure platform settings and behavior</p>
         </div>
-        <button 
-          onClick={handleSaveSettings}
-          disabled={isSaving}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
-        >
-          {isSaving ? 'Saving...' : 'Save Settings'}
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => window.location.reload()}
+            className="flex items-center space-x-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors duration-200 shadow-sm hover:shadow-md"
+            title="Refresh Page"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Refresh</span>
+          </button>
+          <button 
+            onClick={handleSaveSettings}
+            disabled={isSaving}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
+          >
+            {isSaving ? 'Saving...' : 'Save Settings'}
+          </button>
+        </div>
       </div>
 
       <div className="flex space-x-2 overflow-x-auto pb-2">

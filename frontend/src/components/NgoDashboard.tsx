@@ -1,5 +1,6 @@
 import type { User } from 'firebase/auth';
-import { useState, useEffect } from 'react';
+// import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { createNgoRequest, getMyRequests, getNgoDashboard } from '../services/ngoRequestService';
 import { createFeedback } from '../services/feedbackService';
 import { createContact } from '../services/contactService';
@@ -3149,7 +3150,7 @@ export default function NgoDashboard({ user, onBack }: NgoDashboardProps) {
                       { key: 'all', label: 'All Notifications', icon: <LayoutGrid className="w-4 h-4" /> },
                       { key: 'donations', label: 'Donations', icon: <Gift className="w-4 h-4" /> },
                       { key: 'system', label: 'System', icon: <Settings className="w-4 h-4" /> }
-                    ] as Array<{ key: 'all' | 'donations' | 'system'; label: string; icon: JSX.Element }>).map((opt) => (
+                    ] as Array<{ key: 'all' | 'donations' | 'system'; label: string; icon: ReactElement }>).map((opt) => (
                       <button
                         key={opt.key}
                         onClick={() => setNotificationsCategoryFilter(opt.key)}
