@@ -4,6 +4,6 @@ const { upsertProfile, getProfileByUid } = require('../controllers/profile');
 
 // Public/simple routes (can be secured later)
 router.post('/upsert', upsertProfile);
-router.get('/:firebaseUid', getProfileByUid);
+router.get('/uid/:firebaseUid', getProfileByUid);
 
 module.exports = router;
