@@ -714,23 +714,23 @@ export default function NgoDashboard({ user, onBack, onNavigateProfile }: NgoDas
                   ) 
                 },
                 { 
-                  id: 'signout', 
-                  label: 'Sign Out',
+                  id: 'back', 
+                  label: 'Back',
                   icon: (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>
                   ) 
-                }
+                },
               ].map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => tab.id === 'signout' ? onBack() : setActiveTab(tab.id)}
+                  onClick={() => tab.id === 'back' ? onBack() : setActiveTab(tab.id)}
                   className={`flex items-center space-x-2 px-4 py-3 rounded-lg mx-1 transition-all duration-200 ${
                     activeTab === tab.id
                       ? 'bg-emerald-50 text-emerald-600 shadow-sm'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
-                  } ${tab.id === 'signout' ? 'text-red-500 hover:bg-red-50' : ''}`}
+                  } ${tab.id === 'back' ? 'text-blue-500 hover:bg-blue-50' : ''}`}
                 >
                   <span className={`relative ${activeTab === tab.id ? 'opacity-100' : 'opacity-70'}`}>
                     {tab.icon}
@@ -803,53 +803,79 @@ export default function NgoDashboard({ user, onBack, onNavigateProfile }: NgoDas
           )
         ) : activeTab === 'overview' && (
           <div className="space-y-6">
-            {/* 1. Profile & Verification Status */}
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-medium text-gray-900">Profile & Verification Status</h2>
+            {/* 1. Profile & Verification Status - Enhanced */}
+            <div className="bg-gradient-to-br from-white via-emerald-50 to-teal-50 rounded-2xl shadow-lg overflow-hidden border border-emerald-100 transition-all hover:shadow-xl">
+              <div className="px-8 py-6 border-b border-emerald-100 bg-gradient-to-r from-emerald-600 to-teal-500">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  Organization Profile
+                </h2>
               </div>
-              <div className="p-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between">
-                  <div className="mb-4 md:mb-0">
-                    <h3 className="text-xl font-semibold text-gray-900">{ngoName || 'Your Organization'}</h3>
-                    <div className="mt-2 space-y-1">
-                      <div className="flex items-center text-gray-600">
-                        <svg className="w-4 h-4 mr-2 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span>{city || 'City'}, {state || 'State'}</span>
+              <div className="p-8">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center shadow-lg">
+                        <span className="text-2xl font-bold text-white">
+                          {ngoName?.charAt(0) || 'N'}
+                        </span>
                       </div>
-                      <div className="flex items-center text-gray-600">
-                        <svg className="w-4 h-4 mr-2 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span className="font-mono">{registrationNumber || 'N/A'}</span>
+                      <div>
+                        <h3 className="text-2xl font-bold text-gray-900">{ngoName || 'Your Organization'}</h3>
+                        <p className="text-sm text-emerald-600 font-medium mt-1">NGO Dashboard</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3 ml-20">
+                      <div className="flex items-center text-gray-600 group">
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3 group-hover:bg-emerald-100 transition-colors">
+                          <MapPin className="w-5 h-5 text-gray-500 group-hover:text-emerald-600 transition-colors" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide">Location</p>
+                          <p className="text-sm font-medium text-gray-900">{city || 'City'}, {state || 'State'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center text-gray-600 group">
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mr-3 group-hover:bg-emerald-100 transition-colors">
+                          <FileText className="w-5 h-5 text-gray-500 group-hover:text-emerald-600 transition-colors" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide">Registration Number</p>
+                          <p className="text-sm font-mono font-medium text-gray-900">{registrationNumber || 'N/A'}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
                     {verificationStatus === 'approved' ? (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Verified
-                      </span>
+                      <div className="inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-green-50 to-emerald-50 text-green-800 border border-green-200 shadow-sm">
+                        <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center mr-2">
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                        Verified Organization
+                      </div>
                     ) : verificationStatus === 'rejected' ? (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                      <div className="inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-red-50 to-pink-50 text-red-800 border border-red-200 shadow-sm">
+                        <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center mr-2">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </div>
                         Verification Rejected
-                      </span>
+                      </div>
                     ) : (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                      <div className="inline-flex items-center px-4 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-yellow-50 to-amber-50 text-yellow-800 border border-yellow-200 shadow-sm">
+                        <div className="w-5 h-5 bg-yellow-500 rounded-full flex items-center justify-center mr-2 animate-pulse">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
                         Verification Pending
-                      </span>
+                      </div>
                     )}
                     <button 
                       onClick={onNavigateProfile}
@@ -862,275 +888,368 @@ export default function NgoDashboard({ user, onBack, onNavigateProfile }: NgoDas
               </div>
             </div>
 
-            {/* 2. Key Numbers */}
+            {/* 2. Key Numbers - Enhanced */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-emerald-500">
-                <div className="flex items-center justify-between">
+              <div className="group bg-gradient-to-br from-white to-emerald-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-emerald-100 overflow-hidden transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                      <FileText className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {dashboardLoading ? '...' : dashboardStats.totalRequests}
+                      </p>
+                    </div>
+                  </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Total Requests Made</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">
-                      {dashboardLoading ? '...' : dashboardStats.totalRequests}
-                    </p>
+                    <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total Requests</p>
+                    <p className="text-xs text-gray-500 mt-1">All donation requests made</p>
                   </div>
-                  <div className="flex-shrink-0 bg-emerald-100 rounded-lg p-3">
-                    <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                  </div>
+                  <div className="mt-4 h-1 bg-gradient-to-r from-emerald-200 to-emerald-400 rounded-full"></div>
                 </div>
               </div>
               
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
-                <div className="flex items-center justify-between">
+              <div className="group bg-gradient-to-br from-white to-yellow-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-yellow-100 overflow-hidden transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                      <Calendar className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {dashboardLoading ? '...' : dashboardStats.pendingRequests}
+                      </p>
+                    </div>
+                  </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Pending Requests</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">
-                      {dashboardLoading ? '...' : dashboardStats.pendingRequests}
-                    </p>
+                    <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Pending</p>
+                    <p className="text-xs text-gray-500 mt-1">Awaiting approval</p>
                   </div>
-                  <div className="flex-shrink-0 bg-yellow-100 rounded-lg p-3">
-                    <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
+                  <div className="mt-4 h-1 bg-gradient-to-r from-yellow-200 to-orange-400 rounded-full"></div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500">
-                <div className="flex items-center justify-between">
+              <div className="group bg-gradient-to-br from-white to-blue-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-blue-100 overflow-hidden transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                      <Check className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {dashboardLoading ? '...' : dashboardStats.assignedRequests}
+                      </p>
+                    </div>
+                  </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Assigned Requests</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">
-                      {dashboardLoading ? '...' : dashboardStats.assignedRequests}
-                    </p>
+                    <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Assigned</p>
+                    <p className="text-xs text-gray-500 mt-1">Volunteers assigned</p>
                   </div>
-                  <div className="flex-shrink-0 bg-blue-100 rounded-lg p-3">
-                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
+                  <div className="mt-4 h-1 bg-gradient-to-r from-blue-200 to-indigo-400 rounded-full"></div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-red-500">
-                <div className="flex items-center justify-between">
+              <div className="group bg-gradient-to-br from-white to-red-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-red-100 overflow-hidden transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-red-400 to-pink-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {dashboardLoading ? '...' : dashboardStats.rejectedRequests}
+                      </p>
+                    </div>
+                  </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Rejected Requests</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">
-                      {dashboardLoading ? '...' : dashboardStats.rejectedRequests}
-                    </p>
+                    <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Rejected</p>
+                    <p className="text-xs text-gray-500 mt-1">Not approved</p>
                   </div>
-                  <div className="flex-shrink-0 bg-red-100 rounded-lg p-3">
-                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </div>
+                  <div className="mt-4 h-1 bg-gradient-to-r from-red-200 to-pink-400 rounded-full"></div>
                 </div>
               </div>
             </div>
 
-            {/* 3. Donation Statistics */}
+            {/* 3. Donation Statistics - Enhanced */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500">
-                <div className="flex items-center justify-between">
+              <div className="group bg-gradient-to-br from-white to-purple-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-purple-100 overflow-hidden transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                      <Package className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {dashboardLoading ? '...' : dashboardStats.totalDonations}
+                      </p>
+                    </div>
+                  </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Total Donations</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">
-                      {dashboardLoading ? '...' : dashboardStats.totalDonations}
-                    </p>
+                    <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total Donations</p>
+                    <p className="text-xs text-gray-500 mt-1">All received donations</p>
                   </div>
-                  <div className="flex-shrink-0 bg-purple-100 rounded-lg p-3">
-                    <Package className="w-6 h-6 text-purple-600" />
-                  </div>
+                  <div className="mt-4 h-1 bg-gradient-to-r from-purple-200 to-purple-400 rounded-full"></div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500">
-                <div className="flex items-center justify-between">
+              <div className="group bg-gradient-to-br from-white to-indigo-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-indigo-100 overflow-hidden transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                      <UserIcon className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {dashboardLoading ? '...' : dashboardStats.volunteerAssignedCount}
+                      </p>
+                    </div>
+                  </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Volunteer Assigned</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">
-                      {dashboardLoading ? '...' : dashboardStats.volunteerAssignedCount}
-                    </p>
+                    <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Volunteer Assigned</p>
+                    <p className="text-xs text-gray-500 mt-1">Active volunteers</p>
                   </div>
-                  <div className="flex-shrink-0 bg-indigo-100 rounded-lg p-3">
-                    <UserIcon className="w-6 h-6 text-indigo-600" />
-                  </div>
+                  <div className="mt-4 h-1 bg-gradient-to-r from-indigo-200 to-indigo-400 rounded-full"></div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500">
-                <div className="flex items-center justify-between">
+              <div className="group bg-gradient-to-br from-white to-orange-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-orange-100 overflow-hidden transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                      <Truck className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {dashboardLoading ? '...' : dashboardStats.pickedUpCount}
+                      </p>
+                    </div>
+                  </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Picked Up</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">
-                      {dashboardLoading ? '...' : dashboardStats.pickedUpCount}
-                    </p>
+                    <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Picked Up</p>
+                    <p className="text-xs text-gray-500 mt-1">In transit</p>
                   </div>
-                  <div className="flex-shrink-0 bg-orange-100 rounded-lg p-3">
-                    <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
+                  <div className="mt-4 h-1 bg-gradient-to-r from-orange-200 to-orange-400 rounded-full"></div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
-                <div className="flex items-center justify-between">
+              <div className="group bg-gradient-to-br from-white to-green-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-green-100 overflow-hidden transform hover:-translate-y-1">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                      <Check className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {dashboardLoading ? '...' : dashboardStats.completedCount}
+                      </p>
+                    </div>
+                  </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Completed</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">
-                      {dashboardLoading ? '...' : dashboardStats.completedCount}
-                    </p>
+                    <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Completed</p>
+                    <p className="text-xs text-gray-500 mt-1">Successfully delivered</p>
                   </div>
-                  <div className="flex-shrink-0 bg-green-100 rounded-lg p-3">
-                    <Check className="w-6 h-6 text-green-600" />
-                  </div>
+                  <div className="mt-4 h-1 bg-gradient-to-r from-green-200 to-green-400 rounded-full"></div>
                 </div>
               </div>
             </div>
 
-            {/* 4. Analytics Charts */}
+            {/* 4. Analytics Charts - Enhanced */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Requests Over Time Chart */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all hover:shadow-md">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Requests Over Time</h3>
-                <div className="h-64 flex items-end justify-between space-x-2">
-                  {dashboardAnalytics.requestsOverTime.length > 0 ? (
-                    dashboardAnalytics.requestsOverTime.map((item, index) => {
-                      const maxCount = Math.max(...dashboardAnalytics.requestsOverTime.map(d => d.count), 1);
-                      const height = (item.count / maxCount) * 100;
-                      return (
-                        <div key={index} className="flex-1 flex flex-col items-center">
-                          <div className="w-full flex flex-col items-center justify-end h-48">
-                            <div
-                              className="w-full bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t transition-all hover:from-emerald-600 hover:to-emerald-500"
-                              style={{ height: `${height}%` }}
-                              title={`${item.label}: ${item.count} requests`}
-                            />
-                          </div>
-                          <p className="text-xs text-gray-600 mt-2 transform -rotate-45 origin-top-left whitespace-nowrap">
-                            {item.label}
-                          </p>
-                          <p className="text-xs font-semibold text-gray-900 mt-1">{item.count}</p>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <p>No data available</p>
+              {/* Requests Over Time Chart - Enhanced */}
+              <div className="bg-gradient-to-br from-white to-emerald-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-emerald-100 overflow-hidden">
+                <div className="px-6 py-5 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-white" />
                     </div>
-                  )}
+                    Requests Over Time
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">Track your donation request trends</p>
+                </div>
+                <div className="p-6">
+                  <div className="h-64 flex items-end justify-between space-x-2">
+                    {dashboardAnalytics.requestsOverTime.length > 0 ? (
+                      dashboardAnalytics.requestsOverTime.map((item, index) => {
+                        const maxCount = Math.max(...dashboardAnalytics.requestsOverTime.map(d => d.count), 1);
+                        const height = (item.count / maxCount) * 100;
+                        return (
+                          <div key={index} className="flex-1 flex flex-col items-center group">
+                            <div className="w-full flex flex-col items-center justify-end h-48">
+                              <div
+                                className="w-full bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-lg transition-all duration-300 hover:from-emerald-700 hover:to-emerald-500 shadow-sm hover:shadow-md"
+                                style={{ height: `${height}%` }}
+                                title={`${item.label}: ${item.count} requests`}
+                              />
+                            </div>
+                            <p className="text-xs text-gray-600 mt-2 transform -rotate-45 origin-top-left whitespace-nowrap group-hover:text-gray-800 transition-colors">
+                              {item.label}
+                            </p>
+                            <p className="text-xs font-bold text-gray-900 mt-1 bg-emerald-100 px-2 py-1 rounded-full group:bg-emerald-200 transition-colors">{item.count}</p>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                          <FileText className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <p className="text-sm font-medium">No data available</p>
+                        <p className="text-xs mt-1">Start making requests to see trends</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Donations Over Time Chart */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all hover:shadow-md">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Donations Over Time</h3>
-                <div className="h-64 flex items-end justify-between space-x-2">
-                  {dashboardAnalytics.donationsOverTime.length > 0 ? (
-                    dashboardAnalytics.donationsOverTime.map((item, index) => {
-                      const maxCount = Math.max(...dashboardAnalytics.donationsOverTime.map(d => d.count), 1);
-                      const height = (item.count / maxCount) * 100;
-                      return (
-                        <div key={index} className="flex-1 flex flex-col items-center">
-                          <div className="w-full flex flex-col items-center justify-end h-48">
-                            <div
-                              className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all hover:from-blue-600 hover:to-blue-500"
-                              style={{ height: `${height}%` }}
-                              title={`${item.label}: ${item.count} donations`}
-                            />
-                          </div>
-                          <p className="text-xs text-gray-600 mt-2 transform -rotate-45 origin-top-left whitespace-nowrap">
-                            {item.label}
-                          </p>
-                          <p className="text-xs font-semibold text-gray-900 mt-1">{item.count}</p>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <p>No data available</p>
+              {/* Donations Over Time Chart - Enhanced */}
+              <div className="bg-gradient-to-br from-white to-blue-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-blue-100 overflow-hidden">
+                <div className="px-6 py-5 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                      <Package className="w-5 h-5 text-white" />
                     </div>
-                  )}
+                    Donations Over Time
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">Monitor your donation flow patterns</p>
+                </div>
+                <div className="p-6">
+                  <div className="h-64 flex items-end justify-between space-x-2">
+                    {dashboardAnalytics.donationsOverTime.length > 0 ? (
+                      dashboardAnalytics.donationsOverTime.map((item, index) => {
+                        const maxCount = Math.max(...dashboardAnalytics.donationsOverTime.map(d => d.count), 1);
+                        const height = (item.count / maxCount) * 100;
+                        return (
+                          <div key={index} className="flex-1 flex flex-col items-center group">
+                            <div className="w-full flex flex-col items-center justify-end h-48">
+                              <div
+                                className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-lg transition-all duration-300 hover:from-blue-700 hover:to-blue-500 shadow-sm hover:shadow-md"
+                                style={{ height: `${height}%` }}
+                                title={`${item.label}: ${item.count} donations`}
+                              />
+                            </div>
+                            <p className="text-xs text-gray-600 mt-2 transform -rotate-45 origin-top-left whitespace-nowrap group-hover:text-gray-800 transition-colors">
+                              {item.label}
+                            </p>
+                            <p className="text-xs font-bold text-gray-900 mt-1 bg-blue-100 px-2 py-1 rounded-full group:bg-blue-200 transition-colors">{item.count}</p>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                          <Package className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <p className="text-sm font-medium">No data available</p>
+                        <p className="text-xs mt-1">Donations will appear here once assigned</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden transition-all hover:shadow-md">
-              <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <Package className="w-5 h-5 text-indigo-600" />
-                    Live Donations Pool
-                    <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                      {liveDonationsLoading ? '...' : liveDonationsCount}
-                    </span>
-                  </h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Donor submissions waiting for admin to assign to an NGO.
-                  </p>
-                </div>
+            {/* Live Donations Pool - Enhanced */}
+            <div className="bg-gradient-to-br from-white to-indigo-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-indigo-100 overflow-hidden">
+              <div className="px-6 py-5 border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-blue-50">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                      <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
+                        <Package className="w-5 h-5 text-white" />
+                      </div>
+                      Live Donations Pool
+                      <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700 border border-indigo-200">
+                        {liveDonationsLoading ? '...' : liveDonationsCount}
+                      </span>
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Donor submissions waiting for admin to assign to an NGO.
+                    </p>
+                  </div>
 
-                <div className="flex items-center gap-3">
-                  {liveDonationsLastUpdatedAt && (
-                    <span className="text-xs text-gray-400 whitespace-nowrap">
-                      Updated {formatTimeAgo(liveDonationsLastUpdatedAt)}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => loadLiveDonations()}
-                    className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 transition-colors"
-                    disabled={liveDonationsLoading}
-                    title="Refresh"
-                  >
-                    <RefreshCw className={liveDonationsLoading ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
-                    Refresh
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {liveDonationsLastUpdatedAt && (
+                      <span className="text-xs text-gray-500 whitespace-nowrap bg-white px-2 py-1 rounded-full border border-gray-200">
+                        Updated {formatTimeAgo(liveDonationsLastUpdatedAt)}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => loadLiveDonations()}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-all duration-200 shadow-sm hover:shadow-md"
+                      disabled={liveDonationsLoading}
+                      title="Refresh"
+                    >
+                      <RefreshCw className={liveDonationsLoading ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
+                      Refresh
+                    </button>
+                  </div>
                 </div>
               </div>
 
               <div className="p-6">
                 {liveDonationsError ? (
-                  <div className="p-4 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm">
-                    {liveDonationsError}
+                  <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {liveDonationsError}
+                    </div>
                   </div>
                 ) : liveDonationsLoading && liveDonations.length === 0 ? (
                   <div className="flex items-center justify-center py-12">
-                    <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : liveDonations.length === 0 ? (
                   <div className="text-center py-12">
-                    <p className="text-gray-600 font-medium">No new donations in the pool</p>
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Package className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <p className="text-gray-600 font-semibold">No new donations in the pool</p>
                     <p className="text-sm text-gray-500 mt-1">New donor donations will appear here until admin assigns them.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {liveDonations.map((d: any) => (
-                      <div key={d._id} className="border border-gray-200 rounded-xl p-5 hover:bg-gray-50 transition-colors">
+                      <div key={d._id} className="group bg-white border border-gray-200 rounded-xl p-5 hover:bg-gradient-to-br hover:from-indigo-50 hover:to-blue-50 hover:border-indigo-200 transition-all duration-300 cursor-pointer transform hover:-translate-y-1 hover:shadow-lg">
                         <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-gray-900">{d.resourceType}</p>
-                            <p className="text-sm text-gray-600 mt-1">
-                              Quantity: <span className="font-medium">{d.quantity} {d.unit}</span>
-                            </p>
-                            <p className="text-sm text-gray-600 mt-1">
-                              Location: <span className="font-medium">{d.address?.city || 'N/A'}, {d.address?.state || 'N/A'}</span>
-                            </p>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                                <Package className="w-4 h-4 text-indigo-600" />
+                              </div>
+                              <p className="text-sm font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">{d.resourceType}</p>
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-sm text-gray-600 flex items-center gap-1">
+                                <span className="font-medium">Quantity:</span> 
+                                <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-xs font-semibold">{d.quantity} {d.unit}</span>
+                              </p>
+                              <p className="text-sm text-gray-600 flex items-center gap-1">
+                                <MapPin className="w-4 h-4 text-gray-400" />
+                                <span className="font-medium">{d.address?.city || 'N/A'}, {d.address?.state || 'N/A'}</span>
+                              </p>
+                            </div>
                           </div>
 
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-200 whitespace-nowrap">
-                            Pending
-                          </span>
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700 border border-yellow-200 whitespace-nowrap shadow-sm">
+                              <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2 animate-pulse"></div>
+                              Pending
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
-                          <span className="inline-flex items-center gap-1">
+                        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-xs">
+                          <span className="inline-flex items-center gap-1 text-gray-500 bg-gray-50 px-2 py-1 rounded-full">
                             <Calendar className="w-4 h-4" />
                             {d.pickup?.pickupDate ? formatNotificationTimestamp(d.pickup.pickupDate) : 'Pickup date N/A'}
                           </span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
                             {d.pickup?.timeSlot || 'N/A'}
                           </span>
                         </div>
@@ -1141,67 +1260,80 @@ export default function NgoDashboard({ user, onBack, onNavigateProfile }: NgoDas
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden transition-all hover:shadow-md">
-              <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-emerald-600" />
-                    Recent Activities (Live)
-                  </h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Latest updates happening on your NGO dashboard.
-                  </p>
-                </div>
+            {/* Recent Activities - Enhanced */}
+            <div className="bg-gradient-to-br from-white to-emerald-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-emerald-100 overflow-hidden">
+              <div className="px-6 py-5 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                      <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                        <Activity className="w-5 h-5 text-white" />
+                      </div>
+                      Recent Activities (Live)
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Latest updates happening on your NGO dashboard.
+                    </p>
+                  </div>
 
-                <div className="flex items-center gap-3">
-                  {recentActivitiesLastUpdatedAt && (
-                    <span className="text-xs text-gray-400 whitespace-nowrap">
-                      Updated {formatTimeAgo(recentActivitiesLastUpdatedAt)}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => loadRecentActivities()}
-                    className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 transition-colors"
-                    disabled={recentActivitiesLoading}
-                    title="Refresh"
-                  >
-                    <RefreshCw className={recentActivitiesLoading ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
-                    Refresh
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {recentActivitiesLastUpdatedAt && (
+                      <span className="text-xs text-gray-500 whitespace-nowrap bg-white px-2 py-1 rounded-full border border-gray-200">
+                        Updated {formatTimeAgo(recentActivitiesLastUpdatedAt)}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => loadRecentActivities()}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-all duration-200 shadow-sm hover:shadow-md"
+                      disabled={recentActivitiesLoading}
+                      title="Refresh"
+                    >
+                      <RefreshCw className={recentActivitiesLoading ? 'w-4 h-4 animate-spin' : 'w-4 h-4'} />
+                      Refresh
+                    </button>
+                  </div>
                 </div>
               </div>
 
               <div className="p-6">
                 {recentActivitiesError ? (
-                  <div className="p-4 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm">
-                    {recentActivitiesError}
+                  <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {recentActivitiesError}
+                    </div>
                   </div>
                 ) : recentActivitiesLoading && recentActivities.length === 0 ? (
                   <div className="flex items-center justify-center py-12">
-                    <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : recentActivities.length === 0 ? (
                   <div className="text-center py-12">
-                    <p className="text-gray-600 font-medium">No recent activity yet</p>
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Activity className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <p className="text-gray-600 font-semibold">No recent activity yet</p>
                     <p className="text-sm text-gray-500 mt-1">New updates will appear here automatically.</p>
                   </div>
                 ) : (
                   <div className="relative">
-                    <div className="absolute left-4 top-0 bottom-0 w-px bg-gray-200" />
-                    <div className="space-y-5">
-                      {recentActivities.map((n) => {
+                    <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-emerald-200 via-emerald-300 to-transparent"></div>
+                    <div className="space-y-6">
+                      {recentActivities.map((n, index) => {
                         const meta = getNotificationCategoryMeta(n.category);
                         return (
-                          <div key={n._id} className="relative pl-10">
-                            <div className="absolute left-4 top-2 -translate-x-1/2">
-                              <div className={`w-8 h-8 rounded-full border flex items-center justify-center ${meta.iconWrapCls}`}>
+                          <div key={n._id} className="relative pl-10 group">
+                            <div className="absolute left-4 top-2 -translate-x-1/2 z-10">
+                              <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform ${meta.iconWrapCls}`}>
                                 {meta.icon}
                               </div>
                             </div>
 
                             <div
-                              className={`rounded-xl border p-5 hover:bg-gray-50 transition-colors ${n.read ? 'border-gray-200 bg-white' : 'border-emerald-200 bg-emerald-50/30'}`}
+                              className={`rounded-xl border p-5 hover:shadow-lg transition-all duration-300 cursor-pointer transform hover:-translate-y-1 ${n.read ? 'border-gray-200 bg-white hover:border-gray-300' : 'border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50 hover:border-emerald-400 shadow-sm'}`}
                               role="button"
                               tabIndex={0}
                               onClick={() => {
@@ -1212,22 +1344,22 @@ export default function NgoDashboard({ user, onBack, onNavigateProfile }: NgoDas
                               }}
                             >
                               <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${meta.badgeCls}`}>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${meta.badgeCls}`}>
                                       {meta.label}
                                     </span>
                                     {!n.read && (
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-600 text-white">
-                                        New
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-emerald-600 text-white shadow-sm animate-pulse">
+                                        NEW
                                       </span>
                                     )}
                                   </div>
-                                  <p className="mt-2 text-sm font-semibold text-gray-900">{n.title}</p>
-                                  <p className="mt-1 text-sm text-gray-600">{n.message}</p>
+                                  <p className="text-sm font-bold text-gray-900 group-hover:text-emerald-700 transition-colors">{n.title}</p>
+                                  <p className="text-sm text-gray-600 mt-1 leading-relaxed">{n.message}</p>
                                 </div>
                                 <div className="text-right flex-shrink-0">
-                                  <p className="text-xs text-gray-500 whitespace-nowrap">
+                                  <p className="text-xs font-semibold text-gray-500 whitespace-nowrap bg-gray-50 px-2 py-1 rounded-full">
                                     {formatTimeAgo(n.createdAt)}
                                   </p>
                                   <p className="text-xs text-gray-400 whitespace-nowrap mt-1">
@@ -1245,65 +1377,85 @@ export default function NgoDashboard({ user, onBack, onNavigateProfile }: NgoDas
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden transition-all hover:shadow-md">
-              <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-red-600" />
-                    Urgent Requests
-                  </h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    High priority requests that need attention.
-                  </p>
-                </div>
+            {/* Urgent Requests - Enhanced */}
+            <div className="bg-gradient-to-br from-white to-red-50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-red-100 overflow-hidden">
+              <div className="px-6 py-5 border-b border-red-100 bg-gradient-to-r from-red-50 to-pink-50">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                      <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
+                        <FileText className="w-5 h-5 text-white" />
+                      </div>
+                      Urgent Requests
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      High priority requests that need attention.
+                    </p>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('my-requests')}
-                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 transition-colors"
-                >
-                  View all
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('my-requests')}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-red-600 hover:bg-red-700 text-white transition-all duration-200 shadow-sm hover:shadow-md"
+                  >
+                    View all
+                  </button>
+                </div>
               </div>
 
               <div className="p-6">
                 {dashboardLoading ? (
                   <div className="flex items-center justify-center py-12">
-                    <div className="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-12 h-12 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : urgentRequests.length === 0 ? (
                   <div className="text-center py-12">
-                    <p className="text-gray-600 font-medium">No urgent requests right now</p>
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <FileText className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <p className="text-gray-600 font-semibold">No urgent requests right now</p>
                     <p className="text-sm text-gray-500 mt-1">High urgency requests will show up here automatically.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {urgentRequests.slice(0, 6).map((req: any) => (
-                      <div key={req._id || req.id} className="border border-gray-200 rounded-xl p-5 hover:bg-gray-50 transition-colors">
+                      <div key={req._id || req.id} className="group bg-white border border-gray-200 rounded-xl p-5 hover:bg-gradient-to-br hover:from-red-50 hover:to-pink-50 hover:border-red-200 transition-all duration-300 cursor-pointer transform hover:-translate-y-1 hover:shadow-lg">
                         <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-gray-900">
-                              {req.requestTitle || req.title || 'Urgent request'}
-                            </p>
-                            <p className="text-sm text-gray-600 mt-1">
-                              Category: <span className="font-medium">{req.category || 'N/A'}</span>
-                            </p>
-                            <p className="text-sm text-gray-600 mt-1">
-                              Quantity: <span className="font-medium">{typeof req.quantity === 'number' ? req.quantity : (req.quantity || 'N/A')}</span>
-                            </p>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                                <FileText className="w-4 h-4 text-red-600" />
+                              </div>
+                              <p className="text-sm font-bold text-gray-900 group-hover:text-red-700 transition-colors">
+                                {req.requestTitle || req.title || 'Urgent request'}
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-sm text-gray-600 flex items-center gap-1">
+                                <span className="font-medium">Category:</span> 
+                                <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-semibold">{req.category || 'N/A'}</span>
+                              </p>
+                              <p className="text-sm text-gray-600 flex items-center gap-1">
+                                <span className="font-medium">Quantity:</span> 
+                                <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full text-xs font-semibold">{typeof req.quantity === 'number' ? req.quantity : (req.quantity || 'N/A')}</span>
+                              </p>
+                            </div>
                           </div>
 
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200 whitespace-nowrap">
-                            High
-                          </span>
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-red-600 text-white whitespace-nowrap shadow-sm">
+                              <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
+                              HIGH PRIORITY
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
-                          <span className="inline-flex items-center gap-1">
+                        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-xs">
+                          <span className="inline-flex items-center gap-1 text-gray-500 bg-gray-50 px-2 py-1 rounded-full">
                             <Calendar className="w-4 h-4" />
                             {req.neededBy ? formatNotificationTimestamp(req.neededBy) : 'No deadline'}
                           </span>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700 border border-orange-200">
                             {req.status || 'pending'}
                           </span>
                         </div>
@@ -3129,6 +3281,289 @@ export default function NgoDashboard({ user, onBack, onNavigateProfile }: NgoDas
                         </button>
                       </div>
                     </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="space-y-6">
+            {/* Settings Header */}
+            <div className="bg-gradient-to-r from-slate-700 to-slate-900 rounded-2xl shadow-lg overflow-hidden">
+              <div className="px-8 py-6">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  Settings
+                </h2>
+                <p className="text-slate-300 mt-2">Manage your account settings and preferences</p>
+              </div>
+            </div>
+
+            {/* Settings Sections */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Profile Settings */}
+              <div className="lg:col-span-2 space-y-6">
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                      Profile Settings
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">Update your personal information and organization details</p>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Organization Name</label>
+                        <input
+                          type="text"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder={ngoName || "Enter organization name"}
+                          defaultValue={ngoName}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Registration Number</label>
+                        <input
+                          type="text"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder={registrationNumber || "Enter registration number"}
+                          defaultValue={registrationNumber}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                        <input
+                          type="text"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder={city || "Enter city"}
+                          defaultValue={city}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+                        <input
+                          type="text"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder={state || "Enter state"}
+                          defaultValue={state}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Contact Email</label>
+                      <input
+                        type="email"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                        value={user?.email || ''}
+                        readOnly
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Contact email cannot be changed</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Organization Description</label>
+                      <textarea
+                        rows={4}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Tell us about your organization's mission and activities..."
+                      ></textarea>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+                        Save Profile Changes
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notification Settings */}
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-teal-50">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                      </div>
+                      Notification Preferences
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">Control how and when you receive notifications</p>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    {[
+                      { label: 'Email notifications for new donations', description: 'Receive email when a new donation is assigned to your NGO', enabled: true },
+                      { label: 'SMS notifications for urgent requests', description: 'Get SMS alerts for high-priority donation requests', enabled: false },
+                      { label: 'Push notifications for status updates', description: 'Browser notifications for donation status changes', enabled: true },
+                      { label: 'Weekly summary reports', description: 'Receive weekly email summary of all activities', enabled: false },
+                      { label: 'Volunteer assignment notifications', description: 'Get notified when volunteers are assigned to donations', enabled: true },
+                    ].map((setting, index) => (
+                      <div key={index} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+                        <div className="flex-1">
+                          <h4 className="text-sm font-medium text-gray-900">{setting.label}</h4>
+                          <p className="text-xs text-gray-500 mt-1">{setting.description}</p>
+                        </div>
+                        <button
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            setting.enabled ? 'bg-emerald-600' : 'bg-gray-200'
+                          }`}
+                          onClick={() => {
+                            // Toggle notification setting
+                            console.log(`Toggle ${setting.label}`);
+                          }}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              setting.enabled ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Privacy Settings */}
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-purple-50 to-pink-50">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                      </div>
+                      Privacy & Security
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">Manage your privacy settings and account security</p>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">Profile Visibility</h4>
+                          <p className="text-xs text-gray-500 mt-1">Make your profile visible to donors</p>
+                        </div>
+                        <select className="px-3 py-1 border border-gray-300 rounded-lg text-sm">
+                          <option>Public</option>
+                          <option>Private</option>
+                        </select>
+                      </div>
+                      
+                      <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">Two-Factor Authentication</h4>
+                          <p className="text-xs text-gray-500 mt-1">Add an extra layer of security to your account</p>
+                        </div>
+                        <button className="px-4 py-1 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition-colors">
+                          Enable
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between py-3 border-b border-gray-100">
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900">Change Password</h4>
+                          <p className="text-xs text-gray-500 mt-1">Update your account password</p>
+                        </div>
+                        <button className="px-4 py-1 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors">
+                          Change
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions Sidebar */}
+              <div className="space-y-6">
+                {/* Account Status */}
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl shadow-lg border border-emerald-100 overflow-hidden">
+                  <div className="p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Account Status</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Verification Status</span>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          verificationStatus === 'verified' ? 'bg-emerald-100 text-emerald-700' :
+                          verificationStatus === 'pending' ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {verificationStatus.charAt(0).toUpperCase() + verificationStatus.slice(1)}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Member Since</span>
+                        <span className="text-sm font-medium text-gray-900">
+                          {user?.metadata?.creationTime ? 
+                            new Date(user.metadata.creationTime).toLocaleDateString() : 
+                            'N/A'
+                          }
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Account Type</span>
+                        <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
+                          NGO Organization
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                  <div className="p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+                    <div className="space-y-3">
+                      <button className="w-full px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium text-left">
+                        Download Profile Data
+                      </button>
+                      <button className="w-full px-4 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium text-left">
+                        Delete Account
+                      </button>
+                      <button className="w-full px-4 py-2 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium text-left">
+                        Export Activity Log
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Help & Support */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl shadow-lg border border-blue-100 overflow-hidden">
+                  <div className="p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Need Help?</h3>
+                    <p className="text-sm text-gray-600 mb-4">Our support team is here to assist you with any questions or issues.</p>
+                    <div className="space-y-3">
+                      <button 
+                        onClick={() => setActiveTab('help-support')}
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                      >
+                        Visit Help Center
+                      </button>
+                      <a 
+                        href="mailto:support@donationhub.com"
+                        className="block w-full px-4 py-2 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium text-center"
+                      >
+                        Contact Support
+                      </a>
+                    </div>
                   </div>
                 </div>
               </div>
