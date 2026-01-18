@@ -156,7 +156,7 @@ export const fetchMyDonationsPaged = async (params?: {
       Authorization: `Bearer ${token}`
     }
   });
-  return response.data as { success: boolean; count: number; data: DonationItem[] };
+  return response.data as { success: boolean; count: number; data: DonationItem[]; pages?: number; total?: number; page?: number };
 };
 
 export const fetchNgoLiveDonationsPool = async (params?: { limit?: number }) => {
