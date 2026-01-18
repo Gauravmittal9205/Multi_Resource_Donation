@@ -433,7 +433,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
       geoLookupAbortRef.current = controller;
       setGeoLookupLoading(true);
       try {
-        const resp = await fetch(`http://localhost:5000/api/v1/geo/nominatim?q=${encodeURIComponent(q)}&limit=5`, {
+        const resp = await fetch(`${import.meta.env.VITE_API_URL}/geo/nominatim?q=${encodeURIComponent(q)}&limit=5`, {
           signal: controller.signal,
         });
         const json = await resp.json();
@@ -614,7 +614,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
     };
     try {
       const payload = { ...nextProfile, firebaseUid: nextProfile.basic.firebaseUid } as any;
-      await fetch('http://localhost:5000/api/v1/profile/upsert', {
+      await fetch(`${import.meta.env.VITE_API_URL}/profile/upsert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -730,7 +730,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ user: propUser }) => {
 
     try {
       const idToken = await auth.currentUser.getIdToken();
-      const res = await fetch('http://localhost:5000/api/v1/auth/delete-me', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/delete-me`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${idToken}`

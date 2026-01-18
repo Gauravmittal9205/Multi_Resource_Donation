@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { auth } from '../firebase';
 
-const API_URL = 'http://localhost:5000/api/v1';
+const API_URL = `${import.meta.env.VITE_API_URL}`;
 
 // Get auth token for API requests
 const getAuthToken = async (): Promise<string> => {

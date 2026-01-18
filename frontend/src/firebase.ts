@@ -62,7 +62,7 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
     };
 
     // 4. Save user data to your backend
-    const response = await fetch('http://localhost:5000/api/v1/auth/register', {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -99,7 +99,7 @@ export const signInWithEmail = async (email: string, password: string, skipProfi
     if (!skipProfileCreation) {
       try {
         // Check if user is admin first
-        const adminCheck = await fetch(`http://localhost:5000/api/v1/auth/admin/check?email=${encodeURIComponent(email)}`);
+        const adminCheck = await fetch(`${import.meta.env.VITE_API_URL}/auth/admin/check?email=${encodeURIComponent(email)}`);
         const adminData = await adminCheck.json();
         
         // If user is admin, don't create a User profile
@@ -109,17 +109,17 @@ export const signInWithEmail = async (email: string, password: string, skipProfi
         }
         
         // Try to fetch user profile by firebaseUid first
-        let response = await fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`);
+        let response = await fetch(`${import.meta.env.VITE_API_URL}/auth/user/${user.uid}`);
         
         // If not found by firebaseUid, check by email (in case user was created before firebaseUid was set)
         if (!response.ok) {
-          const emailResponse = await fetch(`http://localhost:5000/api/v1/auth/user-by-email/${encodeURIComponent(email)}`);
+          const emailResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/user-by-email/${encodeURIComponent(email)}`);
           if (emailResponse.ok) {
             // User exists by email but doesn't have firebaseUid - update it
             const emailData = await emailResponse.json();
             console.log('Found user by email, updating with firebaseUid:', emailData.data);
             
-            const updateResponse = await fetch('http://localhost:5000/api/v1/auth/update-firebase-uid', {
+            const updateResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/update-firebase-uid`, {
               method: 'PUT',
               headers: {
                 'Content-Type': 'application/json',
@@ -137,7 +137,7 @@ export const signInWithEmail = async (email: string, password: string, skipProfi
           } else {
             // User doesn't exist at all - create a default donor profile
             const idToken = await user.getIdToken();
-            await fetch('http://localhost:5000/api/v1/auth/register', {
+            await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -175,17 +175,17 @@ export const signInWithGoogle = async () => {
 
     try {
       // Try to fetch user profile by firebaseUid first
-      let response = await fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`);
+      let response = await fetch(`${import.meta.env.VITE_API_URL}/auth/user/${user.uid}`);
       
       // If not found by firebaseUid, check by email (in case user was created before firebaseUid was set)
       if (!response.ok && email) {
-        const emailResponse = await fetch(`http://localhost:5000/api/v1/auth/user-by-email/${encodeURIComponent(email)}`);
+        const emailResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/user-by-email/${encodeURIComponent(email)}`);
         if (emailResponse.ok) {
           // User exists by email but doesn't have firebaseUid - update it
           const emailData = await emailResponse.json();
           console.log('Found user by email, updating with firebaseUid:', emailData.data);
           
-          const updateResponse = await fetch('http://localhost:5000/api/v1/auth/update-firebase-uid', {
+          const updateResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/update-firebase-uid`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -203,7 +203,7 @@ export const signInWithGoogle = async () => {
         } else {
           // User doesn't exist at all - create a default donor profile
           const idToken = await user.getIdToken();
-          await fetch('http://localhost:5000/api/v1/auth/register', {
+          await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

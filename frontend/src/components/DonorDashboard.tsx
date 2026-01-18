@@ -532,13 +532,13 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
       setFaqsLoading(true);
       setFaqsError(null);
       // Try userType first, then fallback to role
-      const res = await fetch('http://localhost:5000/api/v1/faqs?userType=donor&isActive=true');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/faqs?userType=donor&isActive=true`);
       const data = await res.json();
       if (data.success) {
         let faqsData = data.data || [];
         // If no FAQs found with userType, try with role
         if (faqsData.length === 0) {
-          const res2 = await fetch('http://localhost:5000/api/v1/faqs?role=donors&isActive=true');
+          const res2 = await fetch(`${import.meta.env.VITE_API_URL}/faqs?role=donors&isActive=true`);
           const data2 = await res2.json();
           if (data2.success) {
             faqsData = data2.data || [];
@@ -622,7 +622,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
 
     setSupportFormLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/v1/contacts', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/contacts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1149,7 +1149,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
           setAddressLookupLoading(true);
           setAddressLookupError(null);
 
-          const url = `http://localhost:5000/api/v1/geo/nominatim?q=${encodeURIComponent(q)}&limit=6`;
+          const url = `${import.meta.env.VITE_API_URL}/geo/nominatim?q=${encodeURIComponent(q)}&limit=6`;
           const res = await fetch(url, { signal: controller.signal });
           if (!res.ok) throw new Error('Address lookup failed');
 
@@ -3981,7 +3981,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                       },
                       ...patch,
                     };
-                    await fetch('http://localhost:5000/api/v1/profile/upsert', {
+                    await fetch(`${import.meta.env.VITE_API_URL}/profile/upsert`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(payload),
@@ -4201,15 +4201,7 @@ function DonorDashboard({ user, onBack, userMeta }: DonorDashboardProps) {
                         <button
                           type="button"
                           onClick={async () => {
-                            const ok = confirm('Delete your account permanently? This cannot be undone.');
-                            if (!ok) return;
-                            try {
-                              const token = await user.getIdToken();
-                              await fetch('http://localhost:5000/api/v1/auth/delete-me', {
-                                method: 'DELETE',
-                                headers: { Authorization: `Bearer ${token}` },
-                              });
-                            } catch {}
+                            if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) return;
                             try {
                               await signOutUser();
                             } catch {}

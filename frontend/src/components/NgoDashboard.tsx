@@ -147,7 +147,7 @@ export default function NgoDashboard({ user, onBack, onNavigateProfile }: NgoDas
         const token = await user?.getIdToken();
         if (!token) return;
         
-        const response = await fetch('http://localhost:5000/api/v1/ngo-registration', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/ngo-registration`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -3836,7 +3836,7 @@ function PickupDeliveriesTab() {
               if (!token) return;
               
               const requestResponse = await axios.default.get(
-                `http://localhost:5000/api/v1/ngo-requests/${requestId}`,
+                `${import.meta.env.VITE_API_URL}/ngo-requests/${requestId}`,
                 {
                   headers: { Authorization: `Bearer ${token}` }
                 }

@@ -3332,7 +3332,7 @@ function PickupTracking() {
               if (!token) return;
               
               const response = await axios.default.get(
-                `http://localhost:5000/api/v1/ngo-requests/admin/${requestId}`,
+                `${import.meta.env.VITE_API_URL}/ngo-requests/admin/${requestId}`,
                 {
                   headers: { Authorization: `Bearer ${token}` }
                 }
@@ -4723,7 +4723,7 @@ function NotificationsPanel() {
       else if (filter === 'read') params.read = 'true';
       if (categoryFilter !== 'all') params.category = categoryFilter;
       
-      const response = await axios.default.get('http://localhost:5000/api/v1/notifications/admin/all', {
+      const response = await axios.default.get(`${import.meta.env.VITE_API_URL}/notifications/admin/all`, {
         headers: { Authorization: `Bearer ${token}` },
         params
       });

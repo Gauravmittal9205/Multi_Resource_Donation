@@ -98,7 +98,7 @@ function App() {
       
       // First try to get user type from the database via our API
       try {
-        const response = await fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/user/${user.uid}`);
         if (response.ok) {
           const userData = await response.json();
           if (userData.data && userData.data.userType) {
@@ -201,7 +201,7 @@ function App() {
     setUserMetaLoading(true);
     
     // Check if user is admin
-    fetch(`http://localhost:5000/api/v1/auth/admin/check?email=${encodeURIComponent(user.email || '')}`)
+    fetch(`${import.meta.env.VITE_API_URL}/auth/admin/check?email=${encodeURIComponent(user.email || '')}`)
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json();
@@ -219,7 +219,7 @@ function App() {
       });
     
     // Fetch user meta from User model (not Profile model) to get userType
-    fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`)
+    fetch(`${import.meta.env.VITE_API_URL}/auth/user/${user.uid}`)
       .then(async (res) => {
         if (!res.ok) {
           const text = await res.text().catch(() => '');
@@ -430,7 +430,7 @@ function App() {
     setIsSubmitting(true);
     
     try {
-      const response = await fetch('http://localhost:5000/api/v1/auth/send-otp', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/send-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -465,7 +465,7 @@ function App() {
     console.log('Frontend: OTP characters:', emailOtp.split(''));
     
     try {
-      const response = await fetch('http://localhost:5000/api/v1/auth/verify-otp', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -504,7 +504,7 @@ function App() {
     
     try {
       const formattedPhone = formData.phone.startsWith('+') ? formData.phone : `+91${formData.phone}`;
-      const response = await fetch('http://localhost:5000/api/v1/auth/send-phone-otp', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/send-phone-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -534,7 +534,7 @@ function App() {
     
     try {
       const formattedPhone = formData.phone.startsWith('+') ? formData.phone : `+91${formData.phone}`;
-      const response = await fetch('http://localhost:5000/api/v1/auth/verify-phone-otp', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify-phone-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -605,7 +605,7 @@ function App() {
         
         // Update MongoDB user with firebaseUid and ensure userType is set
         try {
-          const updateResponse = await fetch('http://localhost:5000/api/v1/auth/update-firebase-uid', {
+          const updateResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/update-firebase-uid`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -726,7 +726,7 @@ function App() {
 
         // Register user in MongoDB first, then send OTP
         try {
-          const response = await fetch('http://localhost:5000/api/v1/auth/register', {
+          const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -786,7 +786,7 @@ function App() {
         
         // Send OTP via Twilio
         const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-        const response = await fetch('http://localhost:5000/api/v1/auth/send-phone-otp', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/send-phone-otp`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -812,7 +812,7 @@ function App() {
         setIsSubmitting(true);
         
         const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-        const verifyResponse = await fetch('http://localhost:5000/api/v1/auth/verify-phone-otp', {
+        const verifyResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify-phone-otp`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -828,7 +828,7 @@ function App() {
         if (verifyResponse.ok) {
           // Phone verified, now register/login user
           // Check if user exists by phone number
-          const checkUserResponse = await fetch(`http://localhost:5000/api/v1/auth/user-by-phone/${encodeURIComponent(formattedPhoneNumber)}`);
+          const checkUserResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/user-by-phone/${encodeURIComponent(formattedPhoneNumber)}`);
           
           if (checkUserResponse.ok) {
             // User exists - sign in
@@ -846,7 +846,7 @@ function App() {
               return;
             }
             
-            const registerResponse = await fetch('http://localhost:5000/api/v1/auth/register-phone', {
+            const registerResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/register-phone`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -877,7 +877,7 @@ function App() {
                 await updateProfile(firebaseUser, { displayName: name.trim() });
                 
                 // Update MongoDB user with firebaseUid and preserve userType
-                const updateResponse = await fetch('http://localhost:5000/api/v1/auth/update-firebase-uid', {
+                const updateResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/update-firebase-uid`, {
                   method: 'PUT',
                   headers: {
                     'Content-Type': 'application/json',
@@ -946,7 +946,7 @@ function App() {
     
     try {
       const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-      const response = await fetch('http://localhost:5000/api/v1/auth/send-phone-otp', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/send-phone-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
