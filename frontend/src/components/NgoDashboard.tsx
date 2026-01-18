@@ -1322,7 +1322,7 @@ export default function NgoDashboard({ user, onBack, onNavigateProfile }: NgoDas
                   <div className="relative">
                     <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-emerald-200 via-emerald-300 to-transparent"></div>
                     <div className="space-y-6">
-                      {recentActivities.map((n, index) => {
+                      {recentActivities.map((n) => {
                         const meta = getNotificationCategoryMeta(n.category);
                         return (
                           <div key={n._id} className="relative pl-10 group">

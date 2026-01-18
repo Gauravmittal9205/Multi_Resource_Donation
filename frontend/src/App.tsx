@@ -52,7 +52,7 @@ function App() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [name, setName] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState<any>(null);
+  // const [confirmationResult, setConfirmationResult] = useState<any>(null);
   const [phoneAuthStep, setPhoneAuthStep] = useState<PhoneAuthStep>('phone');
   const [phoneUserType, setPhoneUserType] = useState<'donor' | 'ngo'>('donor');
   const [phoneOrganizationName, setPhoneOrganizationName] = useState('');
@@ -832,7 +832,7 @@ function App() {
           
           if (checkUserResponse.ok) {
             // User exists - sign in
-            const userData = await checkUserResponse.json();
+            // const userData = await checkUserResponse.json();
             setError('Phone verified! Please use email/password to sign in, or contact support.');
           } else {
             // New user - create account with phone number

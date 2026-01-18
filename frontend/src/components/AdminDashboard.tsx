@@ -41,7 +41,6 @@ import {
   AlertCircle,
   Calendar,
   CalendarCheck,
-  Search,
   HelpCircle,
   LogOut,
 } from 'lucide-react';
@@ -485,44 +484,7 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
   */
 
 
-  const recentActivities = [
-    {
-      id: 1,
-      type: 'donation',
-      title: 'New donation received',
-      description: '50kg of food items donated by John Doe',
-      time: '2 minutes ago',
-      icon: Package,
-      color: 'text-blue-500'
-    },
-    {
-      id: 2,
-      type: 'pickup',
-      title: 'Pickup completed',
-      description: 'Food items delivered to Feed India NGO',
-      time: '15 minutes ago',
-      icon: Truck,
-      color: 'text-green-500'
-    },
-    {
-      id: 3,
-      type: 'registration',
-      title: 'New NGO registration',
-      description: 'Help Foundation applied for verification',
-      time: '1 hour ago',
-      icon: Building2,
-      color: 'text-purple-500'
-    },
-    {
-      id: 4,
-      type: 'issue',
-      title: 'Issue resolved',
-      description: 'Delivery delay issue marked as resolved',
-      time: '2 hours ago',
-      icon: CheckCircle,
-      color: 'text-green-500'
-    }
-  ];
+
 
   // Function to fetch active pickups count
   const fetchActivePickupsCount = async () => {
@@ -1318,13 +1280,13 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
                           fill="#8884d8"
                           dataKey="value"
                         >
-                          {chartData.categoryBreakdown.map((entry, index) => {
+                          {chartData.categoryBreakdown.map((_, index) => {
                             const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
                             return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
                           })}
                         </Pie>
                         <Tooltip 
-                          formatter={(value: any, name: any, props: any) => {
+                          formatter={(value: any, _: any, props: any) => {
                             const numValue = typeof value === 'number' ? value : 0;
                             return [
                               `${numValue} ${props.payload?.unit || 'items'}`,
@@ -1454,7 +1416,7 @@ export default function AdminDashboard({ user, onBack }: AdminDashboardProps) {
                           name="Donations"
                           radius={[8, 8, 0, 0]}
                         >
-                          {chartData.statusDistribution.map((entry, index) => {
+                          {chartData.statusDistribution.map((_, index) => {
                             const colors = ['#3B82F6', '#10B981', '#F59E0B'];
                             return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
                           })}
@@ -2274,34 +2236,7 @@ function DonationsManagement() {
     };
   }, [selectedImage]);
 
-  const ImageViewerModal = () => (
-    <div 
-      className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4"
-      onClick={closeImageViewer}
-    >
-      <div className="relative max-w-4xl w-full max-h-[90vh]">
-        <button 
-          className="absolute -top-10 right-0 text-white hover:text-gray-300"
-          onClick={(e) => {
-            e.stopPropagation();
-            closeImageViewer();
-          }}
-        >
-          <X className="w-8 h-8" />
-        </button>
-        <img 
-          src={selectedImage || ''} 
-          alt="Fullscreen" 
-          className="max-w-full max-h-[80vh] mx-auto object-contain"
-          onClick={(e) => e.stopPropagation()}
-        />
-        <div className="text-white text-center mt-2">
-          Click anywhere to close
-        </div>
-      </div>
-    </div>
-  );
-
+  
   const fetchDonations = async () => {
     try {
       const donationService = await import('../services/donationService');
@@ -3419,20 +3354,7 @@ function PickupTracking() {
     }
   };
 
-  const updateDonationStatus = async (donationId: string, newStatus: 'assigned' | 'picked' | 'completed' | 'cancelled') => {
-    try {
-      const donationService = await import('../services/donationService');
-      await donationService.updateDonation(donationId, {
-        status: newStatus
-      });
-      await fetchPickupDonations();
-      alert('Status updated successfully!');
-    } catch (error: any) {
-      console.error('Error updating status:', error);
-      alert(error.response?.data?.error || 'Failed to update status');
-    }
-  };
-
+  
   const submitPickupCancellation = async () => {
     if (!cancelTargetDonation?._id) return;
     const reason = cancelReason.trim();
