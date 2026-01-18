@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { auth } from '../firebase';
 
-const API_URL = 'http://localhost:5000/api/v1/ngo-profile';
+const API_URL = `${import.meta.env.VITE_API_URL}/ngo-profile`;
 
 const getAuthToken = async (): Promise<string> => {
   const user = auth.currentUser;

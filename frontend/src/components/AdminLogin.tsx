@@ -22,7 +22,7 @@ const AdminLogin = ({ onBack, onLoginSuccess }: AdminLoginProps) => {
 
     try {
       // Step 1: Verify admin credentials in MongoDB via backend API
-      const response = await fetch('http://localhost:5000/api/v1/auth/admin/login', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/admin/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { auth } from '../firebase';
 
-const API_URL = 'http://localhost:5000/api/v1/donations';
-const NOTIFICATIONS_URL = 'http://localhost:5000/api/v1/notifications';
+const API_URL = `${import.meta.env.VITE_API_URL}/donations`;
+const NOTIFICATIONS_URL = `${import.meta.env.VITE_API_URL}/notifications`;
 
 const getAuthToken = async (): Promise<string> => {
   const user = auth.currentUser;
@@ -181,7 +181,7 @@ export const fetchNgoLiveDonationsPool = async (params?: { limit?: number }) => 
 
 export const fetchDonorProfileByUid = async (firebaseUid: string) => {
   try {
-    const response = await axios.get(`http://localhost:5000/api/v1/profile/${encodeURIComponent(firebaseUid)}`);
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/profile/${encodeURIComponent(firebaseUid)}`);
     return response.data as { success: boolean; data: DonorProfile };
   } catch (error: any) {
     // Handle 404 gracefully - profile not found is expected for new users
