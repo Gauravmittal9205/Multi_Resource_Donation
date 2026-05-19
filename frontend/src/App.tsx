@@ -14,9 +14,8 @@ import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 import { FormProvider } from './context/FormContext';
 // Auth form type
-type AuthMode = 'email' | 'phone';
-type PhoneAuthStep = 'phone' | 'code';
-type EmailAuthStep = 'details' | 'otp' | 'phone-otp';
+type AuthMode = 'email';
+type EmailAuthStep = 'details' | 'otp';
 // Form data interface
 interface AuthFormData {
   email: string;
@@ -49,23 +48,13 @@ function App() {
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [name, setName] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState<any>(null);
-  const [phoneAuthStep, setPhoneAuthStep] = useState<PhoneAuthStep>('phone');
-  const [phoneUserType, setPhoneUserType] = useState<'donor' | 'ngo'>('donor');
-  const [phoneOrganizationName, setPhoneOrganizationName] = useState('');
   const [showLanding, setShowLanding] = useState(true);
   const [activeLink, setActiveLink] = useState('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [emailOtp, setEmailOtp] = useState('');
-  const [phoneOtp, setPhoneOtp] = useState('');
   const [emailAuthStep, setEmailAuthStep] = useState<EmailAuthStep>('details');
   const [otpTimer, setOtpTimer] = useState(0);
-  const [phoneOtpTimer, setPhoneOtpTimer] = useState(0);
   const [isResendingOtp, setIsResendingOtp] = useState(false);
-  const [isResendingPhoneOtp, setIsResendingPhoneOtp] = useState(false);
   // Search functionality can be implemented here when needed
   // const [searchQuery, setSearchQuery] = useState('');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -480,13 +469,8 @@ function App() {
       console.log('Frontend: OTP verification response:', data, 'status:', response.status);
       
       if (response.ok) {
-        // After email OTP verification, proceed to phone OTP
-        if (formData.phone) {
-          await handleSendPhoneOTP();
-        } else {
-          // If no phone number, proceed with registration
-          await completeRegistration();
-        }
+        // Proceed directly with registration
+        await completeRegistration();
       } else {
         setError(data.error || 'Invalid OTP');
       }
@@ -496,89 +480,6 @@ function App() {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleSendPhoneOTP = async () => {
-    setError(null);
-    setIsSubmitting(true);
-    
-    try {
-      const formattedPhone = formData.phone.startsWith('+') ? formData.phone : `+91${formData.phone}`;
-      const response = await fetch('http://localhost:5000/api/v1/auth/send-phone-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone: formattedPhone }),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        setEmailAuthStep('phone-otp');
-        setPhoneOtpTimer(600); // 10 minutes in seconds
-        startPhoneOtpTimer();
-      } else {
-        setError(data.error || 'Failed to send phone OTP');
-      }
-    } catch (error: any) {
-      setError(error.message || 'Failed to send phone OTP');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleVerifyPhoneOTP = async () => {
-    setError(null);
-    setIsSubmitting(true);
-    
-    try {
-      const formattedPhone = formData.phone.startsWith('+') ? formData.phone : `+91${formData.phone}`;
-      const response = await fetch('http://localhost:5000/api/v1/auth/verify-phone-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          phone: formattedPhone, 
-          otp: phoneOtp 
-        }),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        // Proceed with registration after phone verification
-        await completeRegistration();
-      } else {
-        setError(data.error || 'Invalid phone OTP');
-      }
-    } catch (error: any) {
-      console.error('Frontend: Phone OTP verification error:', error);
-      setError(error.message || 'Failed to verify phone OTP');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const startPhoneOtpTimer = () => {
-    const timer = setInterval(() => {
-      setPhoneOtpTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  const handleResendPhoneOTP = async () => {
-    if (phoneOtpTimer > 0) return;
-    
-    setIsResendingPhoneOtp(true);
-    await handleSendPhoneOTP();
-    setIsResendingPhoneOtp(false);
   };
 
   const completeRegistration = async () => {
@@ -649,9 +550,7 @@ function App() {
         setFormData(prev => ({ ...prev, email: formData.email, password: '' }));
         setEmailAuthStep('details');
         setEmailOtp('');
-        setPhoneOtp('');
         setOtpTimer(0);
-        setPhoneOtpTimer(0);
       } catch (firebaseError: any) {
         console.error('Firebase registration error:', firebaseError);
         console.error('Error code:', firebaseError.code);
@@ -673,9 +572,7 @@ function App() {
         setFormData(prev => ({ ...prev, email: formData.email, password: '' }));
         setEmailAuthStep('details');
         setEmailOtp('');
-        setPhoneOtp('');
         setOtpTimer(0);
-        setPhoneOtpTimer(0);
       }
     } catch (error: any) {
       console.error('Registration completion error:', error);
@@ -768,216 +665,6 @@ function App() {
     }
   };
 
-  const handlePhoneAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    
-    try {
-      if (phoneAuthStep === 'phone') {
-        if (!name.trim()) {
-          setError('Please enter your name');
-          return;
-        }
-        if (!phoneNumber.trim() || phoneNumber.length !== 10) {
-          setError('Please enter a valid 10-digit phone number');
-          return;
-        }
-        setIsSubmitting(true);
-        
-        // Send OTP via Twilio
-        const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-        const response = await fetch('http://localhost:5000/api/v1/auth/send-phone-otp', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ phone: formattedPhoneNumber }),
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-          setPhoneAuthStep('code');
-          setPhoneOtpTimer(600); // 10 minutes
-          startPhoneOtpTimer();
-        } else {
-          setError(data.error || 'Failed to send OTP. Please try again.');
-        }
-      } else {
-        // Verify OTP
-        if (!verificationCode.trim() || verificationCode.length !== 6) {
-          setError('Please enter a valid 6-digit verification code');
-          return;
-        }
-        setIsSubmitting(true);
-        
-        const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-        const verifyResponse = await fetch('http://localhost:5000/api/v1/auth/verify-phone-otp', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            phone: formattedPhoneNumber, 
-            otp: verificationCode 
-          }),
-        });
-        
-        const verifyData = await verifyResponse.json();
-        
-        if (verifyResponse.ok) {
-          // Phone verified, now register/login user
-          // Check if user exists by phone number
-          const checkUserResponse = await fetch(`http://localhost:5000/api/v1/auth/user-by-phone/${encodeURIComponent(formattedPhoneNumber)}`);
-          
-          if (checkUserResponse.ok) {
-            // User exists - sign in
-            const userData = await checkUserResponse.json();
-            setError('Phone verified! Please use email/password to sign in, or contact support.');
-          } else {
-            // New user - create account with phone number
-            if (!phoneUserType) {
-              setError('Please select your role (Donor or NGO)');
-              return;
-            }
-            
-            if (phoneUserType === 'ngo' && !phoneOrganizationName.trim()) {
-              setError('Organization name is required for NGOs');
-              return;
-            }
-            
-            const registerResponse = await fetch('http://localhost:5000/api/v1/auth/register-phone', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                name: name.trim(),
-                phone: formattedPhoneNumber,
-                userType: phoneUserType,
-                organizationName: phoneUserType === 'ngo' ? phoneOrganizationName.trim() : undefined
-              }),
-            });
-            
-            const registerData = await registerResponse.json();
-            
-            if (registerResponse.ok) {
-              // Registration successful - create Firebase user and sign in
-              try {
-                const auth = getAuth();
-                const placeholderEmail = registerData.data.email || `phone_${formattedPhoneNumber.replace(/[^0-9]/g, '')}@phoneauth.local`;
-                // Generate a random password for phone-only users
-                const randomPassword = `Phone${Math.random().toString(36).slice(-12)}!@#`;
-                
-                // Create Firebase user
-                const userCredential = await createUserWithEmailAndPassword(auth, placeholderEmail, randomPassword);
-                const firebaseUser = userCredential.user;
-                
-                // Update Firebase profile with display name
-                await updateProfile(firebaseUser, { displayName: name.trim() });
-                
-                // Update MongoDB user with firebaseUid and preserve userType
-                const updateResponse = await fetch('http://localhost:5000/api/v1/auth/update-firebase-uid', {
-                  method: 'PUT',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    phone: formattedPhoneNumber,
-                    firebaseUid: firebaseUser.uid,
-                    userType: phoneUserType // Ensure userType is preserved
-                  }),
-                });
-                
-                if (updateResponse.ok) {
-                  // Set userMeta for dashboard routing
-                  setUserMeta({
-                    userType: phoneUserType,
-                    organizationName: phoneUserType === 'ngo' ? phoneOrganizationName.trim() : undefined
-                  });
-                  
-                  // Redirect to appropriate dashboard
-                  if (phoneUserType === 'donor') {
-                    setActiveLink('donor-dashboard');
-                  } else if (phoneUserType === 'ngo') {
-                    setActiveLink('ngo-dashboard');
-                  }
-                  
-                  // Reset form and close auth modal
-                  setPhoneAuthStep('phone');
-                  setVerificationCode('');
-                  setPhoneOtpTimer(0);
-                  setName('');
-                  setPhoneNumber('');
-                  setPhoneUserType('donor');
-                  setPhoneOrganizationName('');
-                  setShowLanding(true);
-                  setAuthMode('email');
-                  
-                  // User will be automatically signed in via Firebase auth state change
-                } else {
-                  setError('Registration successful but failed to link Firebase account. Please contact support.');
-                }
-              } catch (firebaseError: any) {
-                console.error('Firebase user creation error:', firebaseError);
-                // User is registered in MongoDB, but Firebase creation failed
-                setError('Account created! However, there was an issue with authentication. Please contact support or try signing in with email.');
-              }
-            } else {
-              setError(registerData.error || 'Registration failed. Please try again.');
-            }
-          }
-        } else {
-          setError(verifyData.error || 'Invalid verification code');
-        }
-      }
-    } catch (error: any) {
-      setError(error.message || 'An error occurred. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleResendPhoneAuthOTP = async () => {
-    if (phoneOtpTimer > 0) return;
-    
-    setIsResendingPhoneOtp(true);
-    setError(null);
-    
-    try {
-      const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-      const response = await fetch('http://localhost:5000/api/v1/auth/send-phone-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone: formattedPhoneNumber }),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        setPhoneOtpTimer(600);
-        startPhoneOtpTimer();
-      } else {
-        setError(data.error || 'Failed to resend OTP');
-      }
-    } catch (error: any) {
-      setError(error.message || 'Failed to resend OTP');
-    } finally {
-      setIsResendingPhoneOtp(false);
-    }
-  };
-
-  const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, ''); // Remove non-numeric characters
-    setPhoneNumber(value);
-  };
-
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setName(e.target.value);
-  };
-
   const handleGoogleSignIn = async () => {
     try {
       setError(null);
@@ -999,9 +686,7 @@ function App() {
     setIsSignUp(prev => !prev);
     setEmailAuthStep('details');
     setEmailOtp('');
-    setPhoneOtp('');
     setOtpTimer(0);
-    setPhoneOtpTimer(0);
   };
 
   // Handle sign in button click (for the header)
@@ -1107,39 +792,10 @@ function App() {
                   {isSignUp ? 'Create an account' : 'Welcome back!'}
                 </h1>
                 <p className="text-gray-500 mt-2">
-                  {authMode === 'phone' 
-                    ? 'Sign in with your phone number'
-                    : isSignUp 
-                      ? 'Join us to make a difference'
-                      : 'Sign in to continue to ShareCare'}
+                  {isSignUp 
+                    ? 'Join us to make a difference'
+                    : 'Sign in to continue to ShareCare'}
                 </p>
-              </div>
-
-              <div className="flex space-x-4 mb-6 border-b">
-                <button
-                  type="button"
-                  onClick={() => setAuthMode('email')}
-                  className={`flex-1 py-2 font-medium text-sm ${
-                    authMode === 'email' 
-                      ? 'text-emerald-600 border-b-2 border-emerald-600' 
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Email
-                </button>
-                {!isSignUp && (
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode('phone')}
-                    className={`flex-1 py-2 font-medium text-sm ${
-                      authMode === 'phone' 
-                        ? 'text-emerald-600 border-b-2 border-emerald-600' 
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Phone
-                  </button>
-                )}
               </div>
 
               {error && (
@@ -1148,192 +804,7 @@ function App() {
                 </div>
               )}
 
-              {authMode === 'phone' ? (
-                <form onSubmit={handlePhoneAuth}>
-                  {phoneAuthStep === 'phone' ? (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                        <input
-                          type="text"
-                          value={name}
-                          onChange={handleNameChange}
-                          placeholder="Enter your full name"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                        <div className="flex">
-                          <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
-                            +91
-                          </span>
-                          <input
-                            type="tel"
-                            value={phoneNumber}
-                            onChange={handlePhoneNumberChange}
-                            placeholder="Enter phone number"
-                            className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-                            required
-                            maxLength={10}
-                            pattern="[6-9][0-9]{9}"
-                          />
-                        </div>
-                        <p className="mt-1 text-xs text-gray-500">We'll send a verification code via SMS to this number</p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          I am a...
-                        </label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setPhoneUserType('donor')}
-                            className={`flex items-center justify-center px-4 py-2 border rounded-lg ${
-                              phoneUserType === 'donor'
-                                ? 'bg-blue-50 border-blue-500 text-blue-700'
-                                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                            }`}
-                          >
-                            <span>Donor</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setPhoneUserType('ngo')}
-                            className={`flex items-center justify-center px-4 py-2 border rounded-lg ${
-                              phoneUserType === 'ngo'
-                                ? 'bg-blue-50 border-blue-500 text-blue-700'
-                                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                            }`}
-                          >
-                            <span>NGO</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {phoneUserType === 'ngo' && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Organization Name <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={phoneOrganizationName}
-                            onChange={(e) => setPhoneOrganizationName(e.target.value)}
-                            placeholder="Enter organization name"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            required={phoneUserType === 'ngo'}
-                          />
-                        </div>
-                      )}
-
-                      <button
-                        type="submit"
-                        disabled={isSubmitting || phoneNumber.length < 10 || !name.trim() || (phoneUserType === 'ngo' && !phoneOrganizationName.trim())}
-                        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isSubmitting ? 'Sending OTP...' : 'Send Verification Code'}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="text-center mb-4">
-                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-900">Verify Your Phone Number</h3>
-                        <p className="text-gray-600 mt-2">
-                          We've sent a 6-digit verification code to <strong>+91{phoneNumber}</strong>
-                        </p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Verification Code</label>
-                        <div className="flex justify-center space-x-2 mb-4">
-                          {[0, 1, 2, 3, 4, 5].map((index) => (
-                            <input
-                              key={index}
-                              type="text"
-                              maxLength={1}
-                              value={verificationCode[index] || ''}
-                              onChange={(e) => {
-                                const value = e.target.value.replace(/\D/g, '');
-                                const newCode = verificationCode.split('');
-                                newCode[index] = value;
-                                const finalCode = newCode.join('');
-                                setVerificationCode(finalCode);
-                                
-                                // Auto-focus next input
-                                if (value && index < 5) {
-                                  const parent = e.target.parentElement;
-                                  if (parent) {
-                                    const nextInput = parent.querySelectorAll('input')[index + 1];
-                                    if (nextInput) (nextInput as HTMLInputElement).focus();
-                                  }
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                // Handle backspace
-                                if (e.key === 'Backspace' && !verificationCode[index] && index > 0) {
-                                  const target = e.target as HTMLInputElement;
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    const prevInput = parent.querySelectorAll('input')[index - 1];
-                                    if (prevInput) (prevInput as HTMLInputElement).focus();
-                                  }
-                                }
-                              }}
-                              className="w-12 h-12 text-center border border-gray-300 rounded-lg text-lg font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
-                          ))}
-                        </div>
-                        <p className="text-center text-sm text-gray-500">
-                          Enter the 6-digit code from your SMS
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-center space-x-4 text-sm">
-                        {phoneOtpTimer > 0 ? (
-                          <span className="text-gray-500">
-                            Resend code in <span className="font-medium">{formatTime(phoneOtpTimer)}</span>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={handleResendPhoneAuthOTP}
-                            disabled={isResendingPhoneOtp}
-                            className="text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
-                          >
-                            {isResendingPhoneOtp ? 'Resending...' : 'Resend Code'}
-                          </button>
-                        )}
-                      </div>
-                      <button
-                        type="submit"
-                        disabled={isSubmitting || verificationCode.length !== 6}
-                        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isSubmitting ? 'Verifying...' : 'Verify Code'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPhoneAuthStep('phone');
-                          setVerificationCode('');
-                          setPhoneOtpTimer(0);
-                          // Don't reset name, phone, userType, or organizationName - allow user to change phone only
-                        }}
-                        className="w-full text-blue-600 hover:text-blue-800 text-sm font-medium"
-                      >
-                        Change Phone Number
-                      </button>
-                    </div>
-                  )}
-                </form>
-              ) : (
-                <form onSubmit={handleAuthSubmit} className="space-y-4">
+              <form onSubmit={handleAuthSubmit} className="space-y-4">
                   {isSignUp && emailAuthStep === 'details' ? (
                     <>
                       <div>
@@ -1467,32 +938,7 @@ function App() {
                         </div>
                       )}
 
-                      <div>
-                        <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                          Phone Number <span className="text-red-500">*</span>
-                        </label>
-                        <div className="flex">
-                          <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
-                            +91
-                          </span>
-                          <input
-                            id="phone"
-                            name="phone"
-                            type="tel"
-                            value={formData.phone}
-                            onChange={(e) => {
-                              const value = e.target.value.replace(/\D/g, ''); // Remove non-numeric characters
-                              setFormData(prev => ({ ...prev, phone: value }));
-                            }}
-                            className="flex-1 min-w-0 block w-full px-4 py-2 rounded-none rounded-r-lg border border-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                            placeholder="Enter 10-digit phone number"
-                            required
-                            maxLength={10}
-                            pattern="[6-9][0-9]{9}"
-                          />
-                        </div>
-                        <p className="mt-1 text-xs text-gray-500">We'll send a verification code to this number</p>
-                      </div>
+
 
                       <div className="pt-2">
                         <button
@@ -1591,7 +1037,7 @@ function App() {
                           disabled={isSubmitting || emailOtp.length !== 6}
                           className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {isSubmitting ? 'Verifying...' : formData.phone ? 'Verify & Continue' : 'Verify & Create Account'}
+                          {isSubmitting ? 'Verifying...' : 'Verify & Create Account'}
                         </button>
                         
                         <button
@@ -1604,107 +1050,6 @@ function App() {
                           className="w-full text-gray-600 hover:text-gray-800 text-sm font-medium"
                         >
                           Back to Details
-                        </button>
-                      </div>
-                    </div>
-                  ) : isSignUp && emailAuthStep === 'phone-otp' ? (
-                    <div className="space-y-4">
-                      <div className="text-center mb-6">
-                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-900">Verify Your Phone Number</h3>
-                        <p className="text-gray-600 mt-2">
-                          We've sent a 6-digit verification code to <strong>+91{formData.phone}</strong>
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Verification Code
-                        </label>
-                        <div className="flex justify-center space-x-2 mb-4">
-                          {[0, 1, 2, 3, 4, 5].map((index) => (
-                            <input
-                              key={index}
-                              type="text"
-                              maxLength={1}
-                              value={phoneOtp[index] || ''}
-                              onChange={(e) => {
-                                const value = e.target.value.replace(/\D/g, '');
-                                const newOtp = phoneOtp.split('');
-                                newOtp[index] = value;
-                                const finalOtp = newOtp.join('');
-                                setPhoneOtp(finalOtp);
-                                
-                                // Auto-focus next input
-                                if (value && index < 5) {
-                                  const parent = e.target.parentElement;
-                                  if (parent) {
-                                    const nextInput = parent.querySelectorAll('input')[index + 1];
-                                    if (nextInput) (nextInput as HTMLInputElement).focus();
-                                  }
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                // Handle backspace
-                                if (e.key === 'Backspace' && !phoneOtp[index] && index > 0) {
-                                  const target = e.target as HTMLInputElement;
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    const prevInput = parent.querySelectorAll('input')[index - 1];
-                                    if (prevInput) (prevInput as HTMLInputElement).focus();
-                                  }
-                                }
-                              }}
-                              className="w-12 h-12 text-center border border-gray-300 rounded-lg text-lg font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
-                          ))}
-                        </div>
-                        <p className="text-center text-sm text-gray-500">
-                          Enter the 6-digit code from your phone
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-center space-x-4 text-sm">
-                        {phoneOtpTimer > 0 ? (
-                          <span className="text-gray-500">
-                            Resend code in <span className="font-medium">{formatTime(phoneOtpTimer)}</span>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={handleResendPhoneOTP}
-                            disabled={isResendingPhoneOtp}
-                            className="text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
-                          >
-                            {isResendingPhoneOtp ? 'Resending...' : 'Resend Code'}
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="pt-4 space-y-3">
-                        <button
-                          type="button"
-                          onClick={handleVerifyPhoneOTP}
-                          disabled={isSubmitting || phoneOtp.length !== 6}
-                          className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isSubmitting ? 'Verifying...' : 'Verify & Complete Registration'}
-                        </button>
-                        
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEmailAuthStep('otp');
-                            setPhoneOtp('');
-                            setPhoneOtpTimer(0);
-                          }}
-                          className="w-full text-gray-600 hover:text-gray-800 text-sm font-medium"
-                        >
-                          Back to Email Verification
                         </button>
                       </div>
                     </div>
@@ -1774,7 +1119,6 @@ function App() {
                     </>
                   )}
                 </form>
-              )}
 
               <div className="mt-6">
                 <div className="relative">

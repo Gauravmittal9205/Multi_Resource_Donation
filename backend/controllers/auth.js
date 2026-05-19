@@ -32,94 +32,6 @@ exports.getUserByEmail = asyncHandler(async (req, res) => {
   return res.status(200).json({ success: true, data: user });
 });
 
-// @desc    Get user by phone number
-// @route   GET /api/v1/auth/user-by-phone/:phone
-// @access  Public
-exports.getUserByPhone = asyncHandler(async (req, res) => {
-  const { phone } = req.params;
-  const user = await User.findOne({ phone }).select('userType organizationName firebaseUid email name phone');
-  if (!user) {
-    return res.status(404).json({ success: false, error: 'User not found' });
-  }
-  return res.status(200).json({ success: true, data: user });
-});
-
-// @desc    Register user with phone number
-// @route   POST /api/v1/auth/register-phone
-// @access  Public
-exports.registerWithPhone = asyncHandler(async (req, res, next) => {
-  try {
-    const { name, phone, userType, organizationName } = req.body;
-
-    if (!name || !phone || !userType) {
-      return next(new ErrorResponse('Name, phone number, and user type are required', 400));
-    }
-
-    if (!['donor', 'ngo'].includes(userType)) {
-      return next(new ErrorResponse('User type must be either "donor" or "ngo"', 400));
-    }
-
-    if (userType === 'ngo' && !organizationName) {
-      return next(new ErrorResponse('Organization name is required for NGOs', 400));
-    }
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ phone });
-    if (existingUser) {
-      return next(new ErrorResponse('User with this phone number already exists', 400));
-    }
-
-    // Format phone number
-    const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
-
-    // Create user data
-    // For phone-only users, use a placeholder email format to satisfy schema requirements
-    // This email won't be used for authentication
-    const placeholderEmail = `phone_${formattedPhone.replace(/[^0-9]/g, '')}@phoneauth.local`;
-    
-    const userData = {
-      name,
-      phone: formattedPhone,
-      userType,
-      email: placeholderEmail, // Placeholder email for phone-only users
-      isVerified: true, // Phone verified
-      emailVerified: false
-    };
-
-    if (userType === 'ngo') {
-      userData.organizationName = organizationName;
-    }
-
-    // Create user in MongoDB
-    const user = await User.create(userData);
-
-    res.status(201).json({
-      success: true,
-      data: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        userType: user.userType,
-        organizationName: user.organizationName
-      }
-    });
-  } catch (err) {
-    console.error('Phone registration error:', err);
-    
-    if (err.code === 11000) {
-      return next(new ErrorResponse('Phone number already exists', 400));
-    }
-    
-    if (err.name === 'ValidationError') {
-      const messages = Object.values(err.errors).map(val => val.message);
-      return next(new ErrorResponse(messages.join(', '), 400));
-    }
-    
-    next(err);
-  }
-});
-
 exports.deleteMe = asyncHandler(async (req, res, next) => {
   const firebaseUid = req.firebaseUid;
   if (!firebaseUid) {
@@ -170,11 +82,28 @@ exports.sendOTP = asyncHandler(async (req, res, next) => {
     otpService.storeOTP(email, otp);
 
     // Send OTP email
-    await emailService.sendVerificationEmail(email, otp);
+    try {
+      await emailService.sendVerificationEmail(email, otp);
+      console.log(`Verification email sent successfully to ${email}`);
+    } catch (emailError) {
+      console.error('Error sending verification email via SMTP:', emailError);
+      
+      // Fallback in development: log the OTP to console and proceed
+      if (process.env.NODE_ENV === 'development') {
+        console.log('\n----------------------------------------');
+        console.log(`[DEVELOPMENT ONLY] Simulated OTP for ${email}: ${otp}`);
+        console.log('----------------------------------------\n');
+      } else {
+        // In production, rethrow the error to return 500
+        throw emailError;
+      }
+    }
 
     res.status(200).json({
       success: true,
-      message: 'OTP sent to your email address'
+      message: process.env.NODE_ENV === 'development' 
+        ? 'OTP generated (Check terminal/console logs in development)' 
+        : 'OTP sent to your email address'
     });
   } catch (error) {
     console.error('Error sending OTP:', error);
