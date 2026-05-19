@@ -48,6 +48,13 @@ function App() {
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [name, setName] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  // const [confirmationResult, setConfirmationResult] = useState<any>(null);
+  const [phoneAuthStep, setPhoneAuthStep] = useState<PhoneAuthStep>('phone');
+  const [phoneUserType, setPhoneUserType] = useState<'donor' | 'ngo'>('donor');
+  const [phoneOrganizationName, setPhoneOrganizationName] = useState('');
   const [showLanding, setShowLanding] = useState(true);
   const [activeLink, setActiveLink] = useState('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -87,7 +94,7 @@ function App() {
       
       // First try to get user type from the database via our API
       try {
-        const response = await fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/user/${user.uid}`);
         if (response.ok) {
           const userData = await response.json();
           if (userData.data && userData.data.userType) {
@@ -190,7 +197,7 @@ function App() {
     setUserMetaLoading(true);
     
     // Check if user is admin
-    fetch(`http://localhost:5000/api/v1/auth/admin/check?email=${encodeURIComponent(user.email || '')}`)
+    fetch(`${import.meta.env.VITE_API_URL}/auth/admin/check?email=${encodeURIComponent(user.email || '')}`)
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json();
@@ -208,7 +215,7 @@ function App() {
       });
     
     // Fetch user meta from User model (not Profile model) to get userType
-    fetch(`http://localhost:5000/api/v1/auth/user/${user.uid}`)
+    fetch(`${import.meta.env.VITE_API_URL}/auth/user/${user.uid}`)
       .then(async (res) => {
         if (!res.ok) {
           const text = await res.text().catch(() => '');
@@ -419,7 +426,7 @@ function App() {
     setIsSubmitting(true);
     
     try {
-      const response = await fetch('http://localhost:5000/api/v1/auth/send-otp', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/send-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -454,7 +461,7 @@ function App() {
     console.log('Frontend: OTP characters:', emailOtp.split(''));
     
     try {
-      const response = await fetch('http://localhost:5000/api/v1/auth/verify-otp', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -482,6 +489,89 @@ function App() {
     }
   };
 
+  const handleSendPhoneOTP = async () => {
+    setError(null);
+    setIsSubmitting(true);
+    
+    try {
+      const formattedPhone = formData.phone.startsWith('+') ? formData.phone : `+91${formData.phone}`;
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/send-phone-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phone: formattedPhone }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setEmailAuthStep('phone-otp');
+        setPhoneOtpTimer(600); // 10 minutes in seconds
+        startPhoneOtpTimer();
+      } else {
+        setError(data.error || 'Failed to send phone OTP');
+      }
+    } catch (error: any) {
+      setError(error.message || 'Failed to send phone OTP');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyPhoneOTP = async () => {
+    setError(null);
+    setIsSubmitting(true);
+    
+    try {
+      const formattedPhone = formData.phone.startsWith('+') ? formData.phone : `+91${formData.phone}`;
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify-phone-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          phone: formattedPhone, 
+          otp: phoneOtp 
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        // Proceed with registration after phone verification
+        await completeRegistration();
+      } else {
+        setError(data.error || 'Invalid phone OTP');
+      }
+    } catch (error: any) {
+      console.error('Frontend: Phone OTP verification error:', error);
+      setError(error.message || 'Failed to verify phone OTP');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const startPhoneOtpTimer = () => {
+    const timer = setInterval(() => {
+      setPhoneOtpTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleResendPhoneOTP = async () => {
+    if (phoneOtpTimer > 0) return;
+    
+    setIsResendingPhoneOtp(true);
+    await handleSendPhoneOTP();
+    setIsResendingPhoneOtp(false);
+  };
+
   const completeRegistration = async () => {
     try {
       // After successful OTP verification, just create Firebase user
@@ -506,7 +596,7 @@ function App() {
         
         // Update MongoDB user with firebaseUid and ensure userType is set
         try {
-          const updateResponse = await fetch('http://localhost:5000/api/v1/auth/update-firebase-uid', {
+          const updateResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/update-firebase-uid`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -623,7 +713,7 @@ function App() {
 
         // Register user in MongoDB first, then send OTP
         try {
-          const response = await fetch('http://localhost:5000/api/v1/auth/register', {
+          const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -663,6 +753,216 @@ function App() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handlePhoneAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    
+    try {
+      if (phoneAuthStep === 'phone') {
+        if (!name.trim()) {
+          setError('Please enter your name');
+          return;
+        }
+        if (!phoneNumber.trim() || phoneNumber.length !== 10) {
+          setError('Please enter a valid 10-digit phone number');
+          return;
+        }
+        setIsSubmitting(true);
+        
+        // Send OTP via Twilio
+        const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/send-phone-otp`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ phone: formattedPhoneNumber }),
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          setPhoneAuthStep('code');
+          setPhoneOtpTimer(600); // 10 minutes
+          startPhoneOtpTimer();
+        } else {
+          setError(data.error || 'Failed to send OTP. Please try again.');
+        }
+      } else {
+        // Verify OTP
+        if (!verificationCode.trim() || verificationCode.length !== 6) {
+          setError('Please enter a valid 6-digit verification code');
+          return;
+        }
+        setIsSubmitting(true);
+        
+        const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
+        const verifyResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify-phone-otp`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            phone: formattedPhoneNumber, 
+            otp: verificationCode 
+          }),
+        });
+        
+        const verifyData = await verifyResponse.json();
+        
+        if (verifyResponse.ok) {
+          // Phone verified, now register/login user
+          // Check if user exists by phone number
+          const checkUserResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/user-by-phone/${encodeURIComponent(formattedPhoneNumber)}`);
+          
+          if (checkUserResponse.ok) {
+            // User exists - sign in
+            // const userData = await checkUserResponse.json();
+            setError('Phone verified! Please use email/password to sign in, or contact support.');
+          } else {
+            // New user - create account with phone number
+            if (!phoneUserType) {
+              setError('Please select your role (Donor or NGO)');
+              return;
+            }
+            
+            if (phoneUserType === 'ngo' && !phoneOrganizationName.trim()) {
+              setError('Organization name is required for NGOs');
+              return;
+            }
+            
+            const registerResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/register-phone`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                name: name.trim(),
+                phone: formattedPhoneNumber,
+                userType: phoneUserType,
+                organizationName: phoneUserType === 'ngo' ? phoneOrganizationName.trim() : undefined
+              }),
+            });
+            
+            const registerData = await registerResponse.json();
+            
+            if (registerResponse.ok) {
+              // Registration successful - create Firebase user and sign in
+              try {
+                const auth = getAuth();
+                const placeholderEmail = registerData.data.email || `phone_${formattedPhoneNumber.replace(/[^0-9]/g, '')}@phoneauth.local`;
+                // Generate a random password for phone-only users
+                const randomPassword = `Phone${Math.random().toString(36).slice(-12)}!@#`;
+                
+                // Create Firebase user
+                const userCredential = await createUserWithEmailAndPassword(auth, placeholderEmail, randomPassword);
+                const firebaseUser = userCredential.user;
+                
+                // Update Firebase profile with display name
+                await updateProfile(firebaseUser, { displayName: name.trim() });
+                
+                // Update MongoDB user with firebaseUid and preserve userType
+                const updateResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/update-firebase-uid`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    phone: formattedPhoneNumber,
+                    firebaseUid: firebaseUser.uid,
+                    userType: phoneUserType // Ensure userType is preserved
+                  }),
+                });
+                
+                if (updateResponse.ok) {
+                  // Set userMeta for dashboard routing
+                  setUserMeta({
+                    userType: phoneUserType,
+                    organizationName: phoneUserType === 'ngo' ? phoneOrganizationName.trim() : undefined
+                  });
+                  
+                  // Redirect to appropriate dashboard
+                  if (phoneUserType === 'donor') {
+                    setActiveLink('donor-dashboard');
+                  } else if (phoneUserType === 'ngo') {
+                    setActiveLink('ngo-dashboard');
+                  }
+                  
+                  // Reset form and close auth modal
+                  setPhoneAuthStep('phone');
+                  setVerificationCode('');
+                  setPhoneOtpTimer(0);
+                  setName('');
+                  setPhoneNumber('');
+                  setPhoneUserType('donor');
+                  setPhoneOrganizationName('');
+                  setShowLanding(true);
+                  setAuthMode('email');
+                  
+                  // User will be automatically signed in via Firebase auth state change
+                } else {
+                  setError('Registration successful but failed to link Firebase account. Please contact support.');
+                }
+              } catch (firebaseError: any) {
+                console.error('Firebase user creation error:', firebaseError);
+                // User is registered in MongoDB, but Firebase creation failed
+                setError('Account created! However, there was an issue with authentication. Please contact support or try signing in with email.');
+              }
+            } else {
+              setError(registerData.error || 'Registration failed. Please try again.');
+            }
+          }
+        } else {
+          setError(verifyData.error || 'Invalid verification code');
+        }
+      }
+    } catch (error: any) {
+      setError(error.message || 'An error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResendPhoneAuthOTP = async () => {
+    if (phoneOtpTimer > 0) return;
+    
+    setIsResendingPhoneOtp(true);
+    setError(null);
+    
+    try {
+      const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/send-phone-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phone: formattedPhoneNumber }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setPhoneOtpTimer(600);
+        startPhoneOtpTimer();
+      } else {
+        setError(data.error || 'Failed to resend OTP');
+      }
+    } catch (error: any) {
+      setError(error.message || 'Failed to resend OTP');
+    } finally {
+      setIsResendingPhoneOtp(false);
+    }
+  };
+
+  const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, ''); // Remove non-numeric characters
+    setPhoneNumber(value);
+  };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setName(e.target.value);
   };
 
   const handleGoogleSignIn = async () => {

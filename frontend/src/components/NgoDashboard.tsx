@@ -147,7 +147,7 @@ export default function NgoDashboard({ user, onBack, onNavigateProfile }: NgoDas
         const token = await user?.getIdToken();
         if (!token) return;
         
-        const response = await fetch('http://localhost:5000/api/v1/ngo-registration', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/ngo-registration`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -1322,7 +1322,7 @@ export default function NgoDashboard({ user, onBack, onNavigateProfile }: NgoDas
                   <div className="relative">
                     <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-emerald-200 via-emerald-300 to-transparent"></div>
                     <div className="space-y-6">
-                      {recentActivities.map((n, index) => {
+                      {recentActivities.map((n) => {
                         const meta = getNotificationCategoryMeta(n.category);
                         return (
                           <div key={n._id} className="relative pl-10 group">
@@ -3836,7 +3836,7 @@ function PickupDeliveriesTab() {
               if (!token) return;
               
               const requestResponse = await axios.default.get(
-                `http://localhost:5000/api/v1/ngo-requests/${requestId}`,
+                `${import.meta.env.VITE_API_URL}/ngo-requests/${requestId}`,
                 {
                   headers: { Authorization: `Bearer ${token}` }
                 }
