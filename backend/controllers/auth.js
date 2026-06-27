@@ -81,35 +81,34 @@ exports.sendOTP = asyncHandler(async (req, res, next) => {
     const otp = otpService.generateOTP();
     otpService.storeOTP(email, otp);
 
-    // Send OTP email
-    try {
-      await emailService.sendVerificationEmail(email, otp);
-      console.log(`Verification email sent successfully to ${email}`);
-    } catch (emailError) {
-      console.error('Error sending verification email via SMTP:', emailError);
-      
-      // Fallback in development: log the OTP to console and proceed
-      if (process.env.NODE_ENV === 'development') {
-        console.log('\n----------------------------------------');
-        console.log(`[DEVELOPMENT ONLY] Simulated OTP for ${email}: ${otp}`);
-        console.log('----------------------------------------\n');
-      } else {
-        // In production, rethrow the error to return 500
-        throw emailError;
-      }
-    }
+    // Always log OTP on server for debugging (remove in true production)
+    console.log(`[OTP] Generated OTP for ${email}: ${otp}`);
 
+    // Send OTP email in the background - don't block the response
+    // This prevents SMTP timeouts from hanging the request
+    const emailPromise = Promise.race([
+      emailService.sendVerificationEmail(email, otp),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Email send timeout (15s)')), 15000))
+    ]);
+
+    emailPromise
+      .then(() => console.log(`Verification email sent successfully to ${email}`))
+      .catch((emailError) => {
+        console.error('Error sending verification email via SMTP:', emailError.message || emailError);
+        console.log(`[FALLBACK] OTP for ${email}: ${otp} (email delivery failed, use debug-otp endpoint)`);
+      });
+
+    // Respond immediately - don't wait for email delivery
     res.status(200).json({
       success: true,
-      message: process.env.NODE_ENV === 'development' 
-        ? 'OTP generated (Check terminal/console logs in development)' 
-        : 'OTP sent to your email address'
+      message: 'OTP generated and email is being sent'
     });
   } catch (error) {
     console.error('Error sending OTP:', error);
     next(error);
   }
 });
+
 
 // @desc    Verify OTP
 // @route   POST /api/v1/auth/verify-otp
